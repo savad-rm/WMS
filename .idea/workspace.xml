@@ -2,118 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="6135aaf6-49b0-4da9-b0b1-6bd5c580b3c8" name="Default" comment="">
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/dataload.py" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/templates/Accountant/fur_chat.html" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/templates/Admin/fur_chat.html" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/templates/Project Manager/Add Subcontractor Estimate.html" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/templates/Project Manager/Draft Subcontractor Budget.html" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/templates/Project Manager/fur_chat.html" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/templates/Purchaser/fur_chat.html" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/templates/Supervisor/fur_chat.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/db.sqlite3" afterPath="$PROJECT_DIR$/db.sqlite3" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/MyApp/models.py" afterPath="$PROJECT_DIR$/MyApp/models.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/MyApp/urls.py" afterPath="$PROJECT_DIR$/MyApp/urls.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/MyApp/views.py" afterPath="$PROJECT_DIR$/MyApp/views.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/WMS/settings.py" afterPath="$PROJECT_DIR$/WMS/settings.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Accountant/Add AccountSub.html" afterPath="$PROJECT_DIR$/templates/Accountant/Add AccountSub.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Accountant/Add AcountHead.html" afterPath="$PROJECT_DIR$/templates/Accountant/Add AcountHead.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Accountant/Change Password.html" afterPath="$PROJECT_DIR$/templates/Accountant/Change Password.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Accountant/Edit AccountHead.html" afterPath="$PROJECT_DIR$/templates/Accountant/Edit AccountHead.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Accountant/Edit AccountSub.html" afterPath="$PROJECT_DIR$/templates/Accountant/Edit AccountSub.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Accountant/Edit Project Payment Entry.html" afterPath="$PROJECT_DIR$/templates/Accountant/Edit Project Payment Entry.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Accountant/Edit Transaction Entry.html" afterPath="$PROJECT_DIR$/templates/Accountant/Edit Transaction Entry.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Accountant/Transaction Entry.html" afterPath="$PROJECT_DIR$/templates/Accountant/Transaction Entry.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Accountant/View Projects.html" afterPath="$PROJECT_DIR$/templates/Accountant/View Projects.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Accountant/acindex.html" afterPath="$PROJECT_DIR$/templates/Accountant/acindex.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Accountant/acindex2.html" afterPath="$PROJECT_DIR$/templates/Accountant/acindex2.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Admin/Add Project.html" afterPath="$PROJECT_DIR$/templates/Admin/Add Project.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Admin/Add Staff.html" afterPath="$PROJECT_DIR$/templates/Admin/Add Staff.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Admin/Edit Project Allocation to Supervisor.html" afterPath="$PROJECT_DIR$/templates/Admin/Edit Project Allocation to Supervisor.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Admin/Edit Project allocation to pm.html" afterPath="$PROJECT_DIR$/templates/Admin/Edit Project allocation to pm.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Admin/Edit Project.html" afterPath="$PROJECT_DIR$/templates/Admin/Edit Project.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Admin/Edit Staff.html" afterPath="$PROJECT_DIR$/templates/Admin/Edit Staff.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Admin/Project Allocation to Supervisor.html" afterPath="$PROJECT_DIR$/templates/Admin/Project Allocation to Supervisor.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Admin/Project allocation to project manager.html" afterPath="$PROJECT_DIR$/templates/Admin/Project allocation to project manager.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Admin/View Budget.html" afterPath="$PROJECT_DIR$/templates/Admin/View Budget.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Admin/View Completed Project.html" afterPath="$PROJECT_DIR$/templates/Admin/View Completed Project.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Admin/View Material Required.html" afterPath="$PROJECT_DIR$/templates/Admin/View Material Required.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Admin/View Ongoing Projects.html" afterPath="$PROJECT_DIR$/templates/Admin/View Ongoing Projects.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Admin/View Project.html" afterPath="$PROJECT_DIR$/templates/Admin/View Project.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Admin/View Total Material Request.html" afterPath="$PROJECT_DIR$/templates/Admin/View Total Material Request.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Admin/index.html" afterPath="$PROJECT_DIR$/templates/Admin/index.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Admin/index2.html" afterPath="$PROJECT_DIR$/templates/Admin/index2.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Add Estimate.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Add Estimate.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Add Material Required.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Add Material Required.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Add Materials.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Add Materials.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Add Project Inspection Details.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Add Project Inspection Details.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Add Requirement Estimate.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Add Requirement Estimate.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Add Subcontractor Schedule.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Add Subcontractor Schedule.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Add Subcontractor to project.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Add Subcontractor to project.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Add Subcontractor.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Add Subcontractor.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Add Works.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Add Works.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Change Password.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Change Password.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Draft Budget.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Draft Budget.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Draft Requirement Budget.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Draft Requirement Budget.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Edit Budget.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Edit Budget.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Edit Estimate.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Edit Estimate.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Edit Issued Materials to Site.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Edit Issued Materials to Site.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Edit Materials Required.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Edit Materials Required.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Edit Materials.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Edit Materials.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Edit Project Inspection Details.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Edit Project Inspection Details.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Edit Project allocation to purchaser.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Edit Project allocation to purchaser.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Edit Subcontractor Schedule.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Edit Subcontractor Schedule.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Edit Subcontractor of project.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Edit Subcontractor of project.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Edit Subcontractor.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Edit Subcontractor.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Edit Supplier Materials.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Edit Supplier Materials.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Edit Supplier of project.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Edit Supplier of project.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Edit Uploaded Documents.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Edit Uploaded Documents.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Edit Uploaded Drawings.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Edit Uploaded Drawings.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Edit Work Schedule.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Edit Work Schedule.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Edit Work.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Edit Work.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/Issue Materials to Site.html" afterPath="$PROJECT_DIR$/templates/Project Manager/Issue Materials to Site.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/View Assigned Projects.html" afterPath="$PROJECT_DIR$/templates/Project Manager/View Assigned Projects.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/View Budget.html" afterPath="$PROJECT_DIR$/templates/Project Manager/View Budget.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/View Completed Projects.html" afterPath="$PROJECT_DIR$/templates/Project Manager/View Completed Projects.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/View Issued Materials to Site.html" afterPath="$PROJECT_DIR$/templates/Project Manager/View Issued Materials to Site.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/View Material Request.html" afterPath="$PROJECT_DIR$/templates/Project Manager/View Material Request.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/View Materials Required.html" afterPath="$PROJECT_DIR$/templates/Project Manager/View Materials Required.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/View Materials.html" afterPath="$PROJECT_DIR$/templates/Project Manager/View Materials.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/View Ongoing Project.html" afterPath="$PROJECT_DIR$/templates/Project Manager/View Ongoing Project.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/View Pending Material Request.html" afterPath="$PROJECT_DIR$/templates/Project Manager/View Pending Material Request.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/pmindex.html" afterPath="$PROJECT_DIR$/templates/Project Manager/pmindex.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Project Manager/pmindex2.html" afterPath="$PROJECT_DIR$/templates/Project Manager/pmindex2.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Purchaser/Change Password.html" afterPath="$PROJECT_DIR$/templates/Purchaser/Change Password.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Purchaser/Deliver Materials to Site.html" afterPath="$PROJECT_DIR$/templates/Purchaser/Deliver Materials to Site.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Purchaser/Edit Delivered Materials.html" afterPath="$PROJECT_DIR$/templates/Purchaser/Edit Delivered Materials.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Purchaser/View Assigned Projects.html" afterPath="$PROJECT_DIR$/templates/Purchaser/View Assigned Projects.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Purchaser/View Completed Projects.html" afterPath="$PROJECT_DIR$/templates/Purchaser/View Completed Projects.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Purchaser/View Material Request.html" afterPath="$PROJECT_DIR$/templates/Purchaser/View Material Request.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Purchaser/View Materials Delivered.html" afterPath="$PROJECT_DIR$/templates/Purchaser/View Materials Delivered.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Purchaser/View Materials Issued.html" afterPath="$PROJECT_DIR$/templates/Purchaser/View Materials Issued.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Purchaser/View Materials Required.html" afterPath="$PROJECT_DIR$/templates/Purchaser/View Materials Required.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Purchaser/View Ongoing Project.html" afterPath="$PROJECT_DIR$/templates/Purchaser/View Ongoing Project.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Purchaser/pcindex.html" afterPath="$PROJECT_DIR$/templates/Purchaser/pcindex.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Purchaser/pcindex2.html" afterPath="$PROJECT_DIR$/templates/Purchaser/pcindex2.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Supervisor/Add Daily Material Usage.html" afterPath="$PROJECT_DIR$/templates/Supervisor/Add Daily Material Usage.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Supervisor/Add Daily Workers Count.html" afterPath="$PROJECT_DIR$/templates/Supervisor/Add Daily Workers Count.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Supervisor/Change Password.html" afterPath="$PROJECT_DIR$/templates/Supervisor/Change Password.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Supervisor/Edit Daily Material Usage.html" afterPath="$PROJECT_DIR$/templates/Supervisor/Edit Daily Material Usage.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Supervisor/Edit Daily Workers Count.html" afterPath="$PROJECT_DIR$/templates/Supervisor/Edit Daily Workers Count.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Supervisor/Edit Material Request.html" afterPath="$PROJECT_DIR$/templates/Supervisor/Edit Material Request.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Supervisor/Edit Uploaded Site Photos.html" afterPath="$PROJECT_DIR$/templates/Supervisor/Edit Uploaded Site Photos.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Supervisor/Send Material Request.html" afterPath="$PROJECT_DIR$/templates/Supervisor/Send Material Request.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Supervisor/View Assigned Projects.html" afterPath="$PROJECT_DIR$/templates/Supervisor/View Assigned Projects.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Supervisor/View Budget.html" afterPath="$PROJECT_DIR$/templates/Supervisor/View Budget.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Supervisor/View Completed Projects.html" afterPath="$PROJECT_DIR$/templates/Supervisor/View Completed Projects.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Supervisor/View Daily Material Usage.html" afterPath="$PROJECT_DIR$/templates/Supervisor/View Daily Material Usage.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Supervisor/View Material Request.html" afterPath="$PROJECT_DIR$/templates/Supervisor/View Material Request.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Supervisor/View Material Usage Report.html" afterPath="$PROJECT_DIR$/templates/Supervisor/View Material Usage Report.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Supervisor/View Materials Issued &amp; Update Status.html" afterPath="$PROJECT_DIR$/templates/Supervisor/View Materials Issued &amp; Update Status.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Supervisor/View Materials Required.html" afterPath="$PROJECT_DIR$/templates/Supervisor/View Materials Required.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Supervisor/View Ongoing Project.html" afterPath="$PROJECT_DIR$/templates/Supervisor/View Ongoing Project.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Supervisor/spindex.html" afterPath="$PROJECT_DIR$/templates/Supervisor/spindex.html" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/Supervisor/spindex2.html" afterPath="$PROJECT_DIR$/templates/Supervisor/spindex2.html" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/templates/login.html" afterPath="$PROJECT_DIR$/templates/login.html" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
@@ -155,11 +44,31 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="settings.py" pinned="false" current-in-tab="true">
+      <file leaf-file-name="settings.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/WMS/settings.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="213">
-              <caret line="29" column="16" lean-forward="true" selection-start-line="29" selection-start-column="16" selection-end-line="29" selection-end-column="16" />
+            <state relative-caret-position="159">
+              <caret line="29" column="16" lean-forward="false" selection-start-line="29" selection-start-column="16" selection-end-line="29" selection-end-column="16" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="index.html" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/templates/Admin/index.html">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="51">
+              <caret line="1134" column="19" lean-forward="false" selection-start-line="1134" selection-start-column="19" selection-end-line="1134" selection-end-column="19" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="login.html" pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/templates/login.html">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="414">
+              <caret line="29" column="24" lean-forward="false" selection-start-line="29" selection-start-column="24" selection-end-line="29" selection-end-column="24" />
               <folding />
             </state>
           </provider>
@@ -197,10 +106,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>count</find>
-      <find>chatview</find>
-      <find>staff</find>
-      <find>test</find>
       <find>repeatEverySecond</find>
       <find>strftime</find>
       <find>chat</find>
@@ -227,6 +132,10 @@
       <find>projects_fun</find>
       <find>View_Project</find>
       <find>Change_password_ac</find>
+      <find>css</find>
+      <find>{% static</find>
+      <find>%}</find>
+      <find>{% static  '</find>
     </findStrings>
     <replaceStrings>
       <replace />
@@ -243,8 +152,6 @@
   <component name="IdeDocumentHistory">
     <option name="CHANGED_PATHS">
       <list>
-        <option value="$PROJECT_DIR$/templates/Supervisor/View Materials Required.html" />
-        <option value="$PROJECT_DIR$/templates/Purchaser/View Materials Required.html" />
         <option value="$PROJECT_DIR$/templates/Admin/View Material Required.html" />
         <option value="$PROJECT_DIR$/templates/Project Manager/Draft Budget.html" />
         <option value="$PROJECT_DIR$/templates/Project Manager/Edit Budget.html" />
@@ -294,6 +201,8 @@
         <option value="$PROJECT_DIR$/templates/Supervisor/Add Daily Workers Count.html" />
         <option value="$PROJECT_DIR$/templates/Accountant/Transaction Entry.html" />
         <option value="$PROJECT_DIR$/WMS/settings.py" />
+        <option value="$PROJECT_DIR$/templates/Admin/index.html" />
+        <option value="$PROJECT_DIR$/templates/login.html" />
       </list>
     </option>
   </component>
@@ -365,6 +274,56 @@
             </PATH_ELEMENT>
             <PATH_ELEMENT>
               <option name="myItemId" value="templates" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="WMS" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="WMS" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="templates" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="Admin" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="WMS" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="WMS" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="static" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="WMS" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="WMS" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="static" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="index" />
               <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
             </PATH_ELEMENT>
           </PATH>
@@ -693,20 +652,6 @@
     <watches-manager />
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/templates/Project Manager/View Budget.html">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="144">
-          <caret line="8" column="0" lean-forward="false" selection-start-line="8" selection-start-column="0" selection-end-line="13" selection-end-column="6" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/templates/Purchaser/Edit Delivered Materials.html">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="666">
-          <caret line="37" column="148" lean-forward="false" selection-start-line="37" selection-start-column="148" selection-end-line="37" selection-end-column="148" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/templates/Project Manager/View Ongoing Project.html">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="355">
@@ -1098,8 +1043,24 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/WMS/settings.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="213">
-          <caret line="29" column="16" lean-forward="true" selection-start-line="29" selection-start-column="16" selection-end-line="29" selection-end-column="16" />
+        <state relative-caret-position="159">
+          <caret line="29" column="16" lean-forward="false" selection-start-line="29" selection-start-column="16" selection-end-line="29" selection-end-column="16" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/templates/Admin/index.html">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="51">
+          <caret line="1134" column="19" lean-forward="false" selection-start-line="1134" selection-start-column="19" selection-end-line="1134" selection-end-column="19" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/templates/login.html">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="414">
+          <caret line="29" column="24" lean-forward="false" selection-start-line="29" selection-start-column="24" selection-end-line="29" selection-end-column="24" />
           <folding />
         </state>
       </provider>

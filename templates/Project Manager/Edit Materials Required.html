@@ -1,0 +1,54 @@
+{% extends "Project Manager/pmindex.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/Edit_material_required_post/">
+  {% csrf_token %}
+<div style="color: blue"><h3>Edit Materials Required</h3></div>
+    <table width="200" border="1" class="table table-striped">
+        <input type="hidden" name="mrid" value="{{ data.id }}">
+        <input type="hidden" name="pid" value="{{ pid }}">
+
+    <tr>
+      <td>Category</td>
+    <td>
+       <select name="category" id="select" class="form-control tag">
+          <option value="Preliminaries" {% if data.category == 'Preliminaries' %}selected{% endif %} >Preliminaries</option>
+          <option value="Electrical" {% if data.category == 'Electrical' %}selected{% endif %}>Electrical</option>
+          <option value="Fire Alarm" {% if data.category == 'Fire Alarm' %}selected{% endif %}>Fire Alarm </option>
+          <option value="HVAC" {% if data.category == 'HVAC' %}selected{% endif %}>HVAC </option>
+          <option value="Fire Fighting" {% if data.category == 'Fire Fighting' %}selected{% endif %}>Fire Fighting</option>
+          <option value="Flooring" {% if data.category == 'Flooring' %}selected{% endif %}>Flooring</option>
+          <option value="Ceiling" {% if data.category == 'Ceiling' %}selected{% endif %}>Ceiling</option>
+          <option value="Gypsum Cladding" {% if data.category == 'Gypsum Cladding' %}selected{% endif %}>Gypsum Cladding</option>
+          <option value="Glass Partition" {% if data.category == 'Glass Partition' %}selected{% endif %}>Glass Partition</option>
+          <option value="Cleaning" {% if data.category == 'Cleaning' %}selected{% endif %}>Cleaning</option>
+          <option value="Demolition" {% if data.category == 'Demolition' %}selected{% endif %}>Demolition</option>
+          <option value="Shop Front" {% if data.category == 'Shop Front' %}selected{% endif %}>Shop Front</option>
+          <option value="Joinery Work" {% if data.category == 'Joinery Work' %}selected{% endif %}>Joinery Work</option>
+          <option value="Painting" {% if data.category == 'Painting' %}selected{% endif %}>Painting</option>
+       </select>
+    </td>
+    </tr>
+    <tr>
+      <td>Material</td>
+      <td>
+             <select name="material" id="select" class="form-control">
+         {% for i in data2 %}
+             <option {% if data.MATERIAL.id == i.id %}selected{% endif %} value="{{ i.id }}">{{ i.name }}{{ i.unit }}</option>
+         {% endfor %}
+             </select>
+     </td>
+    </tr>
+    <tr>
+      <td>Quantity</td>
+      <td><input type="text" name="quantity" id="textfield3" value="{{ data.quantity }}" class="form-control"/></td>
+    </tr>
+    <tr>
+      <td>Price</td>
+      <td><input type="text" name="price" id="textfield3" value="{{ data.price }}" class="form-control"/></td>
+    </tr>
+    <tr align="center">
+      <td colspan="2"><input type="submit" name="button3" id="button3" value="Save"  class="btn btn-outline-primary"/></td>
+    </tr>
+  </table>
+</form>
+{% endblock %}

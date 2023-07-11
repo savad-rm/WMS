@@ -1,0 +1,41 @@
+{% extends "Supervisor/spindex2.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/search_misd/#myid">
+  {% csrf_token %}
+<div style="color: blue" align="center"><h3>Materials Issued</h3></div>
+<input type="hidden" value="{{ id }}" name="pid">
+<div class="dataTable-top">
+    <div class="dataTable-search">
+        <input type="text" name="text" id="textfield" placeholder="Enter name here..." class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Search" class="btn btn-outline-info btn-sm"/>
+        From&nbsp;<input type="date" name="from" id="textfield"  class="form-control-sm"/>&nbsp;
+        To&nbsp;<input type="date" name="to" id="textfield"  class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+    <table width="436" border="1" class="table table-striped">
+  <thead>
+    <tr style="background-color: #00a0dc;color: white">
+      <td width="106">Sl.No</td>
+      <td width="150">Date</td>
+      <td width="150">Material</td>
+      <td width="151">Issued</td>
+      <td>Status</td>
+      <td></td>
+    </tr>
+  </thead>
+  <tbody>
+        {% for i in data1 %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ i.date }}</td>
+      <td>{{ i.MATERIAL.name }}</td>
+      <td>{{ i.quantity_issued }}{{ i.MATERIAL.unit }}</td>
+      <td>{{ i.status}}</td>
+      <td><a href="/WMS/Update_issue_status/{{ i.id }}" class="btn btn-outline-primary btn-sm">Recieved</a></td>
+    </tr>
+        {% endfor %}
+  </tbody>
+  </table>
+</form>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "Project Manager/pmindex.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/search_aspp/">
+  {% csrf_token %}
+<div style="color: blue" align="center"><h3>Assigned Projects</h3></div>
+<div class="dataTable-top">
+    <div class="dataTable-search">
+        <input type="text" name="text" id="textfield" placeholder="Enter name here..." class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Search" class="btn btn-outline-info btn-sm"/>
+        From&nbsp;<input type="date" name="from" id="textfield"  class="form-control-sm"/>&nbsp;
+        To&nbsp;<input type="date" name="to" id="textfield"  class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+
+  <table width="200" border="1" class="table table-striped">
+  <thead>
+    <tr style="background-color: #00a0dc;color: white">
+      <td>Sl.No</td>
+      <td>Date</td>
+      <td>Project No</td>
+      <td>Project Name</td>
+{#      <td>Client Name</td>#}
+{#      <td>Email</td>#}
+{#      <td>Phone</td>#}
+{#      <td>Address</td>#}
+      <td>Project Location</td>
+      <td>Starting Date</td>
+      <td>Handover Date</td>
+      <td>Project Duration</td>
+      <td>Project Area</td>
+      <td>Project Type</td>
+      <td>Description</td>
+      <td>Estimate Status</td>
+      <td>Status</td>
+      <td>&nbsp;</td>
+    </tr>
+  </thead>
+      {% for i in data %}
+  <tbody>
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ i.PROJECT.date }}</td>
+      <td>{{ i.PROJECT.project_no }}</td>
+      <td>{{ i.PROJECT.project_name }}</td>
+{#      <td>{{ i.PROJECT.client_name }}</td>#}
+{#      <td>{{ i.PROJECT.email }}</td>#}
+{#      <td>{{ i.PROJECT.phone }}</td>#}
+{#      <td>{{ i.PROJECT.place }}<br>{{ i.PROJECT.unit_no }}</td>#}
+      <td>{{ i.PROJECT.place }}</td>
+      <td>{{ i.PROJECT.start_date }}</td>
+      <td>{{ i.PROJECT.handout_date }}</td>
+      <td>{{ i.PROJECT.project_duration }}</td>
+      <td>{{ i.PROJECT.project_area}}</td>
+      <td>{{ i.PROJECT.project_type }}</td>
+      <td>{{ i.PROJECT.description }}</td>
+      <td>{{ i.PROJECT.estimate_status }}</td>
+      <td>{{ i.PROJECT.status }}</td>
+      <td><a href="#">View More</a></td>
+    </tr>
+  </tbody>
+      {% endfor %}
+  </table>
+</form>
+{% endblock %}

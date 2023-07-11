@@ -1,0 +1,42 @@
+{% extends "Supervisor/spindex.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" enctype="multipart/form-data" action="">
+  {% csrf_token %}
+    <div style="color: blue"><h3>Work Progress</h3></div>
+    <table width="168" border="1"  class="table table-striped">
+  <thead>
+    <tr>
+{#      <td width="44">Sl.No</td>#}
+      <td width="46">Date</td>
+      <td width="46">Work Category</td>
+      <td width="46">Work</td>
+      <td width="56">Status</td>
+      <td width="56">Progress</td>
+{#      <td></td>#}
+      <td></td>
+    </tr>
+  </thead>
+  <tbody>
+
+
+    <tr>
+{#      <td>{{ forloop.counter }}</td>#}
+      <td>{{ data.date}}</td>
+      <td>{{ data.WORK.category}}</td>
+      <td>{{ data.WORK.workname}}</td>
+      <td>{{ data.status }}&nbsp;</td>
+      <td>{{ data.progress }}%&nbsp;</td>
+{#       <td><select name="status">#}
+{#          <option value="{{ data.status }}">{{ data.status }}</option>#}
+{#          <option value="Completed">Completed</option>#}
+{#          <option value="Pending" >Pending</option>#}
+{#          <option value="Ongoing">Ongoing</option>#}
+{#      </select></td>#}
+{#      <td><a href="">Edit</a></td>#}
+      <td><a href="/WMS/Delete_wps/{{ data.id }}/{{ data.WORK.id }}/{{ data.PROJECT.id }}" class="btn btn-outline-danger">Delete</a></td>
+    </tr>
+  </tbody>
+{#        {% endfor %}#}
+  </table>
+</form>
+{% endblock %}

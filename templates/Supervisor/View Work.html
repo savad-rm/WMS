@@ -1,0 +1,37 @@
+{% extends "Supervisor/spindex2.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/search_work/#myid">
+  {% csrf_token %}
+<div style="color: blue" align="center"><h3>Scope of Work</h3></div>
+ <input type="hidden" value="{{ id }}" name="pid">
+<div class="dataTable-top">
+    <div class="dataTable-search">
+        <input type="text" name="textfield" id="textfield" placeholder="Enter name here..." class="form-control-sm"/>
+        <input type="submit" name="Go" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+    <table width="182" border="1" class="table table-striped">
+  <thead>
+    <tr style="background-color: #00a0dc;color:white ">
+      <td width="136">Sl.No</td>
+      <td width="162">Category</td>
+      <td width="162">Work</td>
+      <td>Status</td>
+    </tr>
+  </thead>
+  <tbody>
+        {% for i in data1 %}
+    <tr>
+      <td rowspan="2">{{ forloop.counter }}</td>
+      <td rowspan="2">{{ i.category }}</td>
+      <td rowspan="2">{{ i.workname }}</td>
+      <td><a href="/WMS/Update_work_progress/{{ i.id }}/{{ i.PROJECT.id }}/">Update Work Progress</a></td>
+    </tr>
+    <tr>
+      <td><a href="/WMS/View_work_progress/{{ i.id }}/{{ i.PROJECT.id }}/">View Work Progress</a></td>
+    </tr>
+        {% endfor %}
+  </tbody>
+  </table>
+</form>
+{% endblock %}

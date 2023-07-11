@@ -1,0 +1,184 @@
+{% extends "Supervisor/spindex2.html" %}
+{% block body %}
+{#<form id="form1" name="form1" method="post" action="/WMS/search_prjcts/">#}
+    {% csrf_token %}
+{#<div align="center" style="color: blue"><h3>{{ data.project_name }}</h3></div>#}
+{#    <br>#}
+{#    <br>#}
+{#    <div class="row" >#}
+{#        <div class="col-lg-2">#}
+{#            <div class="card" style="height: 60px">#}
+{#                <p></p>#}
+{#                <p align="center" >#}
+{#                       <a href="/WMS/View_Project_allocated_to_project_manager/{{ data.id }}#myid" ><b>Project Manager</b></a>#}
+{#                </p>#}
+{#</div>#}
+{#        </div>#}
+{#              <div class="col-lg-2">#}
+{#            <div class="card" style="height: 60px">#}
+{#                <p></p>#}
+{#                <p align="center" >#}
+{#                       <a href="/WMS/View_Project_allocated_to_supervisor/{{ data.id }}" ><b>Supervisor</b></a>#}
+{#                </p>#}
+{#</div>#}
+{#        </div>#}
+{#              <div class="col-lg-2">#}
+{#            <div class="card" style="height: 60px">#}
+{#                <p></p>#}
+{#                <p align="center" >#}
+{#                       <a href="/WMS/View_Subcontractor_datails_of_project/{{ data.id }}" ><b>Subcontractor</b></a>#}
+{#                </p>#}
+{#</div>#}
+{#        </div>#}
+{#              <div class="col-lg-2">#}
+{#            <div class="card" style="height: 60px">#}
+{#                <p></p>#}
+{#                <p align="center" >#}
+{#                       <a href="/WMS/View_Payment_Entry/{{ data.id }}" ><b>Payments</b></a>#}
+{#                </p>#}
+{#</div>#}
+{#        </div>#}
+{#              <div class="col-lg-2">#}
+{#            <div class="card" style="height: 60px">#}
+{#                <p></p>#}
+{#                <p align="center" >#}
+{#                       <a href="/WMS/View_Worksite_photos/{{ data.id }}"  ><b>Site Photos</b></a>#}
+{#                </p>#}
+{#</div>#}
+{#        </div>#}
+{#              <div class="col-lg-2">#}
+{#            <div class="card" style="height: 60px">#}
+{##}
+{#                <p align="center" >#}
+{#                       <a href="/WMS/View_Material_required/{{ data.id }}" ><b>Materials Required</b></a>#}
+{#                </p>#}
+{#</div>#}
+{#        </div>#}
+{#        <div class="col-lg-2">#}
+{#            <div class="card" style="height: 60px">#}
+{#                <p></p>#}
+{#                <p align="center" >#}
+{#                       <a href="/WMS/View_Total_material_request/{{ data.id }}" ><b>Material Requests</b></a>#}
+{#                </p>#}
+{#</div>#}
+{#        </div>#}
+{#        <div class="col-lg-2">#}
+{#            <div class="card" style="height: 60px;color: cyan">#}
+{#                <p></p>#}
+{#                <p align="center" >#}
+{#                       <a href="/WMS/View_Total_worker_report/{{ data.id }}" ><b>Workers Report</b></a>#}
+{#                </p>#}
+{#</div>#}
+{#        </div> <div class="col-lg-2">#}
+{#            <div class="card" style="height: 60px">#}
+{#                <p></p>#}
+{#                <p align="center" >#}
+{#                       <a href="/WMS/View_Schedule/{{ data.id }}" ><b>Schedule</b></a>#}
+{#                </p>#}
+{#</div>#}
+{#        </div>#}
+{#        <div class="col-lg-2">#}
+{#            <div class="card" style="height: 60px">#}
+{#                <p></p>#}
+{#                <p align="center" >#}
+{#                       <a href="/WMS/View_Estimatead/{{ data.id }}" ><b>Estimate</b></a>#}
+{#                </p>#}
+{#</div>#}
+{#        </div>#}
+{#        <div class="col-lg-2">#}
+{#            <div class="card" style="height: 60px">#}
+{#                <p></p>#}
+{#                <p align="center" >#}
+{#                       <a href="/WMS/View_Work_management/{{ data.id }}" ><b>Scope of Work</b></a>#}
+{#                </p>#}
+{#</div>#}
+{#        </div>#}
+{#        <div class="col-lg-2" >#}
+{#            <div class="card" style="height: 60px">#}
+{#                <p></p>#}
+{#                <p align="center" >#}
+{#                       <a href="/WMS/View_Work_progress/{{ data.id }}" ><b>Work Progress</b></a>#}
+{#                </p>#}
+{#</div>#}
+{#        </div>#}
+{#    </div>#}
+{#  <table width="741" border="1" class="table table-striped">#}
+{#    <tr>#}
+{#      <td width="29">Date</td>#}
+{#        <td><label for="textfield">{{ data.date }}</label></td>#}
+{#    </tr>#}
+{#    <tr>#}
+{#      <td width="48">Project Name</td>#}
+{#        <td>{{ data.project_name }}</td>#}
+{#    </tr>#}
+{#    <tr>#}
+{#      <td width="39">Client Name</td>#}
+{#      <td>{{ data.client_name }}</td>#}
+{#    </tr>#}
+{#    <tr>#}
+{#        <td width="38">Phone</td>#}
+{#        <td>{{ data.phone }}</td>#}
+{#   </tr>#}
+{#    <tr>#}
+{#        <td width="33">Email</td>#}
+{#        <td>{{ data.email}}</td>#}
+{#    </tr>#}
+{#    <tr>#}
+{#        <td >Place</td>#}
+{#        <td>{{ data.place }}</td>#}
+{#    </tr>#}
+{#    <tr>#}
+{#        <td >Unit No</td>#}
+{#        <td>{{ data.unit_no }}</td>#}
+{#    </tr>#}
+{#    <tr>#}
+{#        <td width="61">Project Value</td>#}
+{#        <td>{{ data.project_value}}</td>#}
+{#    </tr>#}
+{#    <tr>#}
+{#        <td width="50">Starting Date</td>#}
+{#        <td>{{ data.start_date }}</td>#}
+{#    </tr>#}
+{#    <tr>#}
+{#        <td width="50">Handout Date</td>#}
+{#        <td>{{ data.handout_date }}</td>#}
+{#    </tr>#}
+{#    <tr>#}
+{#        <td width="61">Project Duration</td>#}
+{#        <td>{{ data.project_duration }}</td>#}
+{#   </tr>#}
+{#    <tr>#}
+{#        <td width="61">Project Type</td>#}
+{#        <td>{{ data.project_type }}</td>#}
+{#  </tr>#}
+{#    <tr>#}
+{#        <td width="69">Description</td>#}
+{#        <td>{{ data.description }}</td>#}
+{#  </tr>#}
+{#    <tr>#}
+{#        <td width="55">Estimate Status</td>#}
+{#        <td>{{ data.estimate_status }}</td>#}
+{#  </tr>#}
+{#    <tr>#}
+{#        <td width="86">&nbsp;</td>#}
+{#    </tr>#}
+{#    <tr>#}
+{#      <td><p>#}
+{#          <a href="/WMS/View_Project_allocated_to_project_manager/{{ data.id }}" class="nav-link">Project Manager</a><br><br>#}
+{#          <a href="/WMS/View_Project_allocated_to_supervisor/{{ data.id }}" class="nav-link">Supervisor</a><br><br>#}
+{#           <a href="/WMS/View_Subcontractor_datails_of_project/{{ data.id }}">Subcontractor</a></p><br/>#}
+{#        <p><a href="/WMS/View_Payment_Entry/{{ data.id }}">Payment</a></p><br />#}
+{#        <p><a href="/WMS/View_Worksite_photos/{{ data.id }}">SitePhotos</a></p><br />#}
+{#          <a href="/WMS/View_Material_required/{{ data.id }}" class="nav-link">View Material required</a><br>#}
+{#        <p><a href="/WMS/View_Total_material_request/{{ data.id }}">Total Material Request</a></p><br />#}
+{#        <p><a href="/WMS/View_Total_worker_report/{{ data.id }}">Workers Report</a></p><br />#}
+{#        <p><a href="/WMS/View_Schedule/{{ data.id }}">Schedule</a></p><br />#}
+{#      <p><a href="/WMS/View_Estimatead/{{ data.id }}">Estimate</a></p>#}
+{#      <p><a href="/WMS/View_Work_management/{{ data.id }}">Scope of Work</a></p>#}
+{#      <p><a href="/WMS/View_Work_progress/{{ data.id }}">Work Progress</a></p></td><br />#}
+{#    </tr>#}
+{#  </tbody>#}
+{#  </table>#}
+{#</form>#}
+{% endblock %}
+

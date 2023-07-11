@@ -1,0 +1,62 @@
+{% extends "Accountant/acindex.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/search_allprjtsac/">
+        {% csrf_token %}
+<div style="color: blue" align="center"><h3>Projects</h3></div>
+<div class="dataTable-top">
+    <div class="dataTable-search">
+        <input type="text" name="text" id="textfield" placeholder="Enter name here..." class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Search" class="btn btn-outline-info btn-sm"/>
+        From&nbsp;<input type="date" name="from" id="textfield"  class="form-control-sm"/>&nbsp;
+        To&nbsp;<input type="date" name="to" id="textfield"  class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+  <table width="741" border="1" class="table table-striped ">
+  <thead>
+    <tr style="background-color: #00a0dc;color: white">
+      <td width="36">Sl.No</td>
+      <td width="48">Project Name</td>
+      <td width="39">Client Name</td>
+      <td width="29">Date</td>
+      <td width="38">Phone</td>
+      <td width="33">Email</td>
+      <td colspan="5">Address</td>
+      <td width="61">Project Value</td>
+      <td width="50">Starting Date</td>
+      <td width="50">Handout Date</td>
+      <td width="61">Project Duration</td>
+      <td width="61">Project Type</td>
+      <td width="69">Description</td>
+      <td width="55">Estimate Status</td>
+      <td width="55">Status</td>
+{#      <td width="55">&nbsp;</td>#}
+    </tr>
+  </thead>
+  <tbody>
+      {% for i in data %}
+    <tr>
+      <td height="80">{{ forloop.counter }}</td>
+      <td>{{ i.project_name }}</td>
+      <td>{{ i.client_name }}</td>
+      <td>{{ i.date }}</td>
+      <td>{{ i.phone }}</td>
+      <td>{{ i.email}}</td>
+      <td colspan="5">{{ i.place }}<br>{{ i.unit_no }}</td>
+      <td>{{ i.project_value}}</td>
+      <td>{{ i.start_date }}</td>
+      <td>{{ i.handout_date }}</td>
+      <td>{{ i.project_duration }}</td>
+      <td>{{ i.project_type }}</td>
+      <td>{{ i.description }}</td>
+      <td>{{ i.estimate_status }}</td>
+      <td>{{ i.status }}</td>
+{#      <td><p><a href="/WMS/View_Project_status/{{ i.id }}">Project Status</a></p>#}
+{#      <p><a href="/WMS/Project_payment_entry/{{ i.id }}">Add Payment</a></p>#}
+{#      <p><a href="/WMS/View_project_payment_entry_ac/{{ i.id }}">View Payment</a></p></td>#}
+    </tr>
+      {% endfor %}
+  </tbody>
+  </table>
+</form>
+{% endblock %}

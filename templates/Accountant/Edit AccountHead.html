@@ -1,0 +1,18 @@
+{% extends "Accountant/acindex.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/Edit_accounthead_post/">
+      {% csrf_token %}
+    <div style="color: blue"><h3>Edit AccountHead</h3></div>
+    <input type="hidden" name="aid" value="{{ data.id }}"/>
+   <table width="306" border="1" class="table table-striped">
+    <tr>
+      <td width="72">Head Name</td>
+      <td width="218">
+        <input type="text" name="headname" id="textfield" value="{{ data.headname }}" class="form-control"/>
+      </td>
+    </tr>
+    <tr align="center">
+      <td colspan="2"><input type="submit" name="button3" id="button3" value="Save" class="btn btn-outline-primary"/></td>
+    </tr>
+  </table>
+{% endblock %}

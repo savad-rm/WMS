@@ -1,0 +1,37 @@
+{% extends "Supervisor/spindex2.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/schedule_search/#myid">
+  {% csrf_token %}
+<div style="color: blue" align="center"><h3>Schedule</h3></div>
+<div class="dataTable-top">
+    <div class="dataTable-search">
+        From&nbsp;<input type="date" name="from" id="textfield"  class="form-control-sm"/>&nbsp;
+        To&nbsp;<input type="date" name="to" id="textfield"  class="form-control-sm"/>
+     <input type="submit" name="Go" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+    <table width="318" border="1" class="table table-striped ">
+  <thead>
+    <tr style="background-color: #00a0dc;color: white">
+      <td width="36">Sl.No</td>
+      <td width="62">Category</td>
+      <td width="62">Work</td>
+      <td width="62">From</td>
+      <td width="62">To</td>
+    </tr>
+  </thead>
+  <tbody>
+            <input type="hidden" name="pid" value="{{ id }}">
+       {% for i in data1 %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ i.WORK.category }}</td>
+      <td>{{ i.WORK.workname }}</td>
+      <td>{{ i.from_date }}</td>
+      <td>{{ i.to_date }}</td>
+    </tr>
+        {% endfor %}
+  </tbody>
+  </table>
+</form>
+{% endblock %}

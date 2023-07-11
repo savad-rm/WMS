@@ -1,0 +1,81 @@
+{#<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">#}
+{#<html xmlns="http://www.w3.org/1999/xhtml">#}
+{#<head>#}
+{#<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />#}
+{#<title>Untitled Document</title>#}
+{#</head>#}
+{##}
+{#<body>#}
+{% extends "Admin/index.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/search_prjts/">
+    {% csrf_token %}
+<div style="color: blue"><h3>Projects</h3></div>
+ <table class="pull-left">
+    <tr>
+      <td>
+        <input type="text" name="text" id="textfield" class="form-control"/></td>
+      <td><input type="submit" name="button" id="Go" value="Search" class="btn btn-outline-info" /></td>
+         <td>From:</td>
+          <td>
+            <input type="date" name="from" id="textfield"  class="form-control"/></td>
+          <td>To:</td>
+            <td>
+            <input type="date" name="to" id="textfield2" class="form-control"/></td>
+           <td><input type="submit" name="button" id="Go" value="Go" class="btn btn-outline-info"/></td>
+    </tr>
+  </table>
+  <table width="741" border="1" class="table table-striped">
+  <thead>
+    <tr style="background-color: #00a0dc;color: white">
+      <td width="36">Sl.No</td>
+      <td width="29">Date</td>
+      <td width="48">Project No</td>
+      <td width="48">Project Name</td>
+      <td width="39">Client Name</td>
+      <td width="38">Project Location</td>
+      <td colspan="5">Contact</td>
+      <td width="61">Project Value</td>
+      <td width="50">Starting Date</td>
+      <td width="50">Handover Date</td>
+      <td width="61">Project Duration</td>
+      <td width="61">Project Area</td>
+      <td width="61">Project Type</td>
+      <td width="69">Description</td>
+      <td width="55">Estimate Status</td>
+      <td width="55">Status</td>
+      <td width="86">&nbsp;</td>
+    </tr>
+  </thead>
+      {% for i in data %}
+  <tbody>
+    <tr>
+      <td height="80">{{ forloop.counter }}</td>
+      <td>{{ i.date }}</td>
+      <td>{{ i.project_no }}</td>
+      <td>{{ i.project_name }}</td>
+      <td>{{ i.client_name }}</td>
+      <td>{{ i.place }}</td>
+      <td colspan="5">{{ i.phone }}<br>{{ i.email}}<br>{{ i.unit_no }}</td>
+      <td>{{ i.project_value}}</td>
+      <td>{{ i.start_date }}</td>
+      <td>{{ i.handout_date }}</td>
+      <td>{{ i.project_duration }}</td>
+      <td>{{ i.project_area }}</td>
+      <td>{{ i.project_type }}</td>
+      <td>{{ i.description }}</td>
+      <td>{{ i.estimate_status }}</td>
+      <td>{{ i.status }}</td>
+      <td><p><a href="/WMS/Edit_project/{{ i.id }}" class="btn btn-outline-primary">Edit</a></p><br />
+{#      <p><a href="/WMS/Delete_project/{{ i.id }}" class="btn btn-outline-danger" onclick="return confirm('are u sure?')">Delete</a></p><br />#}
+<a href="/WMS/Projec_allocation_to_project_manager/{{ i.id }}" class="nav-link">Assign Project Manager</a><br><br>
+<a href="/WMS/Projec_allocation_to_supervisor/{{ i.id }}" class="nav-link">Assign Supervisor</a><br>
+</td>
+    </tr>
+  </tbody>
+      {% endfor %}
+  </table>
+</form>
+{% endblock %}
+{#</body>#}
+{#</html>#}

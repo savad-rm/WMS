@@ -1,0 +1,38 @@
+{% extends "Supervisor/spindex2.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" enctype="multipart/form-data" action="/WMS/search_wcr/#myid">
+  {% csrf_token %}
+<div style="color: blue" align="center"><h3>Workers Report</h3></div>
+<input type="hidden" name="pid" value="{{ id }}">
+<div class="dataTable-top">
+    <div class="dataTable-search">
+        <input type="text" name="txt" id="textfield" placeholder="Enter name here..." class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+        From&nbsp;<input type="date" name="from" id="textfield"  class="form-control-sm"/>&nbsp;
+        To&nbsp;<input type="date" name="to" id="textfield"  class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Search" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+    <table width="164" border="1" class="table table-striped">
+  <thead>
+    <tr style="background-color: #00a0dc;color: white">
+      <td width="36">Sl.No</td>
+      <td width="62">Date</td>
+      <td width="62">Work Type</td>
+      <td width="62">Worker Count</td>
+    </tr>
+  </thead>
+  <tbody>
+
+    {% for i in data1 %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ i.date }}</td>
+      <td>{{ i.work_type }}</td>
+      <td>{{ i.worker_count }}</td>
+    </tr>
+        {% endfor %}
+  </tbody>
+  </table>
+</form>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "Supervisor/spindex2.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/search_dwcr/#myid">
+  {% csrf_token %}
+<div style="color: blue" align="center"><h3>Workers</h3></div>
+<input type="hidden" name="pid" value="{{ id }}">
+<div class="dataTable-top">
+    <div class="dataTable-dropdown">
+        <a href="/WMS/Add_daily_workers_count/{{ id }}" class="btn btn-outline-primary btn-sm">Add</a>
+    </div>
+    <div class="dataTable-search">
+        <input type="text" name="txt" id="textfield" placeholder="Enter name here..." class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+        From&nbsp;<input type="date" name="from" id="textfield"  class="form-control-sm"/>&nbsp;
+        To&nbsp;<input type="date" name="to" id="textfield"  class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Search" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+    <table width="200" border="1" class="table table-striped">
+  <thead>
+    <tr style="background-color: #00a0dc;color: white">
+      <td>Sl.No</td>
+      <td>Date</td>
+      <td>Work Type</td>
+      <td>Worker Count</td>
+      <td>&nbsp;</td>
+      <td>&nbsp;</td>
+    </tr>
+  </thead>
+  <tbody>
+        {% for i in data1 %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ i.date }}</td>
+      <td>{{ i.work_type }}</td>
+      <td>{{ i.worker_count }}</td>
+      <td><a href="/WMS/Edit_daily_workers_count/{{ i.id }}/{{ i.PROJECT.id }}" class="btn btn-outline-primary btn-sm">Edit</a></td>
+      <td><a href="/WMS/Delete_dwc/{{ i.id }}/{{ i.PROJECT.id }}" class="btn btn-outline-danger btn-sm">Delete</a></td>
+    </tr>
+        {% endfor %}
+  </tbody>
+  </table>
+</form>
+{% endblock %}

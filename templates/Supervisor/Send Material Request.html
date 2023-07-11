@@ -1,0 +1,49 @@
+{% extends "Supervisor/spindex.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/Send_material_request_post/">
+  {% csrf_token %}
+<div style="color: blue"><h3>Send Material Request</h3></div>
+    <table width="200" border="1" class="table table-striped">
+        <input type="hidden" value="{{ data.PROJECT.id }}" name="pid">
+        <input type="hidden" value="{{ id }}" name="id">
+
+    <tr>
+      <td>Material</td>
+      <td>
+{#        <select name="material" id="select" class="form-control">#}
+{#            {% for i in data1 %}#}
+{#            <option value="{{ i.MATERIAL.id }}">{{ i.MATERIAL.name }}&nbsp;{{ i.MATERIAL.unit }}</option>#}
+{#            {% endfor %}#}
+{#        </select>#}
+          <input type="text" list="programmingLanguages" placeholder="Enter Here" name="material" id="materialInput" class="form-control"/>
+    <datalist id="programmingLanguages">
+        {% for i in data1 %}
+            <option value="{{ i.MATERIAL.name }}&nbsp;{{ i.MATERIAL.unit }}" data-id="{{ i.MATERIAL.id }}">{{ i.MATERIAL.name }}&nbsp;{{ i.MATERIAL.unit }}</option>
+        {% endfor %}
+    </datalist>
+    <input type="hidden" id="idField" name="material" value="{{ i.MATERIAL.id }}" />
+      </td>
+    </tr>
+    <tr>
+      <td>Quantity</td>
+      <td><input type="text" name="quantity" id="textfield3" class="form-control" /></td>
+    </tr>
+    <tr align="center">
+      <td colspan="2"><input type="submit" name="button3" id="button3" value="Send" class="btn btn-outline-primary"/></td>
+    </tr>
+  </table>
+</form>
+    <script>
+    const materialInput = document.getElementById('materialInput');
+    const idField = document.getElementById('idField');
+    materialInput.addEventListener('input', () => {
+        const selectedOption = document.querySelector(`#programmingLanguages option[value="${materialInput.value}"]`);
+        if (selectedOption) {
+            const id = selectedOption.getAttribute('data-id');
+            idField.value = id || '';
+        } else {
+            idField.value = '';
+        }
+    });
+</script>
+{% endblock %}

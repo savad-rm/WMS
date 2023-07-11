@@ -1,0 +1,33 @@
+{% extends "Project Manager/pmindex2.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/search_pmnt/#myid">
+  {% csrf_token %}
+<div style="color: blue" align="center"><h3>Payments</h3></div>
+  <input type="hidden" value="{{ id }}" name="pid">
+<div class="dataTable-top">
+    <div class="dataTable-search">
+        From&nbsp;<input type="date" name="from" id="textfield"  class="form-control-sm"/>&nbsp;
+        To&nbsp;<input type="date" name="to" id="textfield"  class="form-control-sm"/>
+     <input type="submit" name="Go" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+    <table width="200" border="1" class="table table-striped">
+   <thead>
+    <tr style="background-color: #00a0dc;color: white">
+      <td>Sl.No</td>
+      <td>Date</td>
+      <td>Amount</td>
+    </tr>
+   </thead>
+   <tbody>
+        {% for i in data1 %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ i.date }}</td>
+      <td>{{ i.amount }}</td>
+    </tr>
+        {% endfor %}
+   </tbody>
+  </table>
+</form>
+{% endblock %}

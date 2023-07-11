@@ -1,0 +1,22 @@
+{% extends "Supervisor/spindex.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/Edit_daily_workers_count_post/">
+    {% csrf_token %}
+    <div style="color: blue"><h3>Edit Workers Report</h3></div>
+  <table width="200" border="1" class="table table-striped">
+      <input type="hidden" name="eid" value="{{ data.id }}">
+      <input type="hidden" name="pid" value="{{ pid }}">
+    <tr>
+      <td>Work Type</td>
+      <td><input type="text" name="worktype" id="textfield2" value="{{ data.work_type }}" class="form-control"/></td>
+    </tr>
+    <tr>
+      <td>Worker Count</td>
+      <td><input type="text" name="workercount" id="textfield" value="{{ data.worker_count }}" class="form-control"/></td>
+    </tr>
+    <tr align="center">
+      <td colspan="2"><input type="submit" name="button3" id="button3" value="Save" class="btn btn-outline-primary"/></td>
+    </tr>
+  </table>
+</form>
+{% endblock %}

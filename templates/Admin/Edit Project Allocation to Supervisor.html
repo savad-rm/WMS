@@ -1,0 +1,23 @@
+{% extends "Admin/index.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/Edit_Projec_allocation_to_supervisor_post/">
+    {% csrf_token %}
+<div style="color: blue"><h3>Edit Supervisor Allocation</h3></div>
+<input type="hidden" value="{{ data.id }}" name="pid">
+  <table width="200" border="1" class="table table-striped">
+    <tr>
+      <td>Supervisor</td>
+      <td><select name="supervisor" id="select2">
+          {% for i in data1 %}
+          <option {% if data.STAFF.id == i.id %}selected{% endif %} value="{{ i.id }}">{{ i.name }}</option>
+      {% endfor %}
+      </select></td>
+    </tr>
+    <tr align="center">
+      <td height="31" colspan="2"><input type="submit" name="button" id="button" value="Save" class="btn btn-primary"/></td>
+    </tr>
+  </table>
+</form>
+{% endblock %}
+{#</body>#}
+{#</html>#}

@@ -1,0 +1,32 @@
+{% extends "Admin/index2.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/search_worka/#myid">
+    {% csrf_token %}
+<div style="color: blue" align="center"><h3>Scope of Work</h3></div>
+ <input type="hidden" value="{{ id }}" name="pid">
+<div class="dataTable-top">
+    <div class="dataTable-search">
+        <input type="text" name="textfield" id="textfield" placeholder="Enter name here..." class="form-control-sm"/>
+     <input type="submit" name="Go" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+  <table width="200" border="1" class="table table-striped">
+  <thead>
+    <tr style="background-color: #00a0dc;color: white">
+      <td>Sl.No</td>
+      <td>Category</td>
+      <td>Work</td>
+    </tr>
+  </thead>
+  <tbody>
+      {% for i in data2 %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ i.category }}</td>
+      <td>{{ i.workname }}</td>
+    </tr>
+      {% endfor %}
+  </tbody>
+  </table>
+</form>
+{% endblock %}

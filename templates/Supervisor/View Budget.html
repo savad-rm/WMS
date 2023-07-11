@@ -1,0 +1,44 @@
+{% extends "Supervisor/spindex.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/search_bgtsp/">
+  {% csrf_token %}
+<div style="color: blue"><h3>Estimate</h3></div>
+<input type="hidden" name="id" value="{{ id }}">
+<div class="dataTable-top">
+    <div class="dataTable-search">
+        <input type="text" name="textfield" id="textfield" placeholder="Enter Category here..." class="form-control-sm"/>
+     <input type="submit" name="Go" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+    <table width="566" border="1" class="table table-striped">
+  <thead>
+    <tr style="background-color: #00a0dc;color: white">
+      <td width="36">Sl.No</td>
+      <td width="36">Category</td>
+      <td width="36">Work/Material</td>
+      <td width="62">Material Cost</td>
+      <td width="80">Labour Cost</td>
+      <td width="82">Vehicle Cost</td>
+      <td width="123">Subcontractor Cost</td>
+      <td width="98">Other Expenses</td>
+      <td width="39">Total</td>
+    </tr>
+  </thead>
+  <tbody>
+        {% for i in data %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ i.work_category }}</td>
+      <td>{{ i.work }}</td>
+      <td>{{ i.material_cost }}</td>
+      <td>{{ i.labour_cost }}</td>
+      <td>{{ i.vehicle_cost }}</td>
+      <td>{{ i.subcontractor_cost }}</td>
+      <td>{{ i.other_expenses }}</td>
+      <td>{{ i.total }}</td>
+    </tr>
+        {% endfor %}
+  </tbody>
+  </table>
+</form>
+{% endblock %}

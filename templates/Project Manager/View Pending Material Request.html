@@ -1,0 +1,45 @@
+{% extends "Project Manager/pmindex.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/search_pmrt/">
+  {% csrf_token %}
+<div style="color: blue" align="center"><h3>Material Request</h3></div>
+<input type="hidden" value="{{ id }}" name="pid" >
+<div class="dataTable-top">
+    <div class="dataTable-search">
+        <input type="text" name="text" id="textfield" placeholder="Enter name here..." class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Search" class="btn btn-outline-info btn-sm"/>
+        From&nbsp;<input type="date" name="from" id="textfield"  class="form-control-sm"/>&nbsp;
+        To&nbsp;<input type="date" name="to" id="textfield"  class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+    <table width="255" border="1" class="table table-striped ">
+   <thead>
+    <tr style="background-color: #00a0dc;color: white">
+      <td width="36">Sl.No</td>
+      <td width="36">Date</td>
+      <td width="72">Material Name</td>
+      <td width="51">Quantity</td>
+      <td width="51">Status</td>
+      <td width="68">Supervisor</td>
+      <td width="68"></td>
+      <td width="68"></td>
+    </tr>
+   </thead>
+    <tbody>
+        {% for i in data %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ i.date }}</td>
+      <td>{{ i.MATERIAL.name }}</td>
+      <td>{{ i.quantity }}{{ i.MATERIAL.unit }}</td>
+      <td>{{ i.status }}</td>
+      <td>{{ i.STAFF.name }}</td>
+      <td><a href="/WMS/approve_rqt/{{ i.id }}/{{ i.PROJECT.id }}" class="btn btn-outline-success btn-sm">Approve</a></td>
+      <td><a href="/WMS/reject_rqt/{{ i.id }}/{{ i.PROJECT.id }}" class="btn btn-outline-danger btn-sm">Reject</a></td>
+    </tr>
+        {% endfor %}
+    </tbody>
+  </table>
+</form>
+{% endblock %}

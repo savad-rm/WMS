@@ -1,0 +1,50 @@
+{% extends "Project Manager/pmindex.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" enctype="multipart/form-data" action="/WMS/search_bgtpm/">
+  {% csrf_token %}
+<div style="color: blue" align="center"><h3>Estimate</h3>
+      <td><a href="/WMS/Draft_budget/{{ id }}" class="btn btn-outline-primary btn-sm">Draft</a></td>
+</div>
+<input type="hidden" name="id" value="{{ id }}">
+<div class="dataTable-top">
+    <div class="dataTable-search">
+        <input type="text" name="textfield" id="textfield" placeholder="Enter Category here..." class="form-control-sm"/>
+     <input type="submit" name="Go" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+    <table width="200" border="1" class="table table-striped" >
+  <thead>
+    <tr style="background-color: #00a0dc;color: white">
+      <td>Sl.No</td>
+      <td>Category</td>
+      <td>Work/Material</td>
+      <td>Material Cost</td>
+      <td>Labour Cost</td>
+      <td>Vehicle Cost</td>
+      <td>Subcontractor Cost</td>
+      <td>Other Expenses</td>
+      <td>Total</td>
+      <td>&nbsp;</td>
+      <td>&nbsp;</td>
+    </tr>
+  </thead>
+  <tbody>
+        {% for i in data %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ i.work_category }}</td>
+      <td>{{ i.work }}</td>
+      <td>{{ i.material_cost }}</td>
+      <td>{{ i.labour_cost }}</td>
+      <td>{{ i.vehicle_cost }}</td>
+      <td>{{ i.subcontractor_cost }}</td>
+      <td>{{ i.other_expenses }}</td>
+      <td>{{ i.total }}</td>
+      <td><a href="/WMS/Edit_budget/{{ i.id }}/{{ i.ESTIMATE.id }}" class="btn btn-outline-primary btn-sm">Edit</a></td>
+      <td><a href="/WMS/Delete_budget/{{ i.id }}/{{ i.ESTIMATE.id }}" class="btn btn-outline-danger btn-sm">Delete</a></td>
+    </tr>
+        {% endfor %}
+   </tbody>
+  </table>
+</form>
+{% endblock %}

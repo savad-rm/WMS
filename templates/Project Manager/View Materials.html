@@ -1,0 +1,38 @@
+{% extends "Project Manager/pmindex.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/search_mts/">
+ {% csrf_token %}
+<div style="color: blue" align="center"><h3>Materials</h3></div>
+<div class="dataTable-top">
+    <div class="dataTable-search">
+        <input type="text" name="text" id="textfield" placeholder="Enter name here..." class="form-control-sm"/>
+     <input type="submit" name="Go" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+
+  <table width="200" border="1" class="table table-striped">
+  <thead>
+    <tr>
+    </tr>
+    <tr style="background-color: #00a0dc;color: white">
+      <td width="43">Sl.No</td>
+      <td width="44">Name</td>
+      <td width="34">Unit</td>
+      <td width="37">&nbsp;</td>
+      <td width="57">&nbsp;</td>
+    </tr>
+  </thead>
+  <tbody>
+      {% for i in data %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ i.name }}</td>
+      <td>{{ i.unit }}</td>
+      <td><a href="/WMS/Edit_material/{{ i.id }}" class="btn btn-outline-primary btn-sm">Edit</a></td>
+      <td><a href="/WMS/Delete_material/{{ i.id }}" class="btn btn-outline-danger btn-sm">Delete</a></td>
+    </tr>
+      {% endfor %}
+  </tbody>
+  </table>
+</form>
+{% endblock %}

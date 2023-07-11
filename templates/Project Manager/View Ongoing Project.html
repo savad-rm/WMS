@@ -1,0 +1,88 @@
+{% extends "Project Manager/pmindex.html" %}
+{% block body %}
+
+    <style>
+    .dropdown {
+  display: inline-block;
+  position: relative;
+}
+.dropdown-content {
+  display: none;
+  position: absolute;
+  width: 100%;
+  overflow: auto;
+  box-shadow: 0px 10px 10px 0px rgba(0,0,0,0.4);
+}
+.dropdown:hover .dropdown-content {
+  display: block;
+}
+.dropdown-content a {
+  display: block;
+  color: #000000;
+  padding: 5px;
+  text-decoration: none;
+}
+.dropdown-content a:hover {
+  color: #FFFFFF;
+  background-color: #00A4BD;
+}
+
+
+
+    </style>
+
+
+<form id="form1" name="form1" method="post" action="/WMS/search_onp/">
+ {% csrf_token %}
+<div style="color: blue" align="center"><h3>Ongoing Projects</h3></div>
+<div class="dataTable-top">
+    <div class="dataTable-search">
+        <input type="text" name="text" id="textfield" placeholder="Enter name here..." class="form-control-sm" title="Enter search keyword"/>
+     <input type="submit" name="button" id="Go" value="Search" class="btn btn-outline-info btn-sm"/>
+        From&nbsp;<input type="date" name="from" id="textfield"  class="form-control-sm"/>&nbsp;
+        To&nbsp;<input type="date" name="to" id="textfield"  class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+  <table width="200" border="1" class="table table-striped">
+  <thead>
+    <tr style="background-color: #00a0dc;color: white">
+      <td>Sl.No</td>
+      <td>Date</td>
+      <td>Project No</td>
+      <td>Project Name</td>
+{#      <td>Client Name</td>#}
+{#      <td>Contact</td>#}
+      <td>Project Location</td>
+      <td>Starting Date</td>
+      <td>Handover Date</td>
+      <td>Project Duration</td>
+      <td>Project Area</td>
+      <td>Project Type</td>
+      <td>Description</td>
+      <td></td>
+    </tr>
+  </thead>
+       {% for i in data %}
+  <tbody>
+    <tr>
+      <td rowspan="2">{{ forloop.counter }}</td>
+      <td rowspan="2">{{ i.PROJECT.date }}</td>
+     <td rowspan="2">{{ i.PROJECT.project_no }}</td>
+     <td rowspan="2">{{ i.PROJECT.project_name }}</td>
+{#      <td rowspan="2">{{ i.PROJECT.client_name }}</td>#}
+{#      <td rowspan="2">{{ i.PROJECT.phone }}<br>{{ i.PROJECT.email }}<br>{{ i.PROJECT.place }}<br>{{ i.PROJECT.unit_no }}</td>#}
+      <td rowspan="2">{{ i.PROJECT.place }}</td>
+      <td rowspan="2">{{ i.PROJECT.start_date }}</td>
+      <td rowspan="2">{{ i.PROJECT.handout_date }}</td>
+      <td rowspan="2">{{ i.PROJECT.project_duration }}</td>
+      <td rowspan="2">{{ i.PROJECT.project_area }}</td>
+      <td rowspan="2">{{ i.PROJECT.project_type }}</td>
+      <td rowspan="2">{{ i.PROJECT.description }}</td>
+      <td><a href="/WMS/View_projects_functionspm/{{ i.PROJECT.id }}">View More</a></td>
+    </tr>
+  </tbody>
+       {% endfor %}
+  </table>
+</form>
+{% endblock %}

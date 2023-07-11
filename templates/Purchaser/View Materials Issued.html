@@ -1,0 +1,48 @@
+{% extends "Purchaser/pcindex2.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/search_misdpc/#myid">
+  {% csrf_token %}
+<div style="color: blue" align="center"><h3>Materials Issued</h3></div>
+<input type="hidden" value="{{ id }}" name="pid">
+<div class="dataTable-top">
+    <div class="dataTable-search">
+        <input type="text" name="text" id="textfield" placeholder="Enter name here..." class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Search" class="btn btn-outline-info btn-sm"/>
+        From&nbsp;<input type="date" name="from" id="textfield"  class="form-control-sm"/>&nbsp;
+        To&nbsp;<input type="date" name="to" id="textfield"  class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+    <table width="436" border="1" class="table table-striped">
+  <thead>
+    <tr style="background-color: #00a0dc;color: white">
+      <td width="36">Sl.No</td>
+      <td width="150">Date</td>
+      <td width="50">Material</td>
+      <td width="81">Quantity</td>
+      <td width="81">Supervisor</td>
+      <td>Status</td>
+      <td>Delivery</td>
+      <td></td>
+    </tr>
+  </thead>
+  <tbody>
+        {% for i in data1 %}
+    <tr>
+      <td rowspan="2">{{ forloop.counter }}</td>
+      <td rowspan="2">{{ i.date }}</td>
+      <td rowspan="2">{{ i.MATERIAL.name }}</td>
+      <td rowspan="2">{{ i.quantity_issued }}{{ i.MATERIAL.unit }}</td>
+      <td rowspan="2">{{ i.STAFF.name }}</td>
+      <td rowspan="2">{{ i.status}}</td>
+      <td><a href="/WMS/deliver_materials/{{ i.id }}" class="btn btn-outline-primary btn-sm">Deliver</a></td>
+      <td rowspan="2"><a href="/WMS/Update_issue_statuspc/{{ i.id }}" class="btn btn-outline-primary btn-sm">Update Status</a></td>
+    </tr>
+    <tr>
+      <td><a href="/WMS/View_delivered_materials/{{ i.id }}" class="btn btn-outline-primary btn-sm">View</a></td>
+    </tr>
+        {% endfor %}
+  </tbody>
+  </table>
+</form>
+{% endblock %}

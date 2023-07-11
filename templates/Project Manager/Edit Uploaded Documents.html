@@ -1,0 +1,26 @@
+{% extends "Project Manager/pmindex.html" %}
+{% block body %}
+<form action="/WMS/Edit_Uploaded_documents_post/" method="post" enctype="multipart/form-data" name="form1" id="form1">
+  {% csrf_token %}
+    <div style="color: blue"><h3>Edit Documents</h3></div>
+    <table width="261" border="1" class="table table-striped">
+        <input type="hidden" name="did" value="{{ data.id }}">
+        <input type="hidden" name="pid" value="{{ pid }}">
+    <tr>
+      <td width="72">Name</td>
+      <td width="218"><label>
+         <input type="text" name="name" id="textfield" value="{{ data.name }}" class="form-control"/>
+      </label></td>
+    </tr>
+    <tr>
+      <td width="27">File</td>
+      <td width="218"><label>
+        <a href="{{ data.file }}">View</a><input type="file" name="file" id="fileField" class="form-control"/>
+      </label></td>
+    </tr>
+    <tr align="center">
+      <td colspan="2"><input type="submit" name="button3" id="button3" value="Save" class="btn btn-outline-primary"/></td>
+    </tr>
+  </table>
+</form>
+{% endblock %}

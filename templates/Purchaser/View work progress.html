@@ -1,0 +1,106 @@
+{% extends "Purchaser/pcindex2.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/search_prstapc/#myid">
+  {% csrf_token %}
+<div style="color: blue" align="center"><h3>Work Progress</h3></div>
+<input type="hidden" name="pid" value="{{ id }}">
+<div class="dataTable-top">
+    <div class="dataTable-search">
+        <input type="text" name="text" id="textfield" placeholder="Enter name here..." class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Search" class="btn btn-outline-info btn-sm"/>
+        From&nbsp;<input type="date" name="from" id="textfield"  class="form-control-sm"/>&nbsp;
+        To&nbsp;<input type="date" name="to" id="textfield"  class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+    <table width="168" border="1" class="table table-striped ">
+   <thead>
+    <tr style="background-color: #00a0dc;color:white ">
+       <td width="1%">Sl.No</td>
+      <td width="50">Updated on</td>
+      <td width="60">Deadline</td>
+      <td width="46">Category</td>
+      <td width="46">Work</td>
+      <td width="56" align="center">Status</td>
+      <td width="56" align="center">Progress</td>
+    </tr>
+   </thead>
+   <tbody>
+         {% for i in data1 %}
+          {% if i.ss == "ok" %}
+              {% if i.status == "Completed" %}
+    <tr>
+      <td><span>{{ forloop.counter }}</span></td>
+      <td><span>{{ i.date }}</span></td>
+      <td><span>{{ i.todate }}</span></td>
+      <td><span>{{ i.WORK.category }}</span></td>
+      <td><span>{{ i.WORK.workname }}</span></td>
+      <td  class="bg-success text-white rounded-5" align="center" ><span>{{ i.status }}</span></td>
+      <td align="center"><span >{{ i.progress }}% </span></td>
+    </tr>
+                   {% elif i.status == "Ongoing" %}
+    <tr>
+      <td><span>{{ forloop.counter }}</span></td>
+      <td><span >{{ i.date }}</span></td>
+      <td><span>{{ i.todate }}</span></td>
+      <td><span>{{ i.WORK.category }}</span></td>
+      <td><span>{{ i.WORK.workname }}</span></td>
+      <td class="bg-primary text-white rounded-5" align="center"><span>{{ i.status }}</span></td>
+      <td align="center"><span>{{ i.progress }}% </span></td>
+    </tr>
+                   {% else %}
+    <tr>
+  <td ><span>{{ forloop.counter }}</span></td>
+      <td><span>{{ i.date }}</span></td>
+      <td><span>{{ i.todate }}</span></td>
+      <td><span>{{ i.WORK.category }}</span></td>
+      <td><span>{{ i.WORK.workname }}</span></td>
+      <td class="bg-dark text-white rounded-5" align="center"><span style="color: white" >{{ i.status }}</span></td>
+      <td align="center"><span>{{ i.progress }}% </span></td>
+    </tr>
+                  {% endif %}
+          {% elif i.ss == "not" %}
+           <tr>
+      <td><span>{{ forloop.counter }}</span></td>
+      <td><span>{{ i.date }}</span></td>
+      <td><span>{{ i.todate }}</span></td>
+      <td><span>{{ i.WORK.category }}</span></td>
+      <td><span>{{ i.WORK.workname }}</span></td>
+      <td class="bg-warning text-white rounded-5" align="center"><span style="color: white" >{{ i.status }}</span></td>
+      <td align="center"><span>{{ i.progress }}% </span></td>
+    </tr>
+          {% else %}
+           <tr>
+      <td><span>{{ forloop.counter }}</span></td>
+      <td><span>{{ i.date }}</span></td>
+      <td><span>{{ i.todate }}</span></td>
+      <td><span>{{ i.WORK.category }}</span></td>
+      <td><span>{{ i.WORK.workname }}</span></td>
+      <td class="bg-danger text-white rounded-5" align="center"><span >{{ i.status }}</span></td>
+      <td align="center"><span>{{ i.progress }}% </span></td>
+    </tr>
+          {% endif %}
+      {% endfor %}
+   </tbody>
+    </table>
+<table>
+<tr>
+   <td width="20%" style="padding-right: 80px;" ><div id="circle" class="bg-danger"></div>Not Completed</td>
+   <td width="20%" style="padding-right: 100px;"> <div id="circle" class="bg-success"></div>Completed</td>
+   <td width="20%" style="padding-right: 100px;"><div id="circle" class="bg-warning"></div>Warning</td>
+   <td width="20%" style="padding-right: 100px;"><div id="circle" class="bg-primary"></div>Ongoing</td>
+   <td width="20%" style="padding-right: 100px;"><div id="circle" class="bg-dark"></div>Pending</td>
+</tr>
+    </table>
+</form>
+     <head>
+    <style>        #circle {
+    width: 20px;
+    height: 20px;
+    -moz-border-radius: 50px;
+    -webkit-border-radius: 50px;
+    border-radius: 50px;
+}
+    </style>
+    </head>
+{% endblock %}

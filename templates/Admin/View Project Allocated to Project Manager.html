@@ -1,0 +1,38 @@
+{% extends "Admin/index2.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/search_pmr/#myid">
+    {% csrf_token %}
+<div style="color: blue" align="center"><h3>Project Manager Allocation</h3></div>
+<input type="hidden" value="{{ id }}" name="pid">
+<div class="dataTable-top">
+    <div class="dataTable-search">
+        <input type="text" name="text" id="textfield" placeholder="Enter name here..." class="form-control-sm"/>
+     <input type="submit" name="Go" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+  <table width="200" border="1" class="table table-striped">
+  <thead>
+    <tr style="background-color: #00a0dc;color: white">
+{#      <td>Sl.No</td>#}
+{#      <td>Project Name</td>#}
+      <td>Project Manager</td>
+      <td>Allocated Date</td>
+      <td>&nbsp;</td>
+      <td>&nbsp;</td>
+    </tr>
+  </thead>
+  <tbody>
+    {% for i in data2 %}
+    <tr>
+{#      <td>{{  }}</td>#}
+{#      <td>{{ data.PROJECT.project_name }}</td>#}
+      <td>{{ i.STAFF.name }}</td>
+      <td>{{ i.allocated_date }}</td>
+      <td><a href="/WMS/Edit_Projec_allocation_to_pm/{{ i.id }}" class="btn btn-outline-primary btn-sm">Edit</a></td>
+      <td><a href="/WMS/Delete_pma/{{ i.id }}" class="btn btn-outline-danger btn-sm" onclick="return confirm('are you sure?')">Delete</a></td>
+    </tr>
+      {% endfor %}
+  </tbody>
+  </table>
+</form>
+{% endblock %}

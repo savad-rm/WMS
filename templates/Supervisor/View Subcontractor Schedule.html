@@ -1,0 +1,44 @@
+{% extends "Supervisor/spindex.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/search_subsh/">
+  {% csrf_token %}
+<div style="color: blue"><h3>Subcontractor Schedule</h3></div>
+         <tr>
+      <td colspan="5">
+    <table class="pull-left">
+         <tr>
+            <td>From:</td>
+          <td>
+            <input type="date" name="from" id="textfield" class="form-control"/></td>
+          <td>To:</td>
+            <td>
+            <input type="date" name="to" id="textfield2" class="form-control"/></td>
+          <td><input type="submit" name="Go" id="Go" value="Go" class="btn btn-outline-info"/></td>
+        </tr>
+      </table></td>
+    </tr>
+    <table width="200" border="1" class="table table-striped">
+  <thead>
+    <tr>
+      <td>Sl.No</td>
+      <td>Category</td>
+      <td>Subcontractor</td>
+      <td>From</td>
+      <td>To</td>
+    </tr>
+  </thead>
+  <tbody>
+  <input type="hidden" value="{{ id }}" name="pid">
+        {% for i in data %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ i.SUBCONTRACTOR_PROJECT_ALLOCATION.SUBCONTRACTOR.work_category }}</td>
+      <td>{{ i.SUBCONTRACTOR_PROJECT_ALLOCATION.SUBCONTRACTOR.name }}</td>
+      <td>{{ i.from_date }}</td>
+      <td>{{ i.to_date }}</td>
+    </tr>
+        {% endfor %}
+    <tbody>
+  </table>
+</form>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "Purchaser/pcindex.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/search_deld/">
+  {% csrf_token %}
+<div style="color: blue" align="center"><h3>Delivered Materials</h3></div>
+<input type="hidden" value="{{ id }}" name="pid">
+<div class="dataTable-top">
+    <div class="dataTable-search">
+        <input type="text" name="text" id="textfield" placeholder="Enter name here..." class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Search" class="btn btn-outline-info btn-sm"/>
+        From&nbsp;<input type="date" name="from" id="textfield"  class="form-control-sm"/>&nbsp;
+        To&nbsp;<input type="date" name="to" id="textfield"  class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+    <table width="200" border="1" class="table table-striped">
+  <thead>
+    <tr style="background-color: #00a0dc;color: white">
+      <td>Sl.No</td>
+      <td>Date</td>
+      <td>Supervisor</td>
+      <td>Supplier</td>
+      <td>Place</td>
+      <td>Material</td>
+      <td>Quantity Delivered</td>
+{#      <td>Status</td>#}
+      <td>&nbsp;</td>
+      <td>&nbsp;</td>
+    </tr>
+  </thead>
+  <tbody>
+        {% for i in data %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ i.date }}</td>
+      <td>{{ i.MATERIAL_ISSUED.STAFF.name }}</td>
+      <td>{{ i.supplier }}</td>
+      <td>{{ i.place }}</td>
+      <td>{{ i.MATERIAL_ISSUED.MATERIAL.name }}</td>
+      <td>{{ i.quantity }}{{ i.MATERIAL_ISSUED.MATERIAL.unit }}</td>
+{#      <td>{{ i.status }}</td>#}
+      <td><a href="/WMS/Edit_delivered_materials/{{ i.id }}" class="btn btn-outline-primary btn-sm">Edit</a></td>
+      <td><a href="/WMS/Delete_drdm/{{ i.id }}/{{ i.MATERIAL_ISSUED.PROJECT.id }}" class="btn btn-outline-danger btn-sm">Delete</a></td>
+    </tr>
+        {% endfor %}
+  </tbody>
+  </table>
+</form>
+{% endblock %}

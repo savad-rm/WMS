@@ -1,0 +1,41 @@
+{% extends "Purchaser/pcindex.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="">
+  {% csrf_token %}
+    <div style="color: blue"><h3>Profile</h3></div>
+    <table width="200" border="1" class="table table-striped">
+    <tr>
+      <td>Name</td>
+      <td><label for="textfield">{{ data.name }}</label></td>
+    </tr>
+    <tr>
+      <td>DOB</td>
+      <td><label for="textfield">{{ data.dob }}</label></td>
+    </tr>
+    <tr>
+      <td>Email</td>
+      <td><label for="textfield">{{ data.email }}</label></td>
+    </tr>
+    <tr>
+      <td>Phone</td>
+      <td><label for="textfield">{{ data.phone }}</label></td>
+    </tr>
+    <tr>
+      <td>Place</td>
+      <td><label for="textfield">{{ data.place }}</label></td>
+    </tr>
+    <tr>
+      <td>Nation</td>
+      <td><label for="textfield">{{ data.nation }}</label></td>
+    </tr>
+    <tr>
+      <td>Contact(Home)</td>
+      <td><label for="textfield">{{ data.phone2 }}</label></td>
+    </tr>
+    <tr>
+      <td>Designation</td>
+      <td><label for="textfield">{{ data.designation }}</label></td>
+    </tr>
+  </table>
+</form>
+{% endblock %}

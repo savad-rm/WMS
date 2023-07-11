@@ -1,0 +1,43 @@
+{% extends "Project Manager/pmindex.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/search_ntfn/">
+  {% csrf_token %}
+<div style="color: blue" align="center"><h3>Material Request</h3></div>
+<div class="dataTable-top">
+    <div class="dataTable-search">
+        <input type="text" name="text" id="textfield" placeholder="Enter name here..." class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Search" class="btn btn-outline-info btn-sm"/>
+        From&nbsp;<input type="date" name="from" id="textfield"  class="form-control-sm"/>&nbsp;
+        To&nbsp;<input type="date" name="to" id="textfield"  class="form-control-sm"/>
+     <input type="submit" name="button" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+    <table width="255" border="1" class="table table-striped ">
+   <thead>
+    <tr style="background-color: #00a0dc;color: white">
+      <td width="36">Sl.No</td>
+      <td width="36">Date</td>
+      <td width="72">Project Name</td>
+      <td width="51">Supervisor</td>
+      <td width="51">Type</td>
+      <td width="51">Status</td>
+      <td width="68">Notification</td>
+   </tr>
+   </thead>
+    <tbody>
+        {% for i in data %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ i.date }}</td>
+      <td>{{ i.PROJECT.project_name }}</td>
+      <td>{{ i.STAFF.name }}</td>
+      <td>{{ i.type }}</td>
+      <td>{{ i.status }}</td>
+      <td>{{ i.notification }}</td>
+    </tr>
+        {% endfor %}
+        
+    </tbody>
+  </table>
+</form>
+{% endblock %}

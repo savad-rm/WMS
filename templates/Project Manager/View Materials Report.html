@@ -1,0 +1,38 @@
+{% extends "Project Manager/pmindex2.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/search_msrt/#myid">
+  {% csrf_token %}
+<div style="color: blue" align="center"><h3>Material Required</h3></div>
+<input type="hidden" name="id" value="{{ id }}">
+<div class="dataTable-top">
+    <div class="dataTable-search">
+        <input type="text" name="text" id="textfield" placeholder="Enter name here..." class="form-control-sm"/>
+     <input type="submit" name="Go" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+    <table width="200" border="1" class="table table-striped">
+  <thead>
+    <tr style="background-color: #00a0dc;color: white">
+      <td>Sl.No</td>
+      <td>Material</td>
+      <td>Quantity Required</td>
+      <td>Quantity Issued</td>
+      <td>Quantity Used</td>
+      <td>&nbsp;</td>
+      <td>&nbsp;</td>
+    </tr>
+  </thead>
+  <tbody>
+        {% for i in data1 %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ i.material }}</td>
+      <td>{{ i.required }}</td>
+      <td>{{ i.issued }}</td>
+      <td>{{ i.usage }}</td>
+    </tr>
+        {% endfor %}
+   </tbody>
+  </table>
+</form>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "Accountant/acindex2.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/search_pymtey/#myid">
+        {% csrf_token %}
+<div style="color: blue" align="center"><h3>Payments</h3></div>
+  <input type="hidden" value="{{ id }}" name="pid">
+<div class="dataTable-top">
+<div class="dataTable-dropdown">
+        <a href="/WMS/Project_payment_entry/{{ id }}" class="btn btn-outline-primary btn-sm">Add</a>
+    </div>
+    <div class="dataTable-search">
+        From&nbsp;<input type="date" name="from" id="textfield"  class="form-control-sm"/>&nbsp;
+        To&nbsp;<input type="date" name="to" id="textfield"  class="form-control-sm"/>
+     <input type="submit" name="Go" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
+    </div>
+</div>
+<table width="333" border="1" class="table table-striped ">
+  <thead>
+    <tr style="background-color: #00a0dc;color: white">
+      <td width="36">Sl.No</td>
+{#      <td width="36">Project</td>#}
+      <td width="48">Date</td>
+      <td width="48">Amount</td>
+      <td width="52">&nbsp;</td>
+      <td width="38">&nbsp;</td>
+    </tr>
+  </thead>
+  <tbody>
+          {% for i in data1 %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+{#      <td>{{ i.PROJECT.project_name }}</td>#}
+      <td>{{ i.date }}</td>
+      <td>{{ i.amount }}</td>
+      <td><a href="/WMS/Edit_Project_payment_entry/{{ i.id }}/{{ i.PROJECT.id }}" class="btn btn-outline-primary btn-sm">Edit</a></td>
+      <td><a href="/WMS/Delete_Payment/{{ i.id }}/{{ i.PROJECT.id }}" class="btn btn-outline-danger btn-sm" >Delete</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+{#                              <a href="/WMS/Project_payment_entry/{{ data.PROJECT.id }}">Add</a>#}
+  </table>
+</form>
+{% endblock %}

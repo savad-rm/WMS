@@ -1,0 +1,23 @@
+{% extends "Project Manager/pmindex.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" action="/WMS/Edit_Supplier_materials_post/">
+  {% csrf_token %}
+    <table width="200" border="1" class="table table-striped">
+    <tr>
+      <td>Supplier</td>
+      <td><input type="text" name="supplier" id="textfield2" /></td>
+    </tr>
+    <tr>
+      <td>Material</td>
+      <td><input type="text" name="material" id="textfield" /></td>
+    </tr>
+    <tr>
+      <td>Price</td>
+      <td><input type="text" name="price" id="textfield3" /></td>
+    </tr>
+    <tr>
+      <td colspan="2"><input type="submit" name="button3" id="button3" value="Save" /></td>
+    </tr>
+  </table>
+</form>
+{% endblock %}

@@ -1,0 +1,89 @@
+{% extends "Project Manager/pmindex.html" %}
+{% block body %}
+<form id="form1" name="form1" method="post" enctype="multipart/form-data" action="/WMS/Draft_Subcontractor_budget_post/">
+ {% csrf_token %}
+  <div style="color: blue"><h3>Draft Estimate</h3></div>
+  <table width="291" border="1" class="table table-striped">
+      <input type="hidden" value="{{ data.id }}" name="eid">
+      <input type="hidden" value="{{ id }}" name="id">
+    <tr>
+      <td width="135">Work</td>
+      <td width="144"><input type="text" name="wrk" id="textfield" class="form-control"/></td>
+    </tr>
+    <tr>
+      <td>Category</td>
+      <td width="144"><input type="text" name="category" id="textfield2" class="form-control"/></td>
+    </tr>
+    <tr>
+      <td>Material Cost</td>
+      <td width="144"><input type="text" name="materialcost"  id="textfield7" class="form-control"/></td>
+    </tr>
+    <tr>
+      <td>Labour Cost</td>
+      <td><input type="text" name="labourcost" id="textfield3" class="form-control"/></td>
+    </tr>
+    <tr>
+      <td>Vehicle Cost</td>
+      <td><input type="text" name="vehiclecost" id="textfield4" class="form-control"/></td>
+    </tr>
+    <tr>
+      <td>Subcontractor Cost</td>
+      <td><input type="text" name="subcontractorcost" value="{{ amnt }}" id="textfield5" class="form-control"/></td>
+    </tr>
+    <tr>
+      <td>Other Expenses</td>
+      <td><input type="text" name="otherexpenses" id="textfield6" class="form-control"/></td>
+    </tr>
+    <tr align="center">
+      <td colspan="2"><input type="submit" name="button3" id="button3" value="Add" class="btn btn-outline-info"/></td>
+    </tr>
+  </table>
+  <table width="616" border="1" class="table table-striped">
+    <thead>
+      <tr>
+        <td colspan="9">{{ data.PROJECT.project_name }}</td>
+      </tr>
+      <tr>
+        <td width="36">Sl.No</td>
+        <td width="44">Estimate.No</td>
+        <td width="44">Date</td>
+        <td width="44">Category</td>
+        <td width="44">Work</td>
+        <td width="62">Material Cost</td>
+        <td width="80">Labour Cost</td>
+        <td width="82">Vehicle Cost</td>
+        <td width="123">Subcontractor Cost</td>
+        <td width="98">Other Expenses</td>
+        <td width="98">Total</td>
+      </tr>
+    </thead>
+    <tbody>
+    </tbody>
+    {% for i in data1 %}
+  <tr>
+    <td>{{ forloop.counter }}</td>
+    <td>{{ i.ESTIMATE.est_no }}</td>
+    <td>{{ i.ESTIMATE.date }}</td>
+    <td>{{ i.work_category }}</td>
+    <td>{{ i.work }}</td>
+    <td>{{ i.material_cost }}</td>
+    <td>{{ i.labour_cost }}</td>
+    <td>{{ i.vehicle_cost }}</td>
+    <td>{{ i.subcontractor_cost }}</td>
+    <td>{{ i.other_expenses }}</td>
+    <td>{{ i.total }}</td>
+    </tr>
+    {% endfor %}
+     <tr><th colspan="8">Total</th><td colspan="" >{{ tt }}</td></tr>
+  </table>
+
+</form>
+    <table align="center" >
+  <tr align="center">
+      <form action="/WMS/Exit_budget/" method="post">
+          {% csrf_token %}
+          <td colspan="9"><input type="submit" name="button" id="button" value="Submit" class="btn btn-outline-primary"/></td>
+          </form>
+  </tr>
+    </table>
+{% endblock %}

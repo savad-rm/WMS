@@ -1,0 +1,44 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WMS Project Enquiries</title>
+  <link href="{% static 'index/vendor/bootstrap/css/bootstrap.min.css' %}" rel="stylesheet">
+  <link href="{% static 'index/vendor/bootstrap-icons/bootstrap-icons.css' %}" rel="stylesheet">
+  <link href="{% static 'index/css/style.css' %}" rel="stylesheet">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+<header class="header fixed-top d-flex align-items-center">
+  <div class="d-flex align-items-center justify-content-between px-3">
+    <a href="{% url 'workflow_dashboard' %}" class="logo d-flex align-items-center">
+      <img src="{% static 'index/img/logo.png' %}" alt="WMS">
+      <span class="d-none d-lg-block">WMS</span>
+    </a>
+  </div>
+  <nav class="header-nav ms-auto pe-4"><span class="text-primary fw-semibold">{{ current_role }}</span></nav>
+</header>
+<aside id="sidebar" class="sidebar">
+  <ul class="sidebar-nav">
+    <li class="nav-item"><a class="nav-link" href="{% url 'workflow_dashboard' %}"><i class="bi bi-grid"></i><span>Enquiry Dashboard</span></a></li>
+    {% if current_role == 'Marketing Executive' %}
+    <li class="nav-item"><a class="nav-link collapsed" href="{% url 'workflow_add_enquiry' %}"><i class="bi bi-folder-plus"></i><span>Add Enquiry</span></a></li>
+    {% endif %}
+    {% if current_role == 'Admin' %}
+    <li class="nav-item"><a class="nav-link collapsed" href="{% url 'Admin_home' %}"><i class="bi bi-arrow-left"></i><span>Admin Dashboard</span></a></li>
+    {% elif current_role == 'Project Manager' %}
+    <li class="nav-item"><a class="nav-link collapsed" href="{% url 'PMHome' %}"><i class="bi bi-arrow-left"></i><span>Project Dashboard</span></a></li>
+    {% endif %}
+    <li class="nav-item"><a class="nav-link collapsed" href="{% url 'login' %}"><i class="bi bi-box-arrow-right"></i><span>Sign Out</span></a></li>
+  </ul>
+</aside>
+<main id="main" class="main">
+  {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show">{{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>{% endfor %}
+  {% block body %}{% endblock %}
+</main>
+<script src="{% static 'index/vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

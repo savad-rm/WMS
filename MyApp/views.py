@@ -1,55 +1,121 @@
 from django.core.files.storage import FileSystemStorage
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
+from django.contrib.auth.hashers import check_password, make_password
+from django.contrib import messages
+from django.db import IntegrityError, transaction as db_transaction
+from django.views.decorators.http import require_POST
+from MyApp.middleware import legacy_role_required
 
-# Create your views here.
-from MyApp.models import *
+from MyApp.models import (
+    account_sub,
+    accounthead,
+    budget_estimate,
+    chat,
+    documents,
+    drawing,
+    enquiry,
+    estimate,
+    inspection,
+    login,
+    material,
+    material_delivery,
+    material_issued,
+    material_request,
+    material_required,
+    material_usage,
+    notification,
+    payemnt_entry,
+    photo,
+    project,
+    project_manager_allocation,
+    purchaser_project_allocation,
+    schedule,
+    staff,
+    subcotractor_project_allocation,
+    subcontractor,
+    subcontractor_schedule,
+    supervisor_allocation,
+    transaction,
+    work,
+    work_progress,
+    worker_entry,
+)
+
+
+def _chat_messages(project_id, current_login_id):
+    """Build a chat response with a fixed number of queries."""
+    messages_for_project = list(chat.objects.filter(PROJECT_id=project_id).order_by('id'))
+    login_ids = {item.LOGIN_id for item in messages_for_project}
+    staff_names = dict(
+        staff.objects.filter(LOGIN_id__in=login_ids).values_list('LOGIN_id', 'name')
+    )
+    return [
+        {
+            'cid': item.id,
+            'prid': item.PROJECT_id,
+            'date': item.date,
+            'time': item.time,
+            'msg': item.message,
+            'type': item.type,
+            'login_id': item.LOGIN_id,
+            'lid': current_login_id,
+            'name': staff_names.get(item.LOGIN_id, ''),
+        }
+        for item in messages_for_project
+    ]
 
 def loginn(request):
+    request.session.flush()
     return render(request, 'login.html')
 
-def login_post(request):
-    name=request.POST['username']
-    password=request.POST['password']
-    # if login.objects.filter(username=name,password=password).exists():
-    # if d.usertype=="Admin":
-    #     return render(request,"Admin/index.html")
-    if name=="admin@gmail.com" and password=="blueray@2446":
-        return render(request, "Admin/index.html")
-    else:
-        res=login.objects.filter(username=name,password=password)
-        if res.exists():
-            d=login.objects.get(username=name,password=password)
-            request.session["lid"]=d.id
-            if d.usertype=="Project Manager":
-                s=staff.objects.filter(LOGIN=request.session["lid"])
 
-                if s is not None:
-                    sd=s[0]
-                    request.session["sid"]=sd.id
-                    return render(request,"Project Manager/pmindex.html")
-            elif d.usertype=="Supervisor":
-                s = staff.objects.filter(LOGIN=request.session["lid"])
-                if s is not None:
-                    sd = s[0]
-                    request.session["sid"] = sd.id
-                    return render(request,"Supervisor/spindex.html")
-            elif d.usertype=="Accountant":
-                s = staff.objects.filter(LOGIN=request.session["lid"])
-                if s is not None:
-                    sd = s[0]
-                    request.session["sid"] = sd.id
-                    return render(request,"Accountant/acindex.html")
-            elif d.usertype=="Purchaser":
-                s = staff.objects.filter(LOGIN=request.session["lid"])
-                if s is not None:
-                    sd = s[0]
-                    request.session["sid"] = sd.id
-                    return render(request,"Purchaser/pcindex.html")
-            else:
-                return HttpResponse('''<script>alert('invalid username or password');window.location='/WMS/login/'</script>''')
-        else:
-            return HttpResponse('''<script>alert('invalid username or password');window.location='/WMS/login/'</script>''')
+def _password_matches(account, raw_password):
+    return bool(account and (check_password(raw_password, account.password) or account.password == raw_password))
+
+
+def _change_session_password(request, failure_url):
+    account = login.objects.filter(pk=request.session.get('lid')).first()
+    old = request.POST.get('old', '')
+    new = request.POST.get('new', '')
+    confirm = request.POST.get('confirm', '')
+    if not _password_matches(account, old):
+        return HttpResponse(f"<script>alert('Current Password Must Be Valid');window.location='{failure_url}'</script>")
+    if not new or new != confirm:
+        return HttpResponse(f"<script>alert('Password Mismatched');window.location='{failure_url}'</script>")
+    account.password = make_password(new)
+    account.save(update_fields=('password',))
+    request.session.flush()
+    return HttpResponse("<script>alert('Password Changed');window.location='/WMS/login/'</script>")
+
+def login_post(request):
+    name=request.POST['username'].strip().lower()
+    password=request.POST['password']
+    d=login.objects.filter(username__iexact=name).first()
+    if not _password_matches(d, password):
+        return HttpResponse('''<script>alert('invalid username or password');window.location='/WMS/login/'</script>''')
+    if d.password == password:
+        d.password = make_password(password)
+        d.save(update_fields=('password',))
+    request.session["lid"]=d.id
+    request.session["role"]=d.usertype
+    s=staff.objects.filter(LOGIN=d).first()
+    if s:
+        request.session["sid"]=s.id
+    if d.usertype=="Admin":
+        return redirect('Admin_home')
+    if d.usertype=="Project Manager" and s:
+        return redirect('PMHome')
+    if d.usertype=="Supervisor" and s:
+        return render(request,"Supervisor/spindex.html")
+    if d.usertype=="Accountant" and s:
+        return render(request,"Accountant/acindex.html")
+    if d.usertype=="Purchaser" and s:
+        return render(request,"Purchaser/pcindex.html")
+    if d.usertype in ('Marketing Executive', 'Marketing Manager', 'Estimator', 'Document Controller') and s:
+        return redirect('workflow_dashboard')
+    request.session.flush()
+    return HttpResponse('''<script>alert('User profile is incomplete');window.location='/WMS/login/'</script>''')
 
 
 ##################################################  ADMIN  #######################################################################
@@ -58,21 +124,25 @@ def Admin_home(request):
     return render(request,'Admin/index.html')
 
 def Add_project(request):
-    return render(request,'Admin/Add Project.html')
+    return render(request,'Admin/Add Project.html', {
+        'source_projects': project.objects.all().only('id', 'project_no', 'project_name').order_by('project_name'),
+        'awarded_enquiries': enquiry.objects.filter(status='awarded', PROJECT__isnull=True).only('id', 'title', 'client_name'),
+    })
 
+@require_POST
+@db_transaction.atomic
 def Add_project_post(request):
     pno=request.POST['project_no']
     pname=request.POST['t1']
     client_name = request.POST['client_name']
     phone = request.POST['phone']
-    email = request.POST['email']
+    email = request.POST['email'].strip().lower()
     place = request.POST['place']
     unit_no = request.POST['unit_no']
     project_value = request.POST['project_value']
     starting_date = request.POST['starting_date']
     handout_date = request.POST['handout_date']
     project_duration= request.POST['project_duration']
-    print(project_duration,"duraaaaation")
     project_area= request.POST['project_area']
     project_type= request.POST['project_type']
     description= request.POST['textfield13']
@@ -97,48 +167,93 @@ def Add_project_post(request):
     pobj.estimate_status='pending'
     pobj.status='pending'
     pobj.save()
-    return HttpResponse("<script>alert('Project Added');window.location='/WMS/View_Project/'</script>")
+
+    # Optionally reuse an existing project's planning data without sharing rows.
+    source_id = request.POST.get('source_project')
+    if source_id:
+        source = project.objects.filter(pk=source_id).first()
+        if source:
+            work_map = {}
+            if request.POST.get('copy_scope'):
+                for old_work in work.objects.filter(PROJECT=source):
+                    work_map[old_work.id] = work.objects.create(
+                        PROJECT=pobj, category=old_work.category, workname=old_work.workname
+                    )
+            if request.POST.get('copy_materials'):
+                material_required.objects.bulk_create([
+                    material_required(PROJECT=pobj, MATERIAL=item.MATERIAL, quantity=item.quantity,
+                                      price=item.price, category=item.category)
+                    for item in material_required.objects.filter(PROJECT=source).select_related('MATERIAL')
+                ])
+            if request.POST.get('copy_schedule'):
+                if not work_map:
+                    for old_work in work.objects.filter(PROJECT=source):
+                        work_map[old_work.id] = work.objects.create(
+                            PROJECT=pobj, category=old_work.category, workname=old_work.workname
+                        )
+                copied_schedules = [
+                    schedule(PROJECT=pobj, WORK=work_map[item.WORK_id],
+                             from_date=item.from_date, to_date=item.to_date)
+                    for item in schedule.objects.filter(PROJECT=source).select_related('WORK')
+                ]
+                schedule.objects.bulk_create(copied_schedules)
+                work_progress.objects.bulk_create([
+                    work_progress(PROJECT=pobj, WORK=item.WORK, date=pobj.date,
+                                  status='pending', progress='0')
+                    for item in copied_schedules
+                ])
+
+    enquiry_id = request.POST.get('enquiry')
+    if enquiry_id:
+        selected_enquiry = enquiry.objects.filter(pk=enquiry_id, status='awarded', PROJECT__isnull=True).first()
+        if selected_enquiry:
+            selected_enquiry.PROJECT = pobj
+            selected_enquiry.save(update_fields=('PROJECT', 'updated_at'))
+            selected_enquiry.project_documents.update(transferred_to=pobj)
+
+    messages.success(request, 'Project added successfully.')
+    return redirect('View_Project')
 
 def Add_staff(request):
     return render(request,'Admin/Add Staff.html')
 
+@require_POST
 def Add_staff_post(request):
     name = request.POST['name']
     dob = request.POST['dob']
     # gender = request.POST['RadioGroup1']
     phone = request.POST['phone']
-    email = request.POST['email']
-    photo = request.FILES['photo']
+    email = request.POST['email'].strip().lower()
+    photo = request.FILES.get('photo')
     place = request.POST['place']
     nation = request.POST['nation']
     phone2 = request.POST['phone2']
     designation = request.POST['designation']
 
     from datetime import datetime
+    if login.objects.filter(username__iexact=email).exists() or staff.objects.filter(email__iexact=email).exists():
+        return render(request, 'Admin/Add Staff.html', {
+            'error': 'A staff user with this email already exists.', 'form_data': request.POST,
+        }, status=400)
     fs = FileSystemStorage()
-    date=datetime.now().strftime("%Y%m%d%H%M%S")+photo.name
-    fn=fs.save(date,photo)
-
-    lobj = login()
-    lobj.username = email
-    lobj.password = phone
-    lobj.usertype=designation
-    lobj.save()
-
-    sobj=staff()
-    sobj.LOGIN=lobj
-    sobj.name=name
-    sobj.dob=dob
-    # sobj.gender=gender
-    sobj.phone=phone
-    sobj.email=email
-    sobj.photo=fs.url(date)
-    sobj.place=place
-    sobj.nation=nation
-    sobj.phone2 = phone2
-    sobj.designation=designation
-    sobj.save()
-    return HttpResponse("<script>alert('Staff Added');window.location='/WMS/Add_staff/'</script>")
+    photo_url = ''
+    if photo:
+        filename=datetime.now().strftime("%Y%m%d%H%M%S")+photo.name
+        saved_name=fs.save(filename,photo)
+        photo_url=fs.url(saved_name)
+    try:
+        with db_transaction.atomic():
+            lobj = login.objects.create(username=email, password=make_password(phone), usertype=designation)
+            staff.objects.create(
+                LOGIN=lobj, name=name, dob=dob, phone=phone, email=email, photo=photo_url,
+                place=place, nation=nation, phone2=phone2, designation=designation,
+            )
+    except IntegrityError:
+        return render(request, 'Admin/Add Staff.html', {
+            'error': 'A staff user with this email already exists.', 'form_data': request.POST,
+        }, status=400)
+    messages.success(request, 'Staff added successfully.')
+    return redirect('View_Staff')
 
 def Edit_Projec_allocation_to_pm(request,id):
     res=project_manager_allocation.objects.get(pk=id)
@@ -149,11 +264,11 @@ def Edit_Projec_allocation_to_pm_post(request):
     pid=request.POST['pid']
     m=request.POST['pm']
     pm=staff.objects.get(pk=m)
-    epm=project_manager_allocation.objects.filter(pk=pid).update(STAFF=pm)
+    project_manager_allocation.objects.filter(pk=pid).update(STAFF=pm)
     return HttpResponse("<script>alert('Edited Successfully');window.location='/WMS/View_Ongoing_projects/'</script>")
 
 def Delete_pma(request,id):
-    res=project_manager_allocation.objects.filter(pk=id).delete()
+    project_manager_allocation.objects.filter(pk=id).delete()
     return HttpResponse("<script>alert('Deleted Successfully');window.location='/WMS/View_Ongoing_projects/'</script>")
 
 def Edit_Projec_allocation_to_supervisor(request,id):
@@ -165,11 +280,11 @@ def Edit_Projec_allocation_to_supervisor_post(request):
     pid=request.POST['pid']
     sup = request.POST['supervisor']
     s=staff.objects.get(pk=sup)
-    eps = supervisor_allocation.objects.filter(pk=pid).update(STAFF = s)
+    supervisor_allocation.objects.filter(pk=pid).update(STAFF = s)
     return HttpResponse("<script>alert('Edited Successfully');window.location='/WMS/View_Ongoing_projects/'</script>")
 
 def Delete_psa(request,id):
-    res=supervisor_allocation.objects.filter(pk=id).delete()
+    supervisor_allocation.objects.filter(pk=id).delete()
     return HttpResponse("<script>alert('Deleted Successfully');window.location='/WMS/View_Ongoing_projects/'</script>")
 
 def Edit_project(request,id):
@@ -192,11 +307,11 @@ def Edit_project_post(request):
     description= request.POST['description']
     estimate_status = request.POST['estimate_status']
     status = request.POST['status']
-    epj=project.objects.filter(id=pid).update(project_name = project_name,client_name = client_name,phone = phone,email = email,place = place,unit_no = unit_no,project_value = project_value,start_date = starting_date,handout_date=handout_date,project_duration = project_duration,project_type=project_type,description = description,estimate_status = estimate_status,status=status)
+    project.objects.filter(id=pid).update(project_name = project_name,client_name = client_name,phone = phone,email = email,place = place,unit_no = unit_no,project_value = project_value,start_date = starting_date,handout_date=handout_date,project_duration = project_duration,project_type=project_type,description = description,estimate_status = estimate_status,status=status)
     return HttpResponse("<script>alert('Project Edited');window.location='/WMS/View_Project/'</script>")
 
 def Delete_project(request,id):
-    res=project.objects.filter(pk=id).delete()
+    project.objects.filter(pk=id).delete()
     return HttpResponse("<script>alert('Project Deleted');window.location='/WMS/View_Project/'</script>")
 
 def Edit_staff(request,id):
@@ -209,40 +324,45 @@ def Edit_staff_post(request):
     dob = request.POST['dob']
     # gender = request.POST['RadioGroup1']
     phone = request.POST['phone']
-    email = request.POST['email']
+    email = request.POST['email'].strip().lower()
     place = request.POST['place']
     nation = request.POST['nation']
     phone2 = request.POST['phone2']
     designation = request.POST['designation']
+    current_staff = staff.objects.select_related('LOGIN').get(pk=sid)
+    if staff.objects.filter(email__iexact=email).exclude(pk=sid).exists() or login.objects.filter(username__iexact=email).exclude(pk=current_staff.LOGIN_id).exists():
+        return HttpResponse("<script>alert('A staff user with this email already exists');history.back()</script>", status=400)
+    updates = dict(name=name, dob=dob, phone=phone, email=email, place=place,
+                   phone2=phone2, nation=nation, designation=designation)
     if 'photo' in request.FILES:
         photo = request.FILES['photo']
         from datetime import datetime
         fs = FileSystemStorage()
         date = datetime.now().strftime("%Y%m%d%H%M%S") + photo.name
         fn = fs.save(date, photo)
-        esobj = staff.objects.filter(id=sid).update(name = name,dob = dob,phone = phone,email = email,photo = fs.url(date),place = place,nation = nation,phone2=phone2,designation = designation)
-    else:
-        esobj = staff.objects.filter(id=sid).update(name=name, dob=dob, phone=phone, email=email,place=place,phone2=phone2, nation=nation, designation=designation)
+        updates['photo'] = fs.url(fn)
+    with db_transaction.atomic():
+        staff.objects.filter(id=sid).update(**updates)
+        login.objects.filter(pk=current_staff.LOGIN_id).update(username=email, usertype=designation)
     return HttpResponse("<script>alert('Edited Staff');window.location='/WMS/View_Staff/'</script>")
 
 def Delete_staff(request,id,lid):
-    res2=login.objects.get(pk=lid).delete()
-    print(lid)
-    res=staff.objects.filter(id=id).delete()
+    login.objects.get(pk=lid).delete()
+    staff.objects.filter(id=id).delete()
     return HttpResponse("<script>alert('Deleted Successfully');window.location='/WMS/View_Staff/'</script>")
 
 def Delete_chata(request,id,pid):
-    lid='78967'
-    d=chat.objects.filter(id=id).delete()
+    lid=request.session['lid']
+    chat.objects.filter(id=id).delete()
     p=project.objects.get(id=pid).project_name
     return render(request,'Admin/fur_chat.html', {'id':pid,'lid':lid,'p':p})
 
 def chatsa(request,id,msg):
-    # lid=str(request.session['lid'])
+    lid=request.session['lid']
     from datetime import datetime
 
     d=chat()
-    d.LOGIN_id="78967"
+    d.LOGIN_id=lid
     d.PROJECT_id=id
     d.message=msg
     d.date=datetime.now().strftime("%Y-%m-%d")
@@ -256,16 +376,7 @@ def chata(request,id):
     return render(request,'Admin/fur_chat.html', {'id':id,'p':p})
 
 def viewmsg_admin(request,id):
-    res = chat.objects.filter(PROJECT_id=id)
-    l = []
-    for i in res:
-        stanm = staff.objects.filter(LOGIN_id=i.LOGIN_id)
-        if stanm.exists():
-            stanm = staff.objects.get(LOGIN_id=i.LOGIN_id).name
-        else:
-            stanm=''
-        l.append({'cid':i.id,'prid':i.PROJECT_id, 'date':i.date, 'time':i.time, 'msg':i.message, 'type':i.type, 'login_id':i.LOGIN_id, 'lid':'78967', 'name':stanm})
-    return JsonResponse({'data':l})
+    return JsonResponse({'data': _chat_messages(id, request.session['lid'])})
 
 def viewmsg(request,id):
     res = chat.objects.filter(PROJECT_id=id)
@@ -291,7 +402,7 @@ def Projec_allocation_to_project_manager_post(request):
     pm.STAFF=res1
     pm.allocated_date=datetime.now().strftime("%Y-%m-%d")
     pm.save()
-    ps=project.objects.filter(id=pid).update(status='ongoing')
+    project.objects.filter(id=pid).update(status='ongoing')
     return HttpResponse("<script>alert('Allocated Project Manager');window.location='/WMS/View_Project/'</script>")
 
 def Projec_allocation_to_supervisor(request,id):
@@ -371,11 +482,11 @@ def search_estad(request):
     return render(request, 'Admin/View Estimate.html', {'data': res2,'data2':tt,'id':id})
 
 def approve_est(request,id):
-    res=project.objects.filter(pk=id).update(estimate_status='approved')
+    project.objects.filter(pk=id).update(estimate_status='approved')
     return HttpResponse("<script>alert('Approved');window.location='/WMS/View_Ongoing_projects/'</script>")
 
 def reject_est(request,id):
-    res = project.objects.filter(pk=id).update(estimate_status='rejected')
+    project.objects.filter(pk=id).update(estimate_status='rejected')
     return HttpResponse("<script>alert('Rejected');window.location='/WMS/View_Ongoing_projects/'</script>")
 
 def View_Material_required(request,id):
@@ -638,7 +749,6 @@ def search_prsta(request):
                         ss = "ok"
                     else:
                         ss = "no"
-                print(ss)
                 l.append({'ss': ss, 'WORK': i.WORK, 'date': i.date, 'status': i.status, 'progress': i.progress,'todate': to_date})
         return render(request, 'Admin/View Work Progress.html', {'data': res2,'data2':l, 'id': id})
     else:
@@ -712,43 +822,69 @@ def Add_Estimate_post(request):
     id= request.session['eid']
     return HttpResponse("<script>alert('Added Successfully');window.location='/WMS/Draft_budget/"+str(id)+"'</script>")
 
+@legacy_role_required('Project Manager')
 def Add_material_required(request,id):
     res=project.objects.get(id=id)
-    res2=material.objects.all()
-    return render(request,'Project Manager/Add Material Required.html',{'data':res,'data2':res2})
+    res2=material.objects.all().order_by('name')
+    source_projects = project.objects.exclude(id=id).only('id', 'project_no', 'project_name').order_by('project_name')
+    return render(request,'Project Manager/Add Material Required.html',{
+        'data':res, 'data2':res2, 'source_projects':source_projects,
+    })
 
+@require_POST
+@legacy_role_required('Project Manager')
+@db_transaction.atomic
 def Add_material_required_post(request):
     pid=request.POST['pid']
     p=project.objects.get(pk=pid)
-    mid=request.POST['material']
-    m=material.objects.get(pk=mid)
-    quantity=request.POST['quantity']
-    price=request.POST['price']
-    category=request.POST['category']
-    mtl=m.name
+    categories=request.POST.getlist('category')
+    material_ids=request.POST.getlist('material')
+    quantities=request.POST.getlist('quantity')
+    prices=request.POST.getlist('price')
+    if not (len(categories) == len(material_ids) == len(quantities) == len(prices)):
+        return HttpResponse('Invalid material row data', status=400)
+    try:
+        normalized_material_ids = [int(value) for value in material_ids]
+    except (TypeError, ValueError):
+        return HttpResponse('Every material row must reference a valid material', status=400)
+    material_map = material.objects.in_bulk(normalized_material_ids)
+    rows=[]
+    for category, material_id, quantity, price in zip(categories, normalized_material_ids, quantities, prices):
+        if not all((category.strip(), material_id, quantity, price)) or material_id not in material_map:
+            return HttpResponse('Every material row must be complete', status=400)
+        try:
+            if float(quantity) < 0 or float(price) < 0:
+                raise ValueError
+        except ValueError:
+            return HttpResponse('Quantity and price must be valid positive numbers', status=400)
+        rows.append(material_required(
+            PROJECT=p, MATERIAL=material_map[material_id], category=category.strip(),
+            quantity=quantity, price=price,
+        ))
+    if not rows:
+        return HttpResponse('Add at least one material row', status=400)
+    material_required.objects.bulk_create(rows)
+    messages.success(request, f'{len(rows)} material requirement(s) added successfully.')
+    return redirect('View_materials_required', id=pid)
 
-    amrj=material_required()
-    amrj.quantity=quantity
-    amrj.price=price
-    amrj.category=category
-    amrj.PROJECT=p
-    amrj.MATERIAL=m
-    amrj.save()
-    aestm=budget_estimate()
-    return HttpResponse("<script>alert('Added Successfully');window.location='/WMS/Add_Requirement_Estimate/"+pid+"/"+str(price)+"/"+str(mtl)+"/"+str(category)+"#myid'</script>")
-
+@legacy_role_required('Project Manager')
 def Add_material(request):
     return render(request,'Project Manager/Add Materials.html')
 
+@require_POST
+@legacy_role_required('Project Manager')
+@db_transaction.atomic
 def Add_material_post(request):
-    name=request.POST['name']
-    unit=request.POST['unit']
-
-    amj=material()
-    amj.name=name
-    amj.unit=unit
-    amj.save()
-    return HttpResponse("<script>alert('Added Successfully');window.location='/WMS/Add_material/'</script>")
+    names=request.POST.getlist('name')
+    units=request.POST.getlist('unit')
+    if len(names) != len(units):
+        return HttpResponse('Invalid material row data', status=400)
+    rows=[material(name=name.strip(), unit=unit) for name, unit in zip(names, units) if name.strip() and unit]
+    if not rows:
+        return HttpResponse('Add at least one material row', status=400)
+    material.objects.bulk_create(rows)
+    messages.success(request, f'{len(rows)} material(s) added successfully.')
+    return redirect('View_material')
 
 def Add_project_inspection_details(request,id):
     res=project.objects.get(id=id)
@@ -767,7 +903,7 @@ def Add_project_inspection_details_post(request):
     fn = fs.save(date, report)
 
     apidj=inspection()
-    apidj.report=fs.url(date)
+    apidj.report=fs.url(fn)
     apidj.PROJECT=p
     apidj.date=d
     apidj.type=type
@@ -787,9 +923,9 @@ def Add_Requirement_Estimate_post(request):
     est=request.POST['est']
     from datetime import datetime
 
-    amrj=estimate.objects.filter(est_no=est)
+    amrj=estimate.objects.filter(PROJECT=p, est_no=est)
     if amrj.exists():
-        amr=estimate.objects.get(est_no=est)
+        amr=amrj.first()
         # amr.est_no=est
         # amr.PROJECT=p
         # amr.date=datetime.now().strftime("%Y-%m-%d")
@@ -817,9 +953,9 @@ def Add_Subcontractor_Estimate_post(request):
     est=request.POST['est']
     from datetime import datetime
 
-    amrj=estimate.objects.filter(est_no=est)
+    amrj=estimate.objects.filter(PROJECT=p, est_no=est)
     if amrj.exists():
-        amr=estimate.objects.get(est_no=est)
+        amr=amrj.first()
         request.session['eid']=amr.id
         id= request.session['eid']
     else:
@@ -857,7 +993,7 @@ def Add_Subcontractor_to_project(request,id):
     return render(request,'Project Manager/Add Subcontractor to project.html',{'data':p,'data1':s,'data2':w,'id':id})
 
 def Add_Subcontractor_to_project_post(request):
-    id=request.POST['id']
+    request.POST['id']
     pid=request.POST['p']
     p=project.objects.get(pk=pid)
     sub=request.POST['sub']
@@ -893,15 +1029,11 @@ def Add_Subcontractor_post(request):
     asj.save()
     return HttpResponse("<script>alert('Added Successfully');window.location='/WMS/Add_Subcontractor/'</script>")
 
+@legacy_role_required('Project Manager')
 def Add_work_schedule(request,id):
     p=project.objects.get(pk=id)
-    w = work.objects.filter(PROJECT=id)
-    l=[]
-    for i in w:
-        sobj=schedule.objects.filter(WORK_id=i.id)
-        if not sobj.exists():
-            l.append({'id':i.id,'workname':i.workname})
-    return render(request,'Project Manager/Add Work Schedule.html',{'data':p,'data1':l,'id':id})
+    unscheduled_work = work.objects.filter(PROJECT=id, schedule__isnull=True).only('id', 'workname')
+    return render(request,'Project Manager/Add Work Schedule.html',{'data':p,'data1':unscheduled_work,'id':id})
 
 def Add_work_schedule_post(request):
     id=request.POST['id']
@@ -929,42 +1061,83 @@ def Add_work_schedule_post(request):
     awps.save()
     return HttpResponse("<script>alert('Added Succesfully');window.location='/WMS/View_work_schedules/"+id+"#myid'</script>")
 
+@legacy_role_required('Project Manager')
 def Add_works(request,id):
     res=project.objects.get(id=id)
-    return render(request,'Project Manager/Add Works.html',{'data':res,'id':id})
+    source_projects = project.objects.exclude(id=id).only('id', 'project_no', 'project_name').order_by('project_name')
+    return render(request,'Project Manager/Add Works.html',{
+        'data':res, 'id':id, 'source_projects':source_projects,
+    })
 
+@require_POST
+@legacy_role_required('Project Manager')
+@db_transaction.atomic
 def Add_works_post(request):
     id=request.POST['id']
     pid=request.POST['pid']
-    c=request.POST['category']
-    works=request.POST['work']
     p=project.objects.get(pk=pid)
+    categories=request.POST.getlist('category')
+    work_names=request.POST.getlist('work')
+    starts=request.POST.getlist('start')
+    ends=request.POST.getlist('end')
+    if not (len(categories) == len(work_names) == len(starts) == len(ends)):
+        return HttpResponse('Invalid scope row data', status=400)
+    work_rows=[]
+    schedule_dates=[]
+    for category, work_name, start_date, end_date in zip(categories, work_names, starts, ends):
+        category=category.strip()
+        work_name=work_name.strip()
+        if not category or not work_name:
+            return HttpResponse('Every scope row requires a category and description', status=400)
+        if bool(start_date) != bool(end_date) or (start_date and end_date < start_date):
+            return HttpResponse('Each schedule requires both dates and the end date cannot precede the start date', status=400)
+        work_rows.append(work(PROJECT=p, category=category, workname=work_name))
+        schedule_dates.append((start_date, end_date))
+    if not work_rows:
+        return HttpResponse('Add at least one scope row', status=400)
+    work.objects.bulk_create(work_rows)
+    from datetime import datetime
+    dated_rows=[(item, dates) for item, dates in zip(work_rows, schedule_dates) if dates[0]]
+    schedule.objects.bulk_create([
+        schedule(PROJECT=p, WORK=item, from_date=dates[0], to_date=dates[1])
+        for item, dates in dated_rows
+    ])
+    work_progress.objects.bulk_create([
+        work_progress(WORK=item, PROJECT=p, date=datetime.now().strftime("%Y-%m-%d"), status='pending', progress='0')
+        for item, dates in dated_rows
+    ])
+    messages.success(request, f'{len(work_rows)} scope item(s) added successfully.')
+    return redirect('View_work', id=id)
 
-    awj=work()
-    awj.category=c
-    awj.workname=works
-    awj.PROJECT=p
-    awj.save()
-    return HttpResponse("<script>alert('Added Succesfully');window.location='/WMS/View_work/"+id+"#myid'</script>")
+
+@legacy_role_required('Project Manager')
+def Project_list_data(request, id, data_type):
+    """Return existing planning rows so the bulk forms can import and edit them."""
+    source = project.objects.filter(pk=id).first()
+    if not source or data_type not in ('scope', 'materials'):
+        return JsonResponse({'error': 'Project or list type not found'}, status=404)
+    if data_type == 'materials':
+        rows = material_required.objects.filter(PROJECT=source).select_related('MATERIAL').order_by('id')
+        return JsonResponse({'rows': [{
+            'category': item.category, 'material_id': item.MATERIAL_id,
+            'material_name': item.MATERIAL.name, 'unit': item.MATERIAL.unit,
+            'quantity': item.quantity, 'price': item.price,
+        } for item in rows]})
+    scope_rows = list(work.objects.filter(PROJECT=source).order_by('id'))
+    schedule_map = {
+        item.WORK_id: item for item in schedule.objects.filter(WORK_id__in=[row.id for row in scope_rows]).order_by('id')
+    }
+    return JsonResponse({'rows': [{
+        'category': item.category, 'work': item.workname,
+        'start': schedule_map[item.id].from_date.isoformat() if item.id in schedule_map else '',
+        'end': schedule_map[item.id].to_date.isoformat() if item.id in schedule_map else '',
+    } for item in scope_rows]})
 
 def Change_password(request):
     return render(request,'Project Manager/Change Password.html')
 
 def Change_password_post(request):
-    old=request.POST['old']
-    new=request.POST['new']
-    confirm=request.POST['confirm']
-
-    if login.objects.filter(id=request.session['lid'],password=old).exists():
-        lobj=login.objects.get(id=request.session['lid'],password=old)
-        if lobj is not None:
-            if new == confirm:
-                 d=login.objects.filter(id=request.session['lid']).update(password=confirm)
-                 return HttpResponse('''<script>alert('Password Changed');window.location='/WMS/login/'</script>''')
-        else:
-             return HttpResponse('''<script>alert('Password Mismatched');window.location='/WMS/Change_password/'</script>''')
-    else:
-        return HttpResponse('''<script>alert('Current Password Must Be Valid');window.location='/WMS/Change_password/'</script>''')
+    return _change_session_password(request, '/WMS/Change_password/')
 
 def Draft_budget(request,id):
     res=estimate.objects.filter(id=id)
@@ -1007,7 +1180,7 @@ def Draft_budget_post(request):
         dbj.total=total
         dbj.save()
 
-    res = estimate.objects.filter(id=eid)
+    estimate.objects.filter(id=eid)
     res2 = budget_estimate.objects.filter(ESTIMATE=eid)
     # res = budget_estimate.objects.filter(ESTIMATE=eid)
     tt = 0
@@ -1027,7 +1200,6 @@ def Draft_Requirement_budget(request,id,pr,m,c):
 def Draft_Requirement_budget_post(request):
     eid = request.session['eid']
     if request.POST:
-        print(eid)
         e=estimate.objects.get(pk=eid)
         id=request.POST['id']
         wrk=request.POST['wrk']
@@ -1076,7 +1248,6 @@ def Draft_Subcontractor_budget(request,id,amnt):
 def Draft_Subcontractor_budget_post(request):
     eid = request.session['eid']
     if request.POST:
-        print(eid)
         e=estimate.objects.get(pk=eid)
         id=request.POST['id']
         wrk=request.POST['wrk']
@@ -1142,11 +1313,11 @@ def Edit_budget_post(request):
     if otherexpenses=="":
         otherexpenses="0"
     total=float(mcost)+float(lcost)+float(vcost)+float(subcost)+float(otherexpenses)
-    edbj=budget_estimate.objects.filter(id=bid).update(work_category=category,work=work,material_cost = mcost,labour_cost = lcost,vehicle_cost = vcost,subcontractor_cost = subcost,other_expenses = otherexpenses,total = total)
+    budget_estimate.objects.filter(id=bid).update(work_category=category,work=work,material_cost = mcost,labour_cost = lcost,vehicle_cost = vcost,subcontractor_cost = subcost,other_expenses = otherexpenses,total = total)
     return HttpResponse("<script>alert('Edited Succesfully');window.location='/WMS/View_budget/"+pid+"'</script>")
 
 def Delete_budget(request,id,pid):
-    d=budget_estimate.objects.filter(id=id).delete()
+    budget_estimate.objects.filter(id=id).delete()
     return HttpResponse("<script>alert('Deleted Succesfully');window.location='/WMS/View_budget/"+pid+"'</script>")
 
 def Edit_Estimate(request,id,pid):
@@ -1158,13 +1329,13 @@ def Edit_Estimate_post(request):
     pid=request.POST['pid']
     est=request.POST['est']
 
-    amrj=estimate.objects.filter(id=eid).update(est_no=est)
+    estimate.objects.filter(id=eid).update(est_no=est)
     # request.session['eid']=amrj.id
     # id= request.session['eid']
     return HttpResponse("<script>alert('Edited Successfully');window.location='/WMS/View_Estimate/"+pid+"#myid'</script>")
 
 def Delete_Estimate(request,id,pid):
-    d=estimate.objects.filter(id=id).delete()
+    estimate.objects.filter(id=id).delete()
     return HttpResponse("<script>alert('Deleted Succesfully');window.location='/WMS/View_Estimate/"+pid+"#myid'</script>")
 
 def Edit_issued_materials_to_site(request,id,pid):
@@ -1182,11 +1353,11 @@ def Edit_issued_materials_to_site_post(request):
     m=material.objects.get(id=mtl)
     quantity=request.POST['quantityissued']
 
-    edmj=material_issued.objects.filter(id=mid).update(MATERIAL=m,quantity_issued=quantity,STAFF=s)
+    material_issued.objects.filter(id=mid).update(MATERIAL=m,quantity_issued=quantity,STAFF=s)
     return HttpResponse("<script>alert('Edited Succesfully');window.location='/WMS/View_issued_materials_to_site/"+pid+"#myid'</script>")
 
 def Delete_ismts(request,id,pid):
-    d=material_issued.objects.filter(id=id).delete()
+    material_issued.objects.filter(id=id).delete()
     return HttpResponse("<script>alert('Deleted Succesfully');window.location='/WMS/View_issued_materials_to_site/"+pid+"#myid'</script>")
 
 def Edit_material_required(request,id,pid):
@@ -1201,11 +1372,11 @@ def Edit_material_required_post(request):
     material=request.POST['material']
     quantity=request.POST['quantity']
     price=request.POST['price']
-    emrj=material_required.objects.filter(id=mrid).update(category=category,MATERIAL=material,quantity=quantity,price=price)
+    material_required.objects.filter(id=mrid).update(category=category,MATERIAL=material,quantity=quantity,price=price)
     return HttpResponse("<script>alert('Edited Succesfully');window.location='/WMS/View_materials_required/"+pid+"#myid'</script>")
 
 def Delete_materialreqd(request,id,pid):
-    d=material_required.objects.filter(id=id).delete()
+    material_required.objects.filter(id=id).delete()
     return HttpResponse("<script>alert('Deleted Succesfully');window.location='/WMS/View_materials_required/"+pid+"#myid'</script>")
 
 def Edit_material(request,id):
@@ -1217,11 +1388,11 @@ def Edit_material_post(request):
     name=request.POST['name']
     unit=request.POST['unit']
 
-    emj=material.objects.filter(pk=mid).update(name=name,unit=unit)
+    material.objects.filter(pk=mid).update(name=name,unit=unit)
     return HttpResponse("<script>alert('Edited Succesfully');window.location='/WMS/View_material/'</script>")
 
 def Delete_material(request,id):
-    d=material.objects.filter(id=id).delete()
+    material.objects.filter(id=id).delete()
     return HttpResponse("<script>alert('Deleted Succesfully');window.location='/WMS/View_material/'</script>")
 
 def Edit_Projec_allocation_to_purchaser(request,id):
@@ -1235,11 +1406,11 @@ def Edit_Projec_allocation_to_purchaser_post(request):
     purchaser=request.POST['purchaser']
     res1=staff.objects.get(pk=purchaser)
 
-    pm=purchaser_project_allocation.objects.filter(pk=eid).update(STAFF=res1)
+    purchaser_project_allocation.objects.filter(pk=eid).update(STAFF=res1)
     return HttpResponse("<script>alert('Edited Succesfully');window.location='/WMS/View_Project_allocated_to_purchaser/"+pid+"#myid'</script>")
 
 def Delete_pcal(request,id,pid):
-    d=purchaser_project_allocation.objects.filter(id=id).delete()
+    purchaser_project_allocation.objects.filter(id=id).delete()
     return HttpResponse("<script>alert('Deleted Succesfully');window.location='/WMS/View_Project_allocated_to_purchaser/"+pid+"#myid'</script>")
 
 def Edit_project_inspection_details(request,id,pid):
@@ -1247,8 +1418,8 @@ def Edit_project_inspection_details(request,id,pid):
     return  render(request,'Project Manager/Edit Project Inspection Details.html',{'data':res,'pid':pid})
 
 def Edit_project_inspection_details_post(request):
-    id=request.POST['id']
-    pid=request.POST['pid']
+    project_id=request.POST['project_id']
+    inspection_id=request.POST['inspection_id']
     d=request.POST['date']
     type=request.POST['type']
     # report=request.POST['report']
@@ -1257,14 +1428,16 @@ def Edit_project_inspection_details_post(request):
         from datetime import datetime
         fs = FileSystemStorage()
         date = datetime.now().strftime("%Y%m%d%H%M%S") + report.name
-        fn = fs.save(date, report)
-        apidj = inspection.objects.filter(id=pid).update(date=d,type=type,report=fs.url(date))
+        saved_name = fs.save(date, report)
+        inspection.objects.filter(id=inspection_id, PROJECT_id=project_id).update(
+            date=d, type=type, report=fs.url(saved_name)
+        )
     else:
-        apidj = inspection.objects.filter(id=pid).update(date=d,type=type)
-    return HttpResponse("<script>alert('Edited Succesfully');window.location='/WMS/View_project_inspection/"+id+"#myid'</script>")
+        inspection.objects.filter(id=inspection_id, PROJECT_id=project_id).update(date=d,type=type)
+    return HttpResponse("<script>alert('Edited Succesfully');window.location='/WMS/View_project_inspection/"+project_id+"#myid'</script>")
 
 def Delete_inspection(request,id,pid):
-    d=inspection.objects.filter(id=id).delete()
+    inspection.objects.filter(id=id).delete()
     return HttpResponse("<script>alert('Deleted Succesfully');window.location='/WMS/View_project_inspection/"+pid+"#myid'</script>")
 
 def Edit_Subcontractor_to_project(request,id,pid):
@@ -1280,11 +1453,11 @@ def Edit_Subcontractor_to_project_post(request):
     s=subcontractor.objects.get(id=sub)
     wk=request.POST['wk']
     w=work.objects.get(pk=wk)
-    aspj=subcotractor_project_allocation.objects.filter(id=pid).update(SUBCONTRACTOR=s,WORK=w)
+    subcotractor_project_allocation.objects.filter(id=pid).update(SUBCONTRACTOR=s,WORK=w)
     return HttpResponse("<script>alert('Edited Succesfully');window.location='/WMS/View_Subcontractor_of_project/"+id+"#myid'</script>")
 
 def Delete_subofpr(request,id,pid):
-    d=subcotractor_project_allocation.objects.get(id=id).delete()
+    subcotractor_project_allocation.objects.get(id=id).delete()
     return HttpResponse("<script>alert('Deleted Succesfully');window.location='/WMS/View_Subcontractor_of_project/"+pid+"#myid'</script>")
 
 def Edit_Subcontractor_schedule(request,id,pid):
@@ -1297,11 +1470,11 @@ def Edit_Subcontractor_schedule_post(request):
     from_date=request.POST['from']
     to_date=request.POST['to']
 
-    essj=subcontractor_schedule.objects.filter(id=pid).update(from_date=from_date,to_date=to_date)
+    subcontractor_schedule.objects.filter(id=pid).update(from_date=from_date,to_date=to_date)
     return HttpResponse("<script>alert('Edited Succesfully');window.location='/WMS/View_subcontractor_schedule/"+id+"'</script>")
 
 def Delete_subschd(request,id,pid):
-    d=subcontractor_schedule.objects.filter(id=id).delete()
+    subcontractor_schedule.objects.filter(id=id).delete()
     return HttpResponse("<script>alert('Deleted Succesfully');window.location='/WMS/View_subcontractor_schedule/"+pid+"'</script>")
 
 def Edit_Subcontractor(request,id):
@@ -1316,11 +1489,11 @@ def Edit_Subcontractor_post(request):
     place=request.POST['place']
     # category = request.POST['category']
 
-    esj=subcontractor.objects.filter(id=sid).update(name = name,phone = phone,email = email,place = place)
+    subcontractor.objects.filter(id=sid).update(name = name,phone = phone,email = email,place = place)
     return HttpResponse("<script>alert('Edited Succesfully');window.location='/WMS/View_subcontractor/'</script>")
 
 def Delete_subcontractor(request,id):
-    d=subcontractor.objects.filter(id=id).delete()
+    subcontractor.objects.filter(id=id).delete()
     return HttpResponse("<script>alert('Deleted Succesfully');window.location='/WMS/View_subcontractor/'</script>")
 
 def Edit_Uploaded_documents(request,id,pid):
@@ -1337,13 +1510,13 @@ def Edit_Uploaded_documents_post(request):
         fs=FileSystemStorage()
         d=datetime.now().strftime("%Y%m%d%H%M%S")+file.name
         fn=fs.save(d,file)
-        euj = documents.objects.filter(id=did).update(name=name,file=fs.url(d))
+        documents.objects.filter(id=did).update(name=name,file=fs.url(fn))
     else:
-        euj = documents.objects.filter(id=did).update(name=name)
+        documents.objects.filter(id=did).update(name=name)
     return HttpResponse("<script>alert('Edited Succesfully');window.location='/WMS/View_uploaded_document/"+pid+"#myid'</script>")
 
 def Delete_document(request,id,pid):
-    d=documents.objects.filter(id=id).delete()
+    documents.objects.filter(id=id).delete()
     return HttpResponse("<script>alert('Deleted Successfully');window.location='/WMS/View_uploaded_document/"+pid+"#myid'</script>")
 
 def Edit_Uploaded_drawings(request,id,pid):
@@ -1358,11 +1531,11 @@ def Edit_Uploaded_drawings_post(request):
     fs=FileSystemStorage()
     date=datetime.now().strftime("%Y%m%d%H%M%S")+file.name
     fn=fs.save(date,file)
-    euj = drawing.objects.filter(id=eid).update(file = fs.url(date))
+    drawing.objects.filter(id=eid).update(file = fs.url(fn))
     return HttpResponse("<script>alert('Edited Succesfully');window.location='/WMS/View_uploaded_drawings/"+pid+"#myid'</script>")
 
 def Delete_drawing(request,id,pid):
-    d=drawing.objects.filter(id=id).delete()
+    drawing.objects.filter(id=id).delete()
     return HttpResponse("<script>alert('Deleted Succesfully');window.location='/WMS/View_uploaded_drawings/"+pid+"#myid'</script>")
 
 def Edit_work_schedule(request,id,pid):
@@ -1374,11 +1547,11 @@ def Edit_work_schedule_post(request):
     sid=request.POST['sid']
     start_date=request.POST['start']
     end_date=request.POST['end']
-    ewsj = schedule.objects.filter(id=sid).update(from_date = start_date,to_date = end_date)
+    schedule.objects.filter(id=sid).update(from_date = start_date,to_date = end_date)
     return HttpResponse("<script>alert('Edited Succesfully');window.location='/WMS/View_work_schedules/"+pid+"#myid'</script>")
 
 def Delete_wshd(request,id,pid):
-    d=schedule.objects.filter(id=id).delete()
+    schedule.objects.filter(id=id).delete()
     return HttpResponse("<script>alert('Deleted Succesfully');window.location='/WMS/View_work_schedules/"+pid+"#myid'</script>")
 
 def Edit_works(request,id,pid):
@@ -1391,16 +1564,16 @@ def Edit_works_post(request):
     category=request.POST['category']
     workn=request.POST['work']
 
-    ewj = work.objects.filter(pk=wid).update(category = category,workname = workn)
+    work.objects.filter(pk=wid).update(category = category,workname = workn)
     return HttpResponse("<script>alert('Edited Succesfully');window.location='/WMS/View_work/"+pid+"#myid'</script>")
 
 def Delete_work(request,id,pid):
-    d=work.objects.filter(id=id).delete()
+    work.objects.filter(id=id).delete()
     return HttpResponse("<script>alert('Deleted Succesfully');window.location='/WMS/View_work/"+pid+"#myid'</script>")
 
 def Delete_chatpm(request,id,pid):
     lid=request.session['lid']
-    d=chat.objects.filter(id=id).delete()
+    chat.objects.filter(id=id, LOGIN_id=lid).delete()
     p=project.objects.get(id=pid).project_name
     return render(request,'Project Manager/fur_chat.html', {'id':pid,'lid':lid,'p':p})
 
@@ -1408,13 +1581,15 @@ def chatspm(request,id,msg):
     lid=str(request.session['lid'])
     from datetime import datetime
 
+    sender = staff.objects.get(LOGIN_id=lid)
+
     d=chat()
     d.LOGIN_id=lid
     d.PROJECT_id=id
     d.message=msg
     d.date=datetime.now().strftime("%Y-%m-%d")
     d.time=datetime.now().strftime("%I:%M %p")
-    d.type=staff.objects.get(LOGIN_id=lid).name+" , "+staff.objects.get(LOGIN_id=lid).designation
+    d.type=sender.name+" , "+sender.designation
     d.save()
     return JsonResponse({'status':'ok'})
 
@@ -1424,16 +1599,7 @@ def chatpm(request,id):
     return render(request,'Project Manager/fur_chat.html', {'id':id,'lid':lid,'p':p})
 
 def viewmsg_pm(request,id):
-    res = chat.objects.filter(PROJECT_id=id)
-    l = []
-    for i in res:
-        stanm = staff.objects.filter(LOGIN_id=i.LOGIN_id)
-        if stanm.exists():
-            stanm = staff.objects.get(LOGIN_id=i.LOGIN_id).name
-        else:
-            stanm=''
-        l.append({'cid':i.id,'prid':i.PROJECT_id, 'date':i.date, 'time':i.time, 'msg':i.message, 'type':i.type, 'login_id':i.LOGIN_id, 'lid':request.session['lid'], 'name':stanm})
-    return JsonResponse({'data':l})
+    return JsonResponse({'data': _chat_messages(id, request.session['lid'])})
 
 def Issue_materials_to_site(request,id):
     res=project.objects.get(id=id)
@@ -1503,7 +1669,7 @@ def Upload_documents_post(request):
     euj.name = n
     euj.date=date
     euj.PROJECT=p
-    euj.file =fs.url(d)
+    euj.file =fs.url(fn)
     euj.save()
     return HttpResponse("<script>alert('Added Succesfully');window.location='/WMS/View_uploaded_document/"+id+"#myid'</script>")
 
@@ -1524,7 +1690,7 @@ def Upload_drawings_post(request):
 
     euj = drawing()
     euj.PROJECT=p
-    euj.file = fs.url(d)
+    euj.file = fs.url(fn)
     euj.date=date
     euj.save()
     return HttpResponse("<script>alert('Added Succesfully');window.location='/WMS/View_uploaded_drawings/"+id+"#myid'</script>")
@@ -1710,7 +1876,6 @@ def search_mts(request):
 
 def View_notification(request):
     res1=project_manager_allocation.objects.filter(STAFF=request.session["sid"])
-    l=[]
     for i in res1:
         res=notification.objects.filter(PROJECT=i.id)
         res.update(status="viewed")
@@ -1721,7 +1886,6 @@ def search_ntfn(request):
     if button == 'Search':
         txt = request.POST['text']
         res1 = project_manager_allocation.objects.filter(STAFF=request.session["sid"])
-        l = []
         for i in res1:
             res = notification.objects.filter(PROJECT=i.id,type__icontains=txt)
         return render(request, 'Project Manager/View Notification.html', {'data':res})
@@ -1729,7 +1893,6 @@ def search_ntfn(request):
         frm = request.POST['from']
         to = request.POST['to']
         res1 = project_manager_allocation.objects.filter(STAFF=request.session["sid"])
-        l = []
         for i in res1:
             res = notification.objects.filter(PROJECT=i.id, date__range=[frm, to])
         return render(request, 'Project Manager/View Notification.html', {'data':res})
@@ -1775,11 +1938,11 @@ def search_pmrt(request):
         return render(request, 'Project Manager/View Pending Material Request.html', {'data': res, 'id': id})
 
 def approve_rqt(request,id,pid):
-    res=material_request.objects.filter(pk=id).update(status='approved')
+    material_request.objects.filter(pk=id).update(status='approved')
     return HttpResponse("<script>alert('Approved');window.location='/WMS/View_pending_materials_request/"+pid+"'</script>")
 
 def reject_rqt(request,id,pid):
-    res = material_request.objects.filter(pk=id).update(status='rejected')
+    material_request.objects.filter(pk=id).update(status='rejected')
     return HttpResponse("<script>alert('Rejected');window.location='/WMS/View_pending_materials_request/"+pid+"'</script>")
 
 def View_profile(request):
@@ -1876,11 +2039,7 @@ def View_project_status(request,id):
     return render(request, 'Project Manager/View Project Status.html',{'data':res2,'data1':l,'id':id,'c':c})
 
 def completed(request):
-    res=project.objects.filter(id=request.session['projectid'])
-    if res.exists():
-        ress=project.objects.get(id=request.session['projectid']).update(status='Completed')
-        # ress.status='Completed'
-        # ress.save()
+    project.objects.filter(id=request.session['projectid']).update(status='Completed')
     return HttpResponse("<script>alert('Status Updated');window.location='/WMS/View_project_status/"+request.session['projectid']+"'</script>")
 
 def search_prstpm(request):
@@ -1894,11 +2053,10 @@ def search_prstpm(request):
                                                       PROJECT__status='ongoing')
         wp = len(res)
         wpc = len(work_progress.objects.filter(status='Completed'))
-        c = 0
         if (wp == wpc):
-            c = 1
+            pass
         else:
-            c = 0
+            pass
         l = []
         for i in res:
             ws = schedule.objects.filter(WORK=i.WORK, PROJECT=i.PROJECT)
@@ -1934,11 +2092,10 @@ def search_prstpm(request):
                                                       PROJECT__status='ongoing')
         wp = len(res)
         wpc = len(work_progress.objects.filter(status='Completed'))
-        c = 0
         if (wp == wpc):
-            c = 1
+            pass
         else:
-            c = 0
+            pass
         l = []
         for i in res:
             ws = schedule.objects.filter(WORK=i.WORK, PROJECT=i.PROJECT)
@@ -2116,20 +2273,7 @@ def Change_password_sp(request):
     return render(request,'Supervisor/Change Password.html')
 
 def Change_password_sp_post(request):
-    old=request.POST['old']
-    new=request.POST['new']
-    confirm=request.POST['confirm']
-
-    if login.objects.filter(id=request.session['lid'],password=old).exists():
-        lobj=login.objects.get(id=request.session['lid'],password=old)
-        if lobj is not None:
-            if new == confirm:
-                 d=login.objects.filter(id=request.session['lid']).update(password=confirm)
-                 return HttpResponse('''<script>alert('Password Changed');window.location='/WMS/login/'</script>''')
-        else:
-             return HttpResponse('''<script>alert('Password Mismatched');window.location='/WMS/Change_password/'</script>''')
-    else:
-        return HttpResponse('''<script>alert('Current Password Must Be Valid');window.location='/WMS/Change_password/'</script>''')
+    return _change_session_password(request, '/WMS/Change_password_sp/')
 
 def Edit_daily_material_usage(request,id,pid):
     res=material_usage.objects.get(id=id)
@@ -2144,11 +2288,11 @@ def Edit_daily_material_usage_post(request):
     quantity=request.POST['quantity']
     # unit=request.POST['unit']
 
-    edmj = material_usage.objects.filter(id=eid).update(quantity = quantity,MATERIAL = m)
+    material_usage.objects.filter(id=eid).update(quantity = quantity,MATERIAL = m)
     return HttpResponse("<script>alert('Edited Succefully');window.location='/WMS/View_daily_materials_usage/"+pid+"#myid'</script>")
 
 def Delete_muse(request,id,pid):
-    d=material_usage.objects.get(id=id).delete()
+    material_usage.objects.get(id=id).delete()
     return HttpResponse("<script>alert('Deleted Successfully');window.location='/WMS/View_daily_materials_usage/"+pid+"#myid'</script>")
 
 def Edit_daily_workers_count(request,id,pid):
@@ -2160,16 +2304,16 @@ def Edit_daily_workers_count_post(request):
     eid=request.POST['eid']
     worktype=request.POST['worktype']
     workercount=request.POST['workercount']
-    edwj = worker_entry.objects.filter(id=eid).update(work_type = worktype,worker_count = workercount)
+    worker_entry.objects.filter(id=eid).update(work_type = worktype,worker_count = workercount)
     return HttpResponse("<script>alert('Edited Successfully');window.location='/WMS/View_daily_workers_count/"+pid+"#myid'</script>")
 
 def Delete_dwc(request,id,pid):
-    d=worker_entry.objects.filter(id=id).delete()
+    worker_entry.objects.filter(id=id).delete()
     return HttpResponse("<script>alert('Deleted Successfully');window.location='/WMS/View_daily_workers_count/"+pid+"#myid'</script>")
 
 def Edit_material_request(request,id,pid):
     res=material_request.objects.get(id=id)
-    m=material_required.objects.filter(PROJECT=id)
+    m=material_required.objects.filter(PROJECT=pid).select_related('MATERIAL')
     return render(request, 'Supervisor/Edit Material Request.html',{'data':res,'data1':m,'pid':pid})
 
 def Edit_material_request_post(request):
@@ -2178,13 +2322,11 @@ def Edit_material_request_post(request):
     mtl=request.POST['material']
     m=material.objects.get(id=mtl)
     quantity=request.POST['quantity']
-    unit=request.POST['unit']
-
-    smrj=material_request.objects.filter(id=mid).update(MATERIAL=m,quantity=quantity,unit=unit)
+    material_request.objects.filter(id=mid, PROJECT_id=pid).update(MATERIAL=m,quantity=quantity)
     return HttpResponse("<script>alert('Edited Successfully');window.location='/WMS/View_material_request/"+pid+"#myid'</script>")
 
 def Delete_mrt(request,id,pid):
-    d=material_request.objects.filter(id=id).delete()
+    material_request.objects.filter(id=id).delete()
     return HttpResponse("<script>alert('Deleted Successfully');window.location='/WMS/View_material_request/"+pid+"#myid'</script>")
 
 def Edit_Uploaded_site_photos(request,id,pid):
@@ -2201,16 +2343,16 @@ def Edit_Uploaded_site_photos_post(request):
     date=datetime.now().strftime("%Y%m%d%H%M%S")+pt.name
     ft=fs.save(date,pt)
 
-    euj=photo.objects.filter(id=e).update(photo=fs.url(date))
+    photo.objects.filter(id=e).update(photo=fs.url(ft))
     return HttpResponse("<script>alert('Edited Successfully');window.location='/WMS/View_Uploaded_site_photos/"+pid+"#myid'</script>")
 
 def Delete_usp(request,id,pid):
-    d=photo.objects.filter(id=id).delete()
+    photo.objects.filter(id=id).delete()
     return HttpResponse("<script>alert('Deleted Successfully');window.location='/WMS/View_Uploaded_site_photos/"+pid+"#myid'</script>")
 
 def Delete_chatsp(request,id,pid):
     lid=request.session['lid']
-    d=chat.objects.filter(id=id).delete()
+    chat.objects.filter(id=id, LOGIN_id=lid).delete()
     p=project.objects.get(id=pid).project_name
     return render(request,'Supervisor/fur_chat.html', {'id':pid,'lid':lid,'p':p})
 
@@ -2218,13 +2360,15 @@ def chatssp(request,id,msg):
     lid=str(request.session['lid'])
     from datetime import datetime
 
+    sender = staff.objects.get(LOGIN_id=lid)
+
     d=chat()
     d.LOGIN_id=lid
     d.PROJECT_id=id
     d.message=msg
     d.date=datetime.now().strftime("%Y-%m-%d")
     d.time=datetime.now().strftime("%I:%M %p")
-    d.type=staff.objects.get(LOGIN_id=lid).name+" , "+staff.objects.get(LOGIN_id=lid).designation
+    d.type=sender.name+" , "+sender.designation
     d.save()
     return JsonResponse({'status':'ok'})
 
@@ -2234,16 +2378,7 @@ def chatsp(request,id):
     return render(request,'Supervisor/fur_chat.html', {'id':id,'lid':lid,'p':p})
 
 def viewmsg_sp(request,id):
-    res = chat.objects.filter(PROJECT_id=id)
-    l = []
-    for i in res:
-        stanm = staff.objects.filter(LOGIN_id=i.LOGIN_id)
-        if stanm.exists():
-            stanm = staff.objects.get(LOGIN_id=i.LOGIN_id).name
-        else:
-            stanm=''
-        l.append({'cid':i.id,'prid':i.PROJECT_id, 'date':i.date, 'time':i.time, 'msg':i.message, 'type':i.type, 'login_id':i.LOGIN_id, 'lid':request.session['lid'], 'name':stanm})
-    return JsonResponse({'data':l})
+    return JsonResponse({'data': _chat_messages(id, request.session['lid'])})
 
 def Send_material_request(request,id):
     res=supervisor_allocation.objects.get(PROJECT=id,STAFF=request.session["sid"])
@@ -2255,7 +2390,6 @@ def Send_material_request_post(request):
     id=request.POST['id']
     p=project.objects.get(id=pid)
     mtl=request.POST['material']
-    print()
     m=material.objects.get(id=mtl)
     quantity=request.POST['quantity']
     # unit=request.POST['unit']
@@ -2300,10 +2434,16 @@ def Send_material_request_post(request):
 
 def Update_work_progress(request,id,pid):
     res=work.objects.get(id=id,PROJECT=pid)
-    res2=work_progress.objects.filter(WORK_id=res.id)
-    if res2.exists():
-        wpobj=work_progress.objects.get(WORK_id=res.id)
-    print(wpobj.status)
+    from datetime import datetime
+    wpobj, _ = work_progress.objects.get_or_create(
+        WORK=res,
+        PROJECT_id=pid,
+        defaults={
+            'date': datetime.now().strftime("%Y-%m-%d"),
+            'status': 'pending',
+            'progress': '0',
+        },
+    )
     return render(request, 'Supervisor/Update Work Progress.html',{'data':res,'data2':wpobj})
 
 def Update_work_progress_post(request):
@@ -2316,7 +2456,7 @@ def Update_work_progress_post(request):
     from datetime import datetime
     d = datetime.now().strftime("%Y-%m-%d")
 
-    uwj=work_progress.objects.filter(WORK=w,PROJECT=p).update(status=status,progress=progress,date=d)
+    work_progress.objects.filter(WORK=w,PROJECT=p).update(status=status,progress=progress,date=d)
     return HttpResponse("<script>alert('Updated Successfully');window.location='/WMS/Update_work_progress/"+wid+"/"+pid+"'</script>")
 
 def Upload_site_photos(request,id):
@@ -2335,7 +2475,7 @@ def Upload_site_photos_post(request):
     fn=fs.save(d,pt)
 
     euj = photo()
-    euj.photo = fs.url(d)
+    euj.photo = fs.url(fn)
     euj.PROJECT=p
     euj.date=datetime.now().strftime("%Y-%m-%d")
     euj.ALLOCATION=a
@@ -2416,14 +2556,14 @@ def search_dmur(request):
     button = request.POST['button']
     if button == 'Search':
         id = request.POST['pid']
-        p = project.objects.get(pk=id)
+        project.objects.get(pk=id)
         txt = request.POST['text']
         res = material_usage.objects.filter(STAFF=request.session["sid"], PROJECT=id,  MATERIAL__name__icontains=txt)
         res2 = supervisor_allocation.objects.get(PROJECT=id, STAFF=request.session["sid"], PROJECT__status='ongoing')
         return render(request, 'Supervisor/View Daily Material Usage.html', {'data': res2,'data1':res, 'id': id})
     else:
         id = request.POST['pid']
-        p = project.objects.get(pk=id)
+        project.objects.get(pk=id)
         frm = request.POST['from']
         to = request.POST['to']
         res = material_usage.objects.filter(STAFF=request.session["sid"], PROJECT=id, date__range=[frm, to])
@@ -2575,7 +2715,7 @@ def View_material_issued_and_update_status(request,id):
     return render(request, 'Supervisor/View Materials Issued & Update Status.html',{'data':res2,'data1':res,'id':id})
 
 def Update_issue_status(request,id):
-    upd=material_issued.objects.filter(pk=id).update(status='recieved')
+    material_issued.objects.filter(pk=id).update(status='recieved')
     return HttpResponse("<script>alert('Updated');window.location='/WMS/View_material_issued_and_update_status/"+id+"#myid'</script>")
 
 def search_misd(request):
@@ -2718,7 +2858,7 @@ def View_work_progress(request,id,pid):
         return HttpResponse("no data")
 
 def Delete_wps(request,id,wid,pid):
-    d=work_progress.objects.get(id=id).delete()
+    work_progress.objects.get(id=id).delete()
     return HttpResponse("<script>alert('Deleted');window.location='/WMS/View_work_progress/"+wid+"/"+pid+"'</script>")
 
 def View_work_status_report(request,id):
@@ -2855,20 +2995,7 @@ def Change_password_ac(request):
     return render(request,'Accountant/Change Password.html')
 
 def Change_password_ac_post(request):
-    old=request.POST['old']
-    new=request.POST['new']
-    confirm=request.POST['confirm']
-
-    if login.objects.filter(id=request.session['lid'],password=old).exists():
-        lobj=login.objects.get(id=request.session['lid'],password=old)
-        if lobj is not None:
-            if new == confirm:
-                 d=login.objects.filter(id=request.session['lid']).update(password=confirm)
-                 return HttpResponse('''<script>alert('Password Changed');window.location='/WMS/login/'</script>''')
-        else:
-             return HttpResponse('''<script>alert('Password Mismatched');window.location='/WMS/Change_password/'</script>''')
-    else:
-        return HttpResponse('''<script>alert('Current Password Must Be Valid');window.location='/WMS/Change_password/'</script>''')
+    return _change_session_password(request, '/WMS/Change_password_ac/')
 
 def Edit_accounthead(request,id):
     res=accounthead.objects.get(id=id)
@@ -2877,11 +3004,11 @@ def Edit_accounthead(request,id):
 def Edit_accounthead_post(request):
     headname=request.POST['headname']
     aid=request.POST['aid']
-    aaj = accounthead.objects.filter(id=aid).update( headname= headname)
+    accounthead.objects.filter(id=aid).update( headname= headname)
     return HttpResponse("<script>alert('Edited Successfully');window.location='/WMS/View_account_head/'</script>")
 
 def Delete_Accounthead(request,id):
-    res=accounthead.objects.filter(id=id).delete()
+    accounthead.objects.filter(id=id).delete()
     return HttpResponse("<script>alert('Deleted Successfully');window.location='/WMS/View_account_head/'</script>")
 
 def Edit_account_sub(request,id):
@@ -2895,11 +3022,11 @@ def Edit_account_sub_post(request):
     name=request.POST['name']
     amount=request.POST['amount']
     # selection tag default problem-left for validation stage
-    res=account_sub.objects.filter(pk=asid).update(account_sub_name=name,amount=amount,ACCOUNTHEAD=aid)
+    account_sub.objects.filter(pk=asid).update(account_sub_name=name,amount=amount,ACCOUNTHEAD=aid)
     return HttpResponse("<script>alert('Edited Successfully');window.location='/WMS/View_accountsub/'</script>")
 
 def Delete_Accountsub(request,id):
-    res=account_sub.objects.filter(pk=id).delete()
+    account_sub.objects.filter(pk=id).delete()
     return HttpResponse("<script>alert('Deleted Successfully');window.location='/WMS/View_accountsub/'</script>")
 
 def Edit_Project_payment_entry(request, id, pid):
@@ -2910,11 +3037,11 @@ def Edit_Project_payment_entry_post(request):
     pid = request.POST['pid']
     pyid = request.POST['pyid']
     amount = request.POST['amount']
-    res = payemnt_entry.objects.filter(pk=pyid).update(amount=amount)
+    payemnt_entry.objects.filter(pk=pyid).update(amount=amount)
     return HttpResponse("<script>alert('Edited Successfully');window.location='/WMS/View_project_payment_entry_ac/" + pid + "#myid'</script>")
 
 def Delete_Payment(request, id, pid):
-    res = payemnt_entry.objects.filter(pk=id).delete()
+    payemnt_entry.objects.filter(pk=id).delete()
     return HttpResponse("<script>alert('Deleted Successfully');window.location='/WMS/View_project_payment_entry_ac/" + pid + "#myid'</script>")
 
 def Edit_Transaction_entry(request,id):
@@ -2927,16 +3054,16 @@ def Edit_Transaction_entry_post(request):
     amount=request.POST['amount']
     title=request.POST['title']
     narration=request.POST['narration']
-    res=transaction.objects.filter(pk=tid).update(amount=amount,type=type,narration=narration,title=title)
+    transaction.objects.filter(pk=tid).update(amount=amount,type=type,narration=narration,title=title)
     return HttpResponse("<script>alert('Edited Successfully');window.location='/WMS/View_transaction_entry/'</script>")
 
 def Delete_Transaction(request,id):
-    res=transaction.objects.filter(pk=id).delete()
+    transaction.objects.filter(pk=id).delete()
     return HttpResponse("<script>alert('Deleted Successfully');window.location='/WMS/View_transaction_entry/'</script>")
 
 def Delete_chatac(request,id,pid):
     lid=request.session['lid']
-    d=chat.objects.filter(id=id).delete()
+    chat.objects.filter(id=id, LOGIN_id=lid).delete()
     p=project.objects.get(id=pid).project_name
     return render(request,'Accountant/fur_chat.html', {'id':pid,'lid':lid,'p':p})
 
@@ -2944,13 +3071,15 @@ def chatsac(request,id,msg):
     lid=str(request.session['lid'])
     from datetime import datetime
 
+    sender = staff.objects.get(LOGIN_id=lid)
+
     d=chat()
     d.LOGIN_id=lid
     d.PROJECT_id=id
     d.message=msg
     d.date=datetime.now().strftime("%Y-%m-%d")
     d.time=datetime.now().strftime("%I:%M %p")
-    d.type=staff.objects.get(LOGIN_id=lid).name+" , "+staff.objects.get(LOGIN_id=lid).designation
+    d.type=sender.name+" , "+sender.designation
     d.save()
     return JsonResponse({'status':'ok'})
 
@@ -2960,16 +3089,7 @@ def chatac(request,id):
     return render(request,'Accountant/fur_chat.html', {'id':id,'lid':lid,'p':p})
 
 def viewmsg_ac(request,id):
-    res = chat.objects.filter(PROJECT_id=id)
-    l = []
-    for i in res:
-        stanm = staff.objects.filter(LOGIN_id=i.LOGIN_id)
-        if stanm.exists():
-            stanm = staff.objects.get(LOGIN_id=i.LOGIN_id).name
-        else:
-            stanm=''
-        l.append({'cid':i.id,'prid':i.PROJECT_id, 'date':i.date, 'time':i.time, 'msg':i.message, 'type':i.type, 'login_id':i.LOGIN_id, 'lid':request.session['lid'], 'name':stanm})
-    return JsonResponse({'data':l})
+    return JsonResponse({'data': _chat_messages(id, request.session['lid'])})
 
 def Project_payment_entry(request,id):
     res=project.objects.get(pk=id)
@@ -3278,25 +3398,11 @@ def Change_password_pc(request):
     return render(request,'Purchaser/Change Password.html')
 
 def Change_password_pc_post(request):
-    old=request.POST['old']
-    new=request.POST['new']
-    confirm=request.POST['confirm']
-
-    if login.objects.filter(id=request.session['lid'],password=old).exists():
-        lobj=login.objects.get(id=request.session['lid'],password=old)
-        if lobj is not None:
-            if new == confirm:
-                 d=login.objects.filter(id=request.session['lid']).update(password=confirm)
-                 return HttpResponse('''<script>alert('Password Changed');window.location='/WMS/login/'</script>''')
-        else:
-             return HttpResponse('''<script>alert('Password Mismatched');window.location='/WMS/Change_password/'</script>''')
-    else:
-        return HttpResponse('''<script>alert('Current Password Must Be Valid');window.location='/WMS/Change_password/'</script>''')
+    return _change_session_password(request, '/WMS/Change_password_pc/')
 
 def View_material_requiredpc(request,id):
     res=material_required.objects.filter(PROJECT=id)
     res2 = purchaser_project_allocation.objects.get(PROJECT=id,PROJECT__status='ongoing', STAFF=request.session["sid"])
-    print(res2)
     return render(request, 'Purchaser/View Materials Required.html',{'data':res2,'data1':res,'id':id})
 
 def search_mrdpc(request):
@@ -3356,7 +3462,7 @@ def View_material_issuedpc(request,id):
     return render(request, 'Purchaser/View Materials Issued.html',{'data':res2,'data1':res,'id':id})
 
 def Update_issue_statuspc(request,id):
-    upd=material_issued.objects.filter(pk=id).update(status='delivered')
+    material_issued.objects.filter(pk=id).update(status='delivered')
     return HttpResponse("<script>alert('Updated');window.location='/WMS/View_material_issuedpc/"+id+"#myid'</script>")
 
 def search_misdpc(request):
@@ -3512,16 +3618,16 @@ def Edit_delivered_materials_post(request):
     # unit=request.POST['unit']
     supplier=request.POST['supplier']
     place=request.POST['place']
-    dlry=material_delivery.objects.filter(pk=eid).update(quantity=quantity,supplier=supplier,place=place)
+    material_delivery.objects.filter(pk=eid).update(quantity=quantity,supplier=supplier,place=place)
     return HttpResponse("<script>alert('Edited Successfully');window.location='/WMS/View_delivered_materials/"+pid+"'</script>")
 
 def Delete_drdm(request,id,pid):
-    res=material_delivery.objects.filter(pk=id).delete()
+    material_delivery.objects.filter(pk=id).delete()
     return HttpResponse("<script>alert('Deleted Successfully');window.location='/WMS/View_delivered_materials/"+pid+"'</script>")
 
 def Delete_chatpc(request,id,pid):
     lid=request.session['lid']
-    d=chat.objects.filter(id=id).delete()
+    chat.objects.filter(id=id, LOGIN_id=lid).delete()
     p=project.objects.get(id=pid).project_name
     return render(request,'Purchaser/fur_chat.html', {'id':pid,'lid':lid,'p':p})
 
@@ -3529,13 +3635,15 @@ def chatspc(request,id,msg):
     lid=str(request.session['lid'])
     from datetime import datetime
 
+    sender = staff.objects.get(LOGIN_id=lid)
+
     d=chat()
     d.LOGIN_id=lid
     d.PROJECT_id=id
     d.message=msg
     d.date=datetime.now().strftime("%Y-%m-%d")
     d.time=datetime.now().strftime("%I:%M %p")
-    d.type=staff.objects.get(LOGIN_id=lid).name+" , "+staff.objects.get(LOGIN_id=lid).designation
+    d.type=sender.name+" , "+sender.designation
     d.save()
     return JsonResponse({'status':'ok'})
 
@@ -3545,26 +3653,16 @@ def chatpc(request,id):
     return render(request,'Purchaser/fur_chat.html', {'id':id,'lid':lid,'p':p})
 
 def viewmsg_pc(request,id):
-    res = chat.objects.filter(PROJECT_id=id)
-    l = []
-    for i in res:
-        stanm = staff.objects.filter(LOGIN_id=i.LOGIN_id)
-        if stanm.exists():
-            stanm = staff.objects.get(LOGIN_id=i.LOGIN_id).name
-        else:
-            stanm=''
-        l.append({'cid':i.id,'prid':i.PROJECT_id, 'date':i.date, 'time':i.time, 'msg':i.message, 'type':i.type, 'login_id':i.LOGIN_id, 'lid':request.session['lid'], 'name':stanm})
-    return JsonResponse({'data':l})
+    return JsonResponse({'data': _chat_messages(id, request.session['lid'])})
 
 def View_notification_ajax(request):
-    res1=project_manager_allocation.objects.filter(STAFF=request.session["sid"])
-    nt=0
-    for i in res1:
-        res=notification.objects.filter(PROJECT=i.PROJECT,status='pending')
-        if res.exists():
-            nt+=1
-        else:
-            nt=0
+    allocated_project_ids = project_manager_allocation.objects.filter(
+        STAFF=request.session["sid"]
+    ).values_list('PROJECT_id', flat=True)
+    nt = notification.objects.filter(
+        PROJECT_id__in=allocated_project_ids,
+        status='pending',
+    ).values('PROJECT_id').distinct().count()
     return JsonResponse({'status':'ok','nt':nt})
 
 

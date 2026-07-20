@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 
 from pathlib import Path
 import os
+from django.core.exceptions import ImproperlyConfigured
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -20,12 +21,22 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-chzb8^qjc#cub*(euoye%!^*xr+-x@kox-)tlsya&-gwet14%j'
+DEVELOPMENT_SECRET_KEY = 'django-insecure-chzb8^qjc#cub*(euoye%!^*xr+-x@kox-)tlsya&-gwet14%j'
+SECRET_KEY = os.environ.get('WMS_SECRET_KEY', DEVELOPMENT_SECRET_KEY)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('WMS_DEBUG', 'true').lower() in ('1', 'true', 'yes')
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get('WMS_ALLOWED_HOSTS', '*' if DEBUG else '').split(',')
+    if host.strip()
+]
+
+if not DEBUG and SECRET_KEY == DEVELOPMENT_SECRET_KEY:
+    raise ImproperlyConfigured('Set WMS_SECRET_KEY before running with WMS_DEBUG=false.')
+if not DEBUG and not ALLOWED_HOSTS:
+    raise ImproperlyConfigured('Set WMS_ALLOWED_HOSTS before running with WMS_DEBUG=false.')
 
 # "16.16.159.84"
 # Application definition
@@ -37,12 +48,24 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
     'MyApp.apps.MyappConfig',
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': ('MyApp.api.authentication.SignedTokenAuthentication',),
+    'DEFAULT_PERMISSION_CLASSES': ('MyApp.api.permissions.ApiAuthenticated',),
+    'DEFAULT_RENDERER_CLASSES': ('rest_framework.renderers.JSONRenderer',),
+    'EXCEPTION_HANDLER': 'MyApp.api.exceptions.api_exception_handler',
+    'DEFAULT_THROTTLE_RATES': {'login': '10/minute'},
+}
+
+WMS_MOBILE_TOKEN_MAX_AGE = int(os.environ.get('WMS_MOBILE_TOKEN_MAX_AGE', str(30 * 24 * 60 * 60)))
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'MyApp.middleware.LegacySessionAuthenticationMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -131,6 +154,18 @@ STATICFILES_DIRS = [
 
 MEDIA_ROOT =os.path.join(BASE_DIR,'media')
 MEDIA_URL ='/media/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+DATA_UPLOAD_MAX_MEMORY_SIZE = 25 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
+
+# Secure defaults for production; each option remains explicitly configurable.
+SESSION_COOKIE_SECURE = os.environ.get('WMS_SESSION_COOKIE_SECURE', str(not DEBUG)).lower() in ('1', 'true', 'yes')
+CSRF_COOKIE_SECURE = os.environ.get('WMS_CSRF_COOKIE_SECURE', str(not DEBUG)).lower() in ('1', 'true', 'yes')
+SECURE_SSL_REDIRECT = os.environ.get('WMS_SECURE_SSL_REDIRECT', 'false').lower() in ('1', 'true', 'yes')
+SECURE_HSTS_SECONDS = int(os.environ.get('WMS_SECURE_HSTS_SECONDS', '0'))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = SECURE_HSTS_SECONDS > 0
+SECURE_HSTS_PRELOAD = SECURE_HSTS_SECONDS > 0
 
 
 

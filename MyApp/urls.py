@@ -1,10 +1,28 @@
 
-from django.contrib import admin
-from django.urls import path,include
+from django.urls import include, path
 
-from .import views;
+from . import views, workflow_views
 
 urlpatterns = [
+
+    path('api/v1/', include('MyApp.api.urls')),
+
+    # Enquiry, quotation, costing and project-document workflow
+    path('workflow/', workflow_views.dashboard, name='workflow_dashboard'),
+    path('workflow/enquiries/add/', workflow_views.add_enquiry, name='workflow_add_enquiry'),
+    path('workflow/enquiries/<int:enquiry_id>/', workflow_views.detail, name='workflow_detail'),
+    path('workflow/enquiries/<int:enquiry_id>/comments/', workflow_views.add_comment, name='workflow_add_comment'),
+    path('workflow/enquiries/<int:enquiry_id>/assign/', workflow_views.assign_estimator, name='workflow_assign'),
+    path('workflow/enquiries/<int:enquiry_id>/quotation/', workflow_views.add_quotation, name='workflow_add_quotation'),
+    path('workflow/enquiries/<int:enquiry_id>/documents/', workflow_views.collect_document, name='workflow_collect_document'),
+    path('workflow/quotations/<int:quote_id>/manager-approve/', workflow_views.manager_approve, name='workflow_manager_approve'),
+    path('workflow/quotations/<int:quote_id>/accountant-approve/', workflow_views.accountant_approve, name='workflow_accountant_approve'),
+    path('workflow/quotations/<int:quote_id>/approve-costing/', workflow_views.approve_costing, name='workflow_approve_costing'),
+    path('workflow/quotations/<int:quote_id>/submit/', workflow_views.submit_quotation, name='workflow_submit_quotation'),
+    path('workflow/quotations/<int:quote_id>/award/', workflow_views.award_project, name='workflow_award_project'),
+    path('workflow/documents/<int:document_id>/verify/', workflow_views.verify_document, name='workflow_verify_document'),
+    path('workflow/cad/<str:source>/<int:file_id>/', workflow_views.cad_viewer, name='workflow_cad_viewer'),
+    path('workflow/cad/<str:source>/<int:file_id>/file/', workflow_views.cad_file, name='workflow_cad_file'),
 
     path('login/',views.loginn,name="login"),
     path('login_post/',views.login_post,name="login_post"),
@@ -103,6 +121,7 @@ urlpatterns = [
     path('Add_work_schedule_post/', views.Add_work_schedule_post, name="Add_work_schedule_post"),
     path('Add_works/<str:id>', views.Add_works, name="Add_works"),
     path('Add_works_post/', views.Add_works_post, name="Add_works_post"),
+    path('Project_list_data/<int:id>/<str:data_type>/', views.Project_list_data, name="Project_list_data"),
     path('Change_password/', views.Change_password, name="Change_password"),
     path('Change_password_post/', views.Change_password_post, name="Change_password_post"),
     path('Draft_budget/<str:id>', views.Draft_budget, name="Draft_budget"),

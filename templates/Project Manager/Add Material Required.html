@@ -1,72 +1,66 @@
 {% extends "Project Manager/pmindex.html" %}
 {% block body %}
-<form id="form1" name="form1" method="post" action="/WMS/Add_material_required_post/">
-    {% csrf_token %}
-<div style="color: blue"><h3>Add Material Required</h3></div>
-  <table width="200" border="1" class="table table-striped">
-      <input type="hidden" name="pid" value="{{ data.id }}">
-    <tr>
-        <td>Category</td>
-       <td>
-             <select name="category" id="select" class="form-control tag" required="">
-                 <option value="Preliminaries">Preliminaries</option>
-                 <option value="Electrical">Electrical</option>
-                 <option value="Fire Alarm ">Fire Alarm </option>
-                 <option value="HVAC ">HVAC </option>
-                 <option value="Fire Fighting">Fire Fighting</option>
-                 <option value="Flooring">Flooring</option>
-                 <option value="Ceiling">Ceiling</option>
-                 <option value="Gypsum Cladding">Gypsum Cladding</option>
-                 <option value="Glass Partition">Glass Partition</option>
-                 <option value="Cleaning">Cleaning</option>
-                 <option value="Demolition">Demolition</option>
-                 <option value="Shop Front">Shop Front</option>
-                 <option value="Joinery Work">Joinery Work</option>
-                 <option value="Painting">Painting</option>
-             </select>
-      </td>
-    </tr>
-    <tr>
-      <td>Material</td>
-     <td>
-     <input type="text" list="programmingLanguages" placeholder="Enter Here" name="material" id="materialInput" class="form-control" required=""/>
-<datalist id="programmingLanguages">
-    {% for i in data2 %}
-        <option value="{{ i.name }}&nbsp;{{ i.unit }}" data-id="{{ i.id }}">{{ i.name }}&nbsp;{{ i.unit }}</option>
-    {% endfor %}
-</datalist>
-<input type="hidden" id="idField" name="material" value="{{ i.id }}" />
-{#             <select name="material" id="select" class="form-control tag">#}
-{#         {% for i in data2 %}#}
-{#            <option value="{{ i.id }}">{{ i.name }}&nbsp;{{ i.unit }}</option>#}
-{#         {% endfor %}#}
-{#             </select>#}
-    </tr>
-    <tr>
-      <td>Quantity</td>
-      <td><input type="text" name="quantity" id="textfield3" class="form-control" required=""/></td>
-    </tr>
-    <tr>
-      <td>Price/unit</td>
-      <td><input type="text" name="price" id="textfield3" class="form-control" required=""/></td>
-    </tr>
-    <tr align="center">
-      <td colspan="2"><input type="submit" name="button3" id="button3" value="Add" class="btn btn-outline-primary"/></td>
-    </tr>
-  </table>
-</form>
-<script>
-    const materialInput = document.getElementById('materialInput');
-    const idField = document.getElementById('idField');
-    materialInput.addEventListener('input', () => {
-        const selectedOption = document.querySelector(`#programmingLanguages option[value="${materialInput.value}"]`);
-        if (selectedOption) {
-            const id = selectedOption.getAttribute('data-id');
-            idField.value = id || '';
-        } else {
-            idField.value = '';
-        }
-    });
-</script>
+<div class="card mb-3"><div class="card-body"><h5 class="card-title">Fetch Materials from Existing Project</h5>
+  <div class="row g-2 align-items-end"><div class="col-md-9"><label class="form-label">Source project</label><select id="materialSource" class="form-select"><option value="">Select project</option>{% for item in source_projects %}<option value="{{ item.id }}" data-url="{% url 'Project_list_data' item.id 'materials' %}">{{ item.project_no }} - {{ item.project_name }}</option>{% endfor %}</select></div><div class="col-md-3"><button type="button" id="fetchMaterials" class="btn btn-outline-primary w-100">Fetch All Materials</button></div></div>
+  <div class="form-text">Fetched requirements remain editable and are saved to {{ data.project_name }} only when you select Save All.</div>
+</div></div>
 
+<div class="card"><div class="card-body"><div class="d-flex justify-content-between align-items-center"><h5 class="card-title">Add Material Requirement List</h5><button type="button" id="addMaterialRow" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Add Row</button></div>
+<form method="post" action="{% url 'Add_material_required_post' %}">{% csrf_token %}<input type="hidden" name="pid" value="{{ data.id }}">
+  <datalist id="materialCategories"><option value="Preliminaries"><option value="Electrical"><option value="Fire Alarm"><option value="HVAC"><option value="Fire Fighting"><option value="Flooring"><option value="Ceiling"><option value="Gypsum Cladding"><option value="Glass Partition"><option value="Cleaning"><option value="Demolition"><option value="Shop Front"><option value="Joinery Work"><option value="Painting"></datalist>
+  <div class="row g-2 px-2 pb-2 d-none d-xl-flex text-muted small fw-semibold"><div class="col-xl-3">Category</div><div class="col-xl-4">Material</div><div class="col-xl-2">Quantity</div><div class="col-xl-2">Price / unit</div><div class="col-xl-1"></div></div>
+  <div id="materialRows">
+    <div class="bulk-row row g-2 align-items-end border rounded p-2 mb-2">
+      <div class="col-xl-3"><label class="form-label d-xl-none">Category</label><input name="category" list="materialCategories" class="form-control" required></div>
+      <div class="col-xl-4"><label class="form-label d-xl-none">Material</label><select name="material" class="form-select" required><option value="">Select material</option>{% for item in data2 %}<option value="{{ item.id }}">{{ item.name }} - {{ item.unit }}</option>{% endfor %}</select></div>
+      <div class="col-xl-2"><label class="form-label d-xl-none">Quantity</label><input type="number" min="0" step="0.01" name="quantity" class="form-control" required></div>
+      <div class="col-xl-2"><label class="form-label d-xl-none">Price / unit</label><input type="number" min="0" step="0.01" name="price" class="form-control" required></div>
+      <div class="col-xl-1"><button type="button" class="btn btn-outline-danger remove-row w-100" aria-label="Remove row"><i class="bi bi-trash"></i></button></div>
+    </div>
+  </div>
+  <div id="materialMessage" class="alert d-none mt-3"></div>
+  <button class="btn btn-primary mt-3" type="submit">Save All Material Requirements</button>
+</form></div></div>
+
+<script>
+(function () {
+  const rows = document.getElementById('materialRows');
+  const message = document.getElementById('materialMessage');
+  const rowTemplate = rows.querySelector('.bulk-row').cloneNode(true);
+  function newRow(values = {}) {
+    const row = rowTemplate.cloneNode(true);
+    row.querySelector('[name="category"]').value = values.category || '';
+    row.querySelector('[name="material"]').value = values.material_id || '';
+    row.querySelector('[name="quantity"]').value = values.quantity || '';
+    row.querySelector('[name="price"]').value = values.price || '';
+    return row;
+  }
+  document.getElementById('addMaterialRow').addEventListener('click', () => rows.appendChild(newRow()));
+  rows.addEventListener('click', (event) => {
+    const button = event.target.closest('.remove-row');
+    if (!button) return;
+    const allRows = rows.querySelectorAll('.bulk-row');
+    if (allRows.length > 1) button.closest('.bulk-row').remove();
+    else button.closest('.bulk-row').querySelectorAll('input, select').forEach(input => input.value = '');
+  });
+  document.getElementById('fetchMaterials').addEventListener('click', async () => {
+    const option = document.getElementById('materialSource').selectedOptions[0];
+    if (!option || !option.dataset.url) return;
+    message.className = 'alert alert-info mt-3'; message.textContent = 'Fetching materials...';
+    try {
+      const response = await fetch(option.dataset.url, {headers: {'X-Requested-With': 'XMLHttpRequest'}});
+      if (!response.ok) throw new Error('Unable to fetch materials');
+      const data = await response.json();
+      if (!data.rows.length) throw new Error('The selected project has no material requirements');
+      const first = rows.querySelector('.bulk-row');
+      const firstIsEmpty = !first.querySelector('[name="material"]').value;
+      if (firstIsEmpty && rows.querySelectorAll('.bulk-row').length === 1) first.remove();
+      data.rows.forEach(item => rows.appendChild(newRow(item)));
+      message.className = 'alert alert-success mt-3'; message.textContent = `${data.rows.length} material requirement(s) fetched. Review and save when ready.`;
+    } catch (error) {
+      message.className = 'alert alert-danger mt-3'; message.textContent = error.message;
+    }
+  });
+})();
+</script>
 {% endblock %}

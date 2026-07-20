@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+.venv/
+node_modules/
+staticfiles/
+db.pre_workflow_backup.sqlite3

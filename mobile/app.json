@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "WMS Mobile",
+    "slug": "wms-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "scheme": "wms",
+    "plugins": [
+      ["expo-secure-store", {"configureAndroidBackup": true}],
+      ["expo-image-picker", {
+        "photosPermission": "Allow WMS to attach approved project site photos.",
+        "cameraPermission": "Allow WMS to capture project site photos.",
+        "microphonePermission": false
+      }]
+    ],
+    "android": {
+      "package": "com.staxplus.wms",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "ios": {
+      "bundleIdentifier": "com.staxplus.wms",
+      "supportsTablet": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

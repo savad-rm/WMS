@@ -66,6 +66,14 @@
       <td height="31">Description</td>
       <td><input type="text" name="textfield13" id="description" class="form-control"/></td>
     </tr>
+    <tr><td colspan="2"><h5 class="text-primary mt-3">Transfer existing project data (optional)</h5></td></tr>
+    <tr><td>Source Project</td><td><select name="source_project" class="form-control"><option value="">Do not copy from a project</option>{% for item in source_projects %}<option value="{{ item.id }}">{{ item.project_no }} — {{ item.project_name }}</option>{% endfor %}</select></td></tr>
+    <tr><td>Planning Data</td><td>
+      <div class="form-check"><input class="form-check-input" type="checkbox" name="copy_scope" value="1" id="copyScope"><label class="form-check-label" for="copyScope">Scope of work</label></div>
+      <div class="form-check"><input class="form-check-input" type="checkbox" name="copy_materials" value="1" id="copyMaterials"><label class="form-check-label" for="copyMaterials">Material list</label></div>
+      <div class="form-check"><input class="form-check-input" type="checkbox" name="copy_schedule" value="1" id="copySchedule"><label class="form-check-label" for="copySchedule">Scope schedule</label></div>
+    </td></tr>
+    <tr><td>Awarded Enquiry</td><td><select name="enquiry" class="form-control"><option value="">No enquiry transfer</option>{% for item in awarded_enquiries %}<option value="{{ item.id }}">{{ item.title }} — {{ item.client_name }}</option>{% endfor %}</select><div class="form-text">Transfers the enquiry, quotation and collected project documents to this project.</div></td></tr>
 
     <tr align="center">
       <td height="31" colspan="2"><input type="submit" name="button" id="button" value="Add" class="btn btn-primary" /></td>

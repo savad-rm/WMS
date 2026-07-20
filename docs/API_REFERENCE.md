@@ -1,0 +1,86 @@
+# Mobile API Reference
+
+## Conventions
+
+- Base path: `/WMS/api/v1/`
+- JSON except multipart uploads.
+- Header: `Authorization: Bearer <token>`.
+- Collections: `{ "results": [...] }`.
+- Dates use ISO format where supported. Legacy money/quantity values remain strings.
+
+Error envelope:
+
+```json
+{"error":{"code":"validation_error","message":"Request failed.","fields":{"field":["Explanation"]}}}
+```
+
+## Authentication and account
+
+| Method | Path | Purpose | Access |
+|---|---|---|---|
+| POST | `auth/login/` | Email/password exchange for token/profile | Public, 10/minute throttle |
+| POST | `auth/logout/` | Revoke issued account tokens | Authenticated |
+| GET | `me/` | Current account/staff profile | Authenticated |
+| PATCH | `me/` | Change password using `current_password`, `new_password` | Authenticated |
+
+Login payload: `{"email":"employee@example.com","password":"secret"}`.
+
+## Dashboard and projects
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `dashboard/` | Role metrics and recent projects |
+| GET | `projects/?q=&status=` | Search accessible projects |
+| GET | `projects/{id}/` | Overview, scope, schedules, progress, materials, team, capabilities |
+| GET/POST | `projects/{id}/chat/` | Read/send project messages |
+| POST | `projects/{id}/site-updates/` | Supervisor operational record |
+| GET | `materials/` | Material catalogue |
+| POST | `material-requests/{id}/approve/` | Approve request |
+| POST | `material-requests/{id}/reject/` | Reject request |
+
+Site-update payloads:
+
+| `type` | Required fields |
+|---|---|
+| `progress` | `work_id`, `status`, `progress`, optional `date` |
+| `material_request` | `material_id`, `quantity`, optional `date` |
+| `material_usage` | `material_id`, `quantity`, optional `date` |
+| `workers` | `work_type`, `worker_count`, optional `date` |
+| `photo` | multipart image `photo`, optional `date` |
+
+## Notifications
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `notifications/` | Current employee notifications |
+| POST | `notifications/{id}/read/` | Mark an owned notification read |
+
+## Enquiry workflow
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET/POST | `enquiries/` | Role list / Marketing enquiry creation |
+| GET | `enquiries/{id}/` | Detail, files, comments, quotation versions, permitted actions |
+| POST | `enquiries/{id}/comments/` | Add comment or remark |
+| POST | `enquiries/{id}/actions/{action}/` | Execute workflow transition |
+
+| Action | Role | Payload/precondition |
+|---|---|---|
+| `assign` | Marketing Manager, Project Manager | `estimator_id` |
+| `quote` | Assigned Estimator | `amount`, `details`, three costing amounts, optional notes |
+| `manager_approve` | Marketing Manager | Manager-review quotation |
+| `accountant_approve` | Accountant | Accountant-review quotation |
+| `costing_approve` | Project Manager | Quotation has costing |
+| `submit` | Document Controller | Quotation and costing approved |
+| `award` | Enquiry Marketing Executive | Submitted quotation |
+
+## Responses
+
+- `200` successful read/update
+- `201` created
+- `204` logout
+- `400` invalid data or state
+- `401` missing/invalid/expired/revoked token
+- `403` role or allocation denied
+- `404` missing or inaccessible record
+- `429` login throttled

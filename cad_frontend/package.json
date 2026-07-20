@@ -1,0 +1,21 @@
+{
+  "name": "wms-local-cad-viewer",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@mlightcad/cad-simple-ui-plugin": "1.5.8",
+    "@mlightcad/cad-simple-viewer": "1.5.8",
+    "@mlightcad/data-model": "1.11.1",
+    "@mlightcad/dxf-json-converter": "1.11.1",
+    "lodash-es": "4.17.21",
+    "three": "0.172.0"
+  },
+  "devDependencies": {
+    "vite": "6.4.3",
+    "vite-plugin-static-copy": "4.1.1"
+  }
+}

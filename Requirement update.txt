@@ -1,0 +1,57 @@
+WMS
+
+
+Coding logic:-
+-implement uniqu email for user, 
+-after add user navigate to user list 
+
+
+Business requirements:-
+-reffer/transfer scope of work,material list from another project 
+-change material,scope of work,schedule(scope of work sheet directly in this, only date need to be added) addition to list form from table form
+
+
+
+Existing Roles:-
+-Admin
+-Project Manager
+-Supervisor
+-Accountant
+-Purchaser
+
+
+
+New Roles:-
+-Marketing Executive
+-Marketing Manager
+-Estimator
+-Document Controller
+
+
+New Functions:-
+->Marketing Executive:
+  -Add project enquiry (FIles:Excel, Photos, Pdf, CAD, Word)
+  -View Enquiry (Add comments, Remark)
+  -Update Project Award (Acceptance of Quatation from client)
+  -Collect Project documents from client
+->Marketing Manager:
+  -View Enquiry (Add comments, Remark)
+  -Assign Enquiry to Estimator
+  -Approve Quatation (1 in approval order)
+->Estimator:
+  -View Enquiry (Add comments, Remark)
+  -Add Quatation
+  -Add Costing
+->Document Controller:
+  -Submit Quatation to Client
+  -View Quatation
+  -Verify Project documents collected from client
+->Admin:
+  -Transfer Enquiry,Quatation,other project related documents of project while creating project
+->Project Manager:
+  -Assign Enquiry to Estimator
+  -View Enquiry (Add comments, Remark)
+  -Approve Costing
+->Accountant:
+  -View Enquiry (Add comments, Remark)
+  -Approve Quatation (2nd approval)

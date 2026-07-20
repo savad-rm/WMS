@@ -1,11 +1,24 @@
 from django.db import models
 
+
+CAD_FILE_EXTENSIONS = frozenset(('.dwg', '.dxf'))
+
+
+def _is_cad_file(file_name):
+    return str(file_name).lower().endswith(tuple(CAD_FILE_EXTENSIONS))
+
 # Create your models here.
 
 class login(models.Model):
-    username=models.CharField(max_length=40)
-    password=models.CharField(max_length=40)
+    username=models.EmailField(max_length=254, unique=True)
+    password=models.CharField(max_length=128)
     usertype=models.CharField(max_length=50)
+    api_token_version = models.PositiveIntegerField(default=0)
+
+    @property
+    def is_authenticated(self):
+        """Provide the authentication contract expected by Django REST Framework."""
+        return True
 
 class project(models.Model):
     project_no=models.CharField(max_length=50)
@@ -26,18 +39,31 @@ class project(models.Model):
     estimate_status=models.CharField(max_length=20)
     status=models.CharField(max_length=20)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=('status', 'date'), name='project_status_date_idx'),
+            models.Index(fields=('project_name',), name='project_name_idx'),
+            models.Index(fields=('estimate_status',), name='project_est_status_idx'),
+        ]
+
 class staff(models.Model):
     name=models.CharField(max_length=50)
     # gender=models.CharField(max_length=10)
     dob=models.CharField(max_length=20)
     phone=models.CharField(max_length=40)
-    email=models.CharField(max_length=40)
+    email=models.EmailField(max_length=254, unique=True)
     photo=models.CharField(max_length=200,default=1)
     place=models.CharField(max_length=50)
     nation=models.CharField(max_length=40)
     phone2=models.CharField(max_length=40)
     designation=models.CharField(max_length=40)
     LOGIN=models.ForeignKey(login,on_delete=models.CASCADE)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=('designation',), name='staff_designation_idx'),
+            models.Index(fields=('name',), name='staff_name_idx'),
+        ]
 
 class accounthead(models.Model):
     headname=models.CharField(max_length=40)
@@ -111,6 +137,9 @@ class material_required(models.Model):
     PROJECT= models.ForeignKey(project, on_delete=models.CASCADE)
     MATERIAL = models.ForeignKey(material, on_delete=models.CASCADE)
 
+    class Meta:
+        indexes = [models.Index(fields=('PROJECT', 'category'), name='material_req_project_idx')]
+
 class material_usage(models.Model):
     date=models.CharField(max_length=100)
     quantity=models.CharField(max_length=40)
@@ -167,11 +196,17 @@ class work(models.Model):
     workname=models.CharField(max_length=40)
     PROJECT= models.ForeignKey(project, on_delete=models.CASCADE)
 
+    class Meta:
+        indexes = [models.Index(fields=('PROJECT', 'workname'), name='work_project_name_idx')]
+
 class schedule(models.Model):
     from_date=models.DateField(max_length=100)
     to_date=models.DateField(max_length=100)
     PROJECT= models.ForeignKey(project, on_delete=models.CASCADE)
     WORK = models.ForeignKey(work, on_delete=models.CASCADE)
+
+    class Meta:
+        indexes = [models.Index(fields=('PROJECT', 'from_date', 'to_date'), name='schedule_project_date_idx')]
 
 class subcontractor(models.Model):
     name=models.CharField(max_length=40)
@@ -205,6 +240,9 @@ class work_progress(models.Model):
     PROJECT= models.ForeignKey(project, on_delete=models.CASCADE)
     WORK = models.ForeignKey(work, on_delete=models.CASCADE)
 
+    class Meta:
+        indexes = [models.Index(fields=('PROJECT', 'date'), name='progress_project_date_idx')]
+
 class worker_entry(models.Model):
     work_type=models.CharField(max_length=40)
     worker_count=models.CharField(max_length=40)
@@ -218,4 +256,122 @@ class chat(models.Model):
     date=models.CharField(max_length=100)
     PROJECT= models.ForeignKey(project, on_delete=models.CASCADE)
     LOGIN=models.ForeignKey(login,on_delete=models.CASCADE)
+
+
+# Marketing, estimation and document-control workflow.
+class enquiry(models.Model):
+    STATUS_CHOICES = [
+        ('open', 'Open'),
+        ('assigned', 'Assigned'),
+        ('quoted', 'Quoted'),
+        ('approved', 'Approved'),
+        ('submitted', 'Submitted to client'),
+        ('awarded', 'Awarded'),
+        ('closed', 'Closed'),
+    ]
+
+    title = models.CharField(max_length=150)
+    client_name = models.CharField(max_length=100)
+    client_email = models.EmailField(blank=True)
+    client_phone = models.CharField(max_length=40, blank=True)
+    description = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open', db_index=True)
+    created_by = models.ForeignKey(login, on_delete=models.PROTECT, related_name='created_enquiries')
+    assigned_to = models.ForeignKey(staff, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_enquiries')
+    PROJECT = models.ForeignKey(project, on_delete=models.SET_NULL, null=True, blank=True, related_name='enquiries')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ('-created_at',)
+
+
+class enquiry_attachment(models.Model):
+    ENQUIRY = models.ForeignKey(enquiry, on_delete=models.CASCADE, related_name='attachments')
+    file = models.FileField(upload_to='enquiries/%Y/%m/')
+    original_name = models.CharField(max_length=255)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def is_cad(self):
+        return _is_cad_file(self.original_name)
+
+
+class enquiry_comment(models.Model):
+    ENQUIRY = models.ForeignKey(enquiry, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(login, on_delete=models.PROTECT)
+    comment = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ('created_at',)
+
+
+class quotation(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('manager_review', 'Manager review'),
+        ('accountant_review', 'Accountant review'),
+        ('approved', 'Approved'),
+        ('submitted', 'Submitted to client'),
+        ('accepted', 'Accepted by client'),
+        ('rejected', 'Rejected'),
+    ]
+
+    ENQUIRY = models.ForeignKey(enquiry, on_delete=models.CASCADE, related_name='quotations')
+    version = models.PositiveIntegerField(default=1)
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    details = models.TextField(blank=True)
+    file = models.FileField(upload_to='quotations/%Y/%m/', blank=True)
+    status = models.CharField(max_length=25, choices=STATUS_CHOICES, default='manager_review', db_index=True)
+    created_by = models.ForeignKey(staff, on_delete=models.PROTECT, related_name='created_quotations')
+    manager_approved_by = models.ForeignKey(staff, on_delete=models.SET_NULL, null=True, blank=True, related_name='manager_approved_quotations')
+    manager_approved_at = models.DateTimeField(null=True, blank=True)
+    accountant_approved_by = models.ForeignKey(staff, on_delete=models.SET_NULL, null=True, blank=True, related_name='accountant_approved_quotations')
+    accountant_approved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ('-created_at',)
+        constraints = [models.UniqueConstraint(fields=('ENQUIRY', 'version'), name='unique_enquiry_quotation_version')]
+
+
+class costing(models.Model):
+    QUOTATION = models.OneToOneField(quotation, on_delete=models.CASCADE, related_name='costing')
+    material_cost = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    labour_cost = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    other_cost = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    notes = models.TextField(blank=True)
+    approved_by = models.ForeignKey(staff, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_costings')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def total(self):
+        return self.material_cost + self.labour_cost + self.other_cost
+
+
+class project_document(models.Model):
+    DOCUMENT_TYPES = [
+        ('client', 'Client document'),
+        ('quotation', 'Quotation'),
+        ('cad', 'CAD drawing'),
+        ('contract', 'Contract'),
+        ('other', 'Other'),
+    ]
+
+    ENQUIRY = models.ForeignKey(enquiry, on_delete=models.CASCADE, related_name='project_documents')
+    document_type = models.CharField(max_length=20, choices=DOCUMENT_TYPES, default='client')
+    file = models.FileField(upload_to='project_documents/%Y/%m/')
+    collected_by = models.ForeignKey(login, on_delete=models.PROTECT, related_name='collected_project_documents')
+    verified_by = models.ForeignKey(staff, on_delete=models.SET_NULL, null=True, blank=True, related_name='verified_project_documents')
+    verified_at = models.DateTimeField(null=True, blank=True)
+    transferred_to = models.ForeignKey(project, on_delete=models.SET_NULL, null=True, blank=True, related_name='transferred_documents')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def is_cad(self):
+        return _is_cad_file(self.file.name)
 

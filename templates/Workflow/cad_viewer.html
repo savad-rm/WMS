@@ -1,0 +1,51 @@
+{% extends 'Workflow/base.html' %}
+{% load static %}
+
+{% block extra_head %}
+<link href="{% static 'cad_viewer/cad-viewer.css' %}" rel="stylesheet">
+<style>
+  .cad-viewer-card { overflow: hidden; }
+  .cad-viewer-shell { position: relative; height: min(74vh, 820px); min-height: 520px; background: #111827; }
+  .cad-viewer-help { font-size: .82rem; }
+  @media (max-width: 768px) { .cad-viewer-shell { height: 68vh; min-height: 440px; } }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="pagetitle d-flex flex-wrap justify-content-between align-items-start gap-2">
+  <div>
+    <h1>CAD Drawing Viewer</h1>
+    <nav><ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'workflow_dashboard' %}">Enquiries</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'workflow_detail' enquiry.id %}">{{ enquiry.title }}</a></li>
+      <li class="breadcrumb-item active">CAD Viewer</li>
+    </ol></nav>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-primary" href="{% url 'workflow_detail' enquiry.id %}"><i class="bi bi-arrow-left"></i> Back</a>
+    <a class="btn btn-primary" href="{{ cad_file_url }}" download><i class="bi bi-download"></i> Download Original</a>
+  </div>
+</div>
+
+<div class="card cad-viewer-card">
+  <div class="card-body pb-2">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <h5 class="card-title mb-0 text-truncate" title="{{ cad_file_name }}">{{ cad_file_name }}</h5>
+      <span class="text-muted cad-viewer-help"><i class="bi bi-mouse"></i> Wheel to zoom · Middle-button drag to pan · Use the right toolbar for layers and measurements</span>
+    </div>
+  </div>
+  <div class="cad-viewer-shell">
+    <div id="cad-viewer" data-file-url="{{ cad_file_url }}" data-file-name="{{ cad_file_name }}"></div>
+    <div id="cad-viewer-status" data-state="loading" role="status" aria-live="polite">
+      <div class="cad-status-card">
+        <i class="bi bi-bounding-box cad-status-icon"></i>
+        <div data-status-message>Preparing the local CAD viewer…</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script type="module" src="{% static 'cad_viewer/cad-viewer.js' %}"></script>
+{% endblock %}

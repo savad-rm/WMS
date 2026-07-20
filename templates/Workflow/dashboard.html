@@ -1,0 +1,15 @@
+{% extends 'Workflow/base.html' %}
+{% block body %}
+<div class="pagetitle d-flex justify-content-between align-items-center"><div><h1>Project Enquiries</h1><nav><ol class="breadcrumb"><li class="breadcrumb-item active">Marketing and estimation workflow</li></ol></nav></div>{% if can_add %}<a class="btn btn-primary" href="{% url 'workflow_add_enquiry' %}"><i class="bi bi-plus-lg"></i> Add Enquiry</a>{% endif %}</div>
+<section class="section dashboard">
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3"><div class="card info-card"><div class="card-body"><h5 class="card-title">Open</h5><h3>{{ summary.open }}</h3></div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card info-card"><div class="card-body"><h5 class="card-title">Assigned</h5><h3>{{ summary.assigned }}</h3></div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card info-card"><div class="card-body"><h5 class="card-title">Awaiting approval</h5><h3>{{ summary.awaiting_approval }}</h3></div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card info-card"><div class="card-body"><h5 class="card-title">Awarded</h5><h3>{{ summary.awarded }}</h3></div></div></div>
+  </div>
+  <div class="card"><div class="card-body"><h5 class="card-title">Enquiries</h5><div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Title</th><th>Client</th><th>Assigned estimator</th><th>Status</th><th>Updated</th><th></th></tr></thead><tbody>
+  {% for item in enquiries %}<tr><td>{{ item.title }}</td><td>{{ item.client_name }}</td><td>{{ item.assigned_to.name|default:'Not assigned' }}</td><td><span class="badge bg-primary">{{ item.get_status_display }}</span></td><td>{{ item.updated_at|date:'d M Y H:i' }}</td><td><a class="btn btn-sm btn-outline-primary" href="{% url 'workflow_detail' item.id %}">View</a></td></tr>{% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No enquiries are available for your role.</td></tr>{% endfor %}
+  </tbody></table></div></div></div>
+</section>
+{% endblock %}

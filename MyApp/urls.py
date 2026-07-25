@@ -9,6 +9,9 @@ urlpatterns = [
 
     # Enquiry, quotation, costing and project-document workflow
     path('workflow/', workflow_views.dashboard, name='workflow_dashboard'),
+    path('workflow/profile/', workflow_views.profile, name='workflow_profile'),
+    path('workflow/change-password/', workflow_views.change_password, name='workflow_change_password'),
+    path('workflow/logout/', workflow_views.logout, name='workflow_logout'),
     path('workflow/enquiries/add/', workflow_views.add_enquiry, name='workflow_add_enquiry'),
     path('workflow/enquiries/<int:enquiry_id>/', workflow_views.detail, name='workflow_detail'),
     path('workflow/enquiries/<int:enquiry_id>/comments/', workflow_views.add_comment, name='workflow_add_comment'),

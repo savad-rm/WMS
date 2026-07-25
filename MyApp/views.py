@@ -1032,34 +1032,59 @@ def Add_Subcontractor_post(request):
 @legacy_role_required('Project Manager')
 def Add_work_schedule(request,id):
     p=project.objects.get(pk=id)
-    unscheduled_work = work.objects.filter(PROJECT=id, schedule__isnull=True).only('id', 'workname')
+    unscheduled_work = work.objects.filter(
+        PROJECT=id, schedule__isnull=True
+    ).only('id', 'category', 'workname').order_by('category', 'workname')
     return render(request,'Project Manager/Add Work Schedule.html',{'data':p,'data1':unscheduled_work,'id':id})
 
+@require_POST
+@legacy_role_required('Project Manager')
+@db_transaction.atomic
 def Add_work_schedule_post(request):
     id=request.POST['id']
     pid=request.POST['pid']
     p=project.objects.get(id=pid)
-    w=request.POST['work']
-    w=work.objects.get(id=w)
-    start_date=request.POST['start']
-    end_date=request.POST['end']
-
-    awsj=schedule()
-    awsj.PROJECT=p
-    awsj.from_date=start_date
-    awsj.to_date=end_date
-    awsj.WORK=w
-    awsj.save()
-
-    from datetime import datetime
-    awps = work_progress()
-    awps.WORK=w
-    awps.date=datetime.now().strftime("%Y-%m-%d")
-    awps.PROJECT=p
-    awps.status="pending"
-    awps.progress='0'
-    awps.save()
-    return HttpResponse("<script>alert('Added Succesfully');window.location='/WMS/View_work_schedules/"+id+"#myid'</script>")
+    work_ids=request.POST.getlist('work')
+    starts=request.POST.getlist('start')
+    ends=request.POST.getlist('end')
+    if not work_ids or not (len(work_ids) == len(starts) == len(ends)):
+        return HttpResponse('Invalid schedule row data', status=400)
+    try:
+        normalized_work_ids=[int(value) for value in work_ids]
+    except (TypeError, ValueError):
+        return HttpResponse('Every schedule row must reference a valid scope item', status=400)
+    if len(normalized_work_ids) != len(set(normalized_work_ids)):
+        return HttpResponse('Each scope item can only appear once', status=400)
+    work_map=work.objects.filter(
+        PROJECT=p, pk__in=normalized_work_ids, schedule__isnull=True
+    ).in_bulk()
+    if len(work_map) != len(set(normalized_work_ids)):
+        return HttpResponse('A scope item is invalid or already scheduled', status=400)
+    schedule_rows=[]
+    from datetime import date, datetime
+    progress_rows=[]
+    for work_id, start_date, end_date in zip(normalized_work_ids, starts, ends):
+        if not start_date or not end_date:
+            return HttpResponse('Start and end dates are required for every scope item', status=400)
+        try:
+            parsed_start = date.fromisoformat(start_date)
+            parsed_end = date.fromisoformat(end_date)
+        except ValueError:
+            return HttpResponse('Every schedule row requires valid dates', status=400)
+        if parsed_end < parsed_start:
+            return HttpResponse('End date cannot precede start date', status=400)
+        scope_item=work_map[work_id]
+        schedule_rows.append(schedule(
+            PROJECT=p, WORK=scope_item, from_date=parsed_start, to_date=parsed_end
+        ))
+        progress_rows.append(work_progress(
+            WORK=scope_item, PROJECT=p, date=datetime.now().strftime("%Y-%m-%d"),
+            status='pending', progress='0',
+        ))
+    schedule.objects.bulk_create(schedule_rows)
+    work_progress.objects.bulk_create(progress_rows)
+    messages.success(request, f'{len(schedule_rows)} scope schedule(s) added successfully.')
+    return redirect('View_work_schedules', id=id)
 
 @legacy_role_required('Project Manager')
 def Add_works(request,id):
@@ -1078,34 +1103,18 @@ def Add_works_post(request):
     p=project.objects.get(pk=pid)
     categories=request.POST.getlist('category')
     work_names=request.POST.getlist('work')
-    starts=request.POST.getlist('start')
-    ends=request.POST.getlist('end')
-    if not (len(categories) == len(work_names) == len(starts) == len(ends)):
+    if len(categories) != len(work_names):
         return HttpResponse('Invalid scope row data', status=400)
     work_rows=[]
-    schedule_dates=[]
-    for category, work_name, start_date, end_date in zip(categories, work_names, starts, ends):
+    for category, work_name in zip(categories, work_names):
         category=category.strip()
         work_name=work_name.strip()
         if not category or not work_name:
             return HttpResponse('Every scope row requires a category and description', status=400)
-        if bool(start_date) != bool(end_date) or (start_date and end_date < start_date):
-            return HttpResponse('Each schedule requires both dates and the end date cannot precede the start date', status=400)
         work_rows.append(work(PROJECT=p, category=category, workname=work_name))
-        schedule_dates.append((start_date, end_date))
     if not work_rows:
         return HttpResponse('Add at least one scope row', status=400)
     work.objects.bulk_create(work_rows)
-    from datetime import datetime
-    dated_rows=[(item, dates) for item, dates in zip(work_rows, schedule_dates) if dates[0]]
-    schedule.objects.bulk_create([
-        schedule(PROJECT=p, WORK=item, from_date=dates[0], to_date=dates[1])
-        for item, dates in dated_rows
-    ])
-    work_progress.objects.bulk_create([
-        work_progress(WORK=item, PROJECT=p, date=datetime.now().strftime("%Y-%m-%d"), status='pending', progress='0')
-        for item, dates in dated_rows
-    ])
     messages.success(request, f'{len(work_rows)} scope item(s) added successfully.')
     return redirect('View_work', id=id)
 
@@ -1124,13 +1133,8 @@ def Project_list_data(request, id, data_type):
             'quantity': item.quantity, 'price': item.price,
         } for item in rows]})
     scope_rows = list(work.objects.filter(PROJECT=source).order_by('id'))
-    schedule_map = {
-        item.WORK_id: item for item in schedule.objects.filter(WORK_id__in=[row.id for row in scope_rows]).order_by('id')
-    }
     return JsonResponse({'rows': [{
         'category': item.category, 'work': item.workname,
-        'start': schedule_map[item.id].from_date.isoformat() if item.id in schedule_map else '',
-        'end': schedule_map[item.id].to_date.isoformat() if item.id in schedule_map else '',
     } for item in scope_rows]})
 
 def Change_password(request):

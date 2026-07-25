@@ -8,8 +8,8 @@ from django.urls import reverse
 
 from .models import (
     chat, enquiry, enquiry_attachment, estimate, login, material, material_request,
-    material_required, project, project_manager_allocation, quotation, schedule, staff,
-    supervisor_allocation, work, work_progress,
+    material_required, project, project_document, project_manager_allocation, quotation,
+    schedule, staff, supervisor_allocation, work, work_progress,
 )
 
 
@@ -160,6 +160,37 @@ class WorkflowTests(TestCase):
             )
             self.assertEqual(denied.status_code, 403)
 
+    def test_enquiry_accepts_multiple_files_in_one_submission(self):
+        with tempfile.TemporaryDirectory() as media_root, self.settings(MEDIA_ROOT=media_root):
+            self.sign_in_as(*self.executive)
+            response = self.client.post(reverse('workflow_add_enquiry'), {
+                'title': 'Multi-file enquiry',
+                'client_name': 'Example Client',
+                'files': [
+                    SimpleUploadedFile('scope.pdf', b'%PDF-1.4 test'),
+                    SimpleUploadedFile('floor-plan.dxf', b'0\nSECTION\n0\nEOF\n'),
+                ],
+            })
+            self.assertEqual(response.status_code, 302)
+            record = enquiry.objects.get(title='Multi-file enquiry')
+            self.assertEqual(record.attachments.count(), 2)
+
+    def test_multiple_client_documents_are_saved(self):
+        with tempfile.TemporaryDirectory() as media_root, self.settings(MEDIA_ROOT=media_root):
+            record = enquiry.objects.create(
+                title='Document collection', client_name='Client', created_by=self.executive[0]
+            )
+            self.sign_in_as(*self.executive)
+            response = self.client.post(reverse('workflow_collect_document', args=(record.pk,)), {
+                'document_type': 'client',
+                'files': [
+                    SimpleUploadedFile('brief.pdf', b'%PDF-1.4 brief'),
+                    SimpleUploadedFile('drawing.dxf', b'0\nSECTION\n0\nEOF\n'),
+                ],
+            })
+            self.assertEqual(response.status_code, 302)
+            self.assertEqual(project_document.objects.filter(ENQUIRY=record).count(), 2)
+
 
 class BulkPlanningTests(TestCase):
     def create_project(self, number, name):
@@ -194,28 +225,47 @@ class BulkPlanningTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn('/WMS/login/', response.url)
 
-    def test_bulk_scope_add_is_atomic_and_creates_schedules(self):
+    def test_scope_and_schedule_are_saved_as_separate_bulk_steps(self):
         response = self.client.post(reverse('Add_works_post'), {
             'id': str(self.target.pk), 'pid': str(self.target.pk),
             'category': ['Electrical', 'Painting'],
             'work': ['Install containment', 'Apply finish coat'],
-            'start': ['2026-07-10', ''], 'end': ['2026-07-12', ''],
         })
         self.assertRedirects(
             response, reverse('View_work', args=(self.target.pk,)), fetch_redirect_response=False
         )
         self.assertEqual(work.objects.filter(PROJECT=self.target).count(), 2)
-        self.assertEqual(schedule.objects.filter(PROJECT=self.target).count(), 1)
-        self.assertEqual(work_progress.objects.filter(PROJECT=self.target).count(), 1)
+        self.assertEqual(schedule.objects.filter(PROJECT=self.target).count(), 0)
+        self.assertEqual(work_progress.objects.filter(PROJECT=self.target).count(), 0)
 
-        before = work.objects.filter(PROJECT=self.target).count()
-        response = self.client.post(reverse('Add_works_post'), {
+        scope_rows = list(work.objects.filter(PROJECT=self.target).order_by('id'))
+        response = self.client.post(reverse('Add_work_schedule_post'), {
             'id': str(self.target.pk), 'pid': str(self.target.pk),
-            'category': ['HVAC'], 'work': ['Invalid dates'],
-            'start': ['2026-08-10'], 'end': ['2026-08-01'],
+            'work': [str(item.pk) for item in scope_rows],
+            'start': ['2026-07-10', '2026-07-13'],
+            'end': ['2026-07-12', '2026-07-15'],
+        })
+        self.assertRedirects(
+            response, reverse('View_work_schedules', args=(self.target.pk,)),
+            fetch_redirect_response=False,
+        )
+        self.assertEqual(schedule.objects.filter(PROJECT=self.target).count(), 2)
+        self.assertEqual(work_progress.objects.filter(PROJECT=self.target).count(), 2)
+
+    def test_bulk_schedule_is_atomic_when_any_date_is_invalid(self):
+        rows = [
+            work.objects.create(PROJECT=self.target, category='HVAC', workname='Ducting'),
+            work.objects.create(PROJECT=self.target, category='Painting', workname='Primer'),
+        ]
+        response = self.client.post(reverse('Add_work_schedule_post'), {
+            'id': str(self.target.pk), 'pid': str(self.target.pk),
+            'work': [str(item.pk) for item in rows],
+            'start': ['2026-08-01', '2026-08-10'],
+            'end': ['2026-08-05', '2026-08-01'],
         })
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(work.objects.filter(PROJECT=self.target).count(), before)
+        self.assertFalse(schedule.objects.filter(PROJECT=self.target).exists())
+        self.assertFalse(work_progress.objects.filter(PROJECT=self.target).exists())
 
     def test_bulk_material_requirements_and_source_fetch(self):
         material_required.objects.create(
@@ -237,7 +287,7 @@ class BulkPlanningTests(TestCase):
         )
         self.assertEqual(material_required.objects.filter(PROJECT=self.target).count(), 2)
 
-    def test_scope_source_fetch_includes_schedule_dates(self):
+    def test_scope_source_fetch_returns_scope_without_schedule_dates(self):
         scope = work.objects.create(PROJECT=self.source, category='Electrical', workname='Install cables')
         schedule.objects.create(
             PROJECT=self.source, WORK=scope, from_date='2026-07-20', to_date='2026-07-25'
@@ -246,7 +296,6 @@ class BulkPlanningTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['rows'][0], {
             'category': 'Electrical', 'work': 'Install cables',
-            'start': '2026-07-20', 'end': '2026-07-25',
         })
 
     def test_estimate_number_is_scoped_to_project(self):

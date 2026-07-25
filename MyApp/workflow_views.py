@@ -3,10 +3,11 @@ from pathlib import Path
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
+from django.contrib.auth.hashers import check_password, make_password
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 from django.db import transaction
-from django.db.models import Max, Prefetch
+from django.db.models import Max, Prefetch, Q
 from django.http import FileResponse, Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -77,7 +78,12 @@ def _non_negative_decimal(request, field, label):
 
 def _render(request, template, context=None):
     context = context or {}
-    context.update({'current_role': request.workflow_account.usertype, 'workflow_roles': WORKFLOW_ROLES})
+    context.update({
+        'current_role': request.workflow_account.usertype,
+        'current_account': request.workflow_account,
+        'current_staff': getattr(request, 'workflow_staff', None),
+        'workflow_roles': WORKFLOW_ROLES,
+    })
     return render(request, template, context)
 
 
@@ -98,11 +104,21 @@ def dashboard(request):
         records = records.filter(created_by=request.workflow_account)
     elif role == 'Estimator':
         records = records.filter(assigned_to=request.workflow_staff)
+    query = request.GET.get('q', '').strip()
+    if query:
+        records = records.filter(
+            Q(title__icontains=query)
+            | Q(client_name__icontains=query)
+            | Q(client_email__icontains=query)
+            | Q(client_phone__icontains=query)
+            | Q(assigned_to__name__icontains=query)
+        )
     visible_records = records
     records = visible_records[:100]
     return _render(request, 'Workflow/dashboard.html', {
         'enquiries': records,
         'can_add': role == 'Marketing Executive',
+        'query': query,
         'summary': {
             'open': visible_records.filter(status='open').count(),
             'assigned': visible_records.filter(status='assigned').count(),
@@ -113,6 +129,39 @@ def dashboard(request):
             'awarded': visible_records.filter(status='awarded').count(),
         },
     })
+
+
+@role_required(*WORKFLOW_ROLES)
+def profile(request):
+    return _render(request, 'Workflow/profile.html')
+
+
+@role_required(*WORKFLOW_ROLES)
+def change_password(request):
+    if request.method == 'POST':
+        current_password = request.POST.get('current_password', '')
+        new_password = request.POST.get('new_password', '')
+        confirmation = request.POST.get('confirm_password', '')
+        if not check_password(current_password, request.workflow_account.password):
+            messages.error(request, 'The current password is incorrect.')
+        elif len(new_password) < 8:
+            messages.error(request, 'The new password must contain at least 8 characters.')
+        elif new_password != confirmation:
+            messages.error(request, 'The new password and confirmation do not match.')
+        else:
+            request.workflow_account.password = make_password(new_password)
+            request.workflow_account.api_token_version += 1
+            request.workflow_account.save(update_fields=('password', 'api_token_version'))
+            messages.success(request, 'Password changed successfully.')
+            return redirect('workflow_profile')
+    return _render(request, 'Workflow/change_password.html')
+
+
+@require_POST
+@role_required(*WORKFLOW_ROLES)
+def logout(request):
+    request.session.flush()
+    return redirect('login')
 
 
 @role_required('Marketing Executive')
@@ -321,19 +370,27 @@ def award_project(request, quote_id):
 @role_required('Marketing Executive')
 def collect_document(request, enquiry_id):
     record = get_object_or_404(enquiry, pk=enquiry_id, created_by=request.workflow_account)
-    upload = request.FILES.get('file')
-    if not upload:
-        messages.error(request, 'Select a document to upload.')
+    uploads = request.FILES.getlist('files') or request.FILES.getlist('file')
+    if not uploads:
+        messages.error(request, 'Select at least one document to upload.')
     else:
         try:
-            _validate_upload(upload)
-            project_document.objects.create(
-                ENQUIRY=record, file=upload, document_type=request.POST.get('document_type', 'client'),
-                collected_by=request.workflow_account,
-            )
-            messages.success(request, 'Client project document collected.')
+            for upload in uploads:
+                _validate_upload(upload)
         except ValidationError as exc:
             messages.error(request, exc.messages[0])
+        else:
+            with transaction.atomic():
+                for upload in uploads:
+                    project_document.objects.create(
+                        ENQUIRY=record,
+                        file=upload,
+                        document_type=request.POST.get('document_type', 'client'),
+                        collected_by=request.workflow_account,
+                    )
+            messages.success(
+                request, f'{len(uploads)} client project document(s) collected.'
+            )
     return redirect('workflow_detail', enquiry_id=enquiry_id)
 
 

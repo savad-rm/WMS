@@ -3,42 +3,128 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>WMS Project Enquiries</title>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <title>{% block title %}Enquiries &amp; Quotations{% endblock %} | BLUERAY</title>
+  <link href="{% static 'index/img/favicon.png' %}" rel="icon">
+  <link href="{% static 'index/img/apple-touch-icon.png' %}" rel="apple-touch-icon">
+  <link href="https://fonts.gstatic.com" rel="preconnect">
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Nunito:300,300i,400,400i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i" rel="stylesheet">
   <link href="{% static 'index/vendor/bootstrap/css/bootstrap.min.css' %}" rel="stylesheet">
   <link href="{% static 'index/vendor/bootstrap-icons/bootstrap-icons.css' %}" rel="stylesheet">
+  <link href="{% static 'index/vendor/boxicons/css/boxicons.min.css' %}" rel="stylesheet">
+  <link href="{% static 'index/vendor/remixicon/remixicon.css' %}" rel="stylesheet">
+  <link href="{% static 'index/vendor/simple-datatables/style.css' %}" rel="stylesheet">
   <link href="{% static 'index/css/style.css' %}" rel="stylesheet">
+  <style>
+    .workflow-role-label { color: #012970; font-family: "Nunito", sans-serif; }
+    .workflow-table thead th { background: #00a0dc; color: #fff; white-space: nowrap; }
+    .workflow-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .file-row + .file-row { margin-top: .75rem; }
+  </style>
   {% block extra_head %}{% endblock %}
 </head>
 <body>
-<header class="header fixed-top d-flex align-items-center">
-  <div class="d-flex align-items-center justify-content-between px-3">
-    <a href="{% url 'workflow_dashboard' %}" class="logo d-flex align-items-center">
-      <img src="{% static 'index/img/logo.png' %}" alt="WMS">
-      <span class="d-none d-lg-block">WMS</span>
-    </a>
-  </div>
-  <nav class="header-nav ms-auto pe-4"><span class="text-primary fw-semibold">{{ current_role }}</span></nav>
-</header>
-<aside id="sidebar" class="sidebar">
-  <ul class="sidebar-nav">
-    <li class="nav-item"><a class="nav-link" href="{% url 'workflow_dashboard' %}"><i class="bi bi-grid"></i><span>Enquiry Dashboard</span></a></li>
-    {% if current_role == 'Marketing Executive' %}
-    <li class="nav-item"><a class="nav-link collapsed" href="{% url 'workflow_add_enquiry' %}"><i class="bi bi-folder-plus"></i><span>Add Enquiry</span></a></li>
-    {% endif %}
-    {% if current_role == 'Admin' %}
-    <li class="nav-item"><a class="nav-link collapsed" href="{% url 'Admin_home' %}"><i class="bi bi-arrow-left"></i><span>Admin Dashboard</span></a></li>
-    {% elif current_role == 'Project Manager' %}
-    <li class="nav-item"><a class="nav-link collapsed" href="{% url 'PMHome' %}"><i class="bi bi-arrow-left"></i><span>Project Dashboard</span></a></li>
-    {% endif %}
-    <li class="nav-item"><a class="nav-link collapsed" href="{% url 'login' %}"><i class="bi bi-box-arrow-right"></i><span>Sign Out</span></a></li>
-  </ul>
-</aside>
-<main id="main" class="main">
-  {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show">{{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>{% endfor %}
-  {% block body %}{% endblock %}
-</main>
-<script src="{% static 'index/vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
-{% block extra_scripts %}{% endblock %}
+  <header id="header" class="header fixed-top d-flex align-items-center">
+    <div class="d-flex align-items-center justify-content-between">
+      <a href="{% url 'workflow_dashboard' %}" class="logo d-flex align-items-center">
+        <img src="{% static 'index/img/logo.png' %}" alt="">
+        <span class="d-none d-lg-block">BLUERAY</span>
+      </a>
+      <i class="bi bi-list toggle-sidebar-btn" aria-label="Toggle navigation"></i>
+    </div>
+
+    <div class="search-bar">
+      <form class="search-form d-flex align-items-center" method="get" action="{% url 'workflow_dashboard' %}">
+        <input type="text" name="q" value="{{ query|default:'' }}" placeholder="Search enquiries" title="Search enquiry, client or estimator">
+        <button type="submit" title="Search"><i class="bi bi-search"></i></button>
+      </form>
+    </div>
+
+    <nav class="header-nav ms-auto">
+      <ul class="d-flex align-items-center">
+        <li class="nav-item d-block d-lg-none">
+          <a class="nav-link nav-icon search-bar-toggle" href="#" aria-label="Open search"><i class="bi bi-search"></i></a>
+        </li>
+        <li class="nav-item dropdown pe-3">
+          <a class="nav-link nav-profile d-flex align-items-center pe-0" href="#" data-bs-toggle="dropdown">
+            <img src="{% static 'index/img/profile-img.jpg' %}" alt="Profile" class="rounded-circle">
+            <span class="d-none d-md-block dropdown-toggle ps-2">{{ current_role }}</span>
+          </a>
+          <ul class="dropdown-menu dropdown-menu-end dropdown-menu-arrow profile">
+            <li class="dropdown-header">
+              <h6>{{ current_staff.name|default:current_role }}</h6>
+              <span>{{ current_role }}</span>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item d-flex align-items-center" href="{% url 'workflow_profile' %}"><i class="bi bi-person"></i><span>My Profile</span></a></li>
+            <li><a class="dropdown-item d-flex align-items-center" href="{% url 'workflow_change_password' %}"><i class="bi bi-gear"></i><span>Change Password</span></a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <form method="post" action="{% url 'workflow_logout' %}">
+                {% csrf_token %}
+                <button class="dropdown-item d-flex align-items-center" type="submit"><i class="bi bi-box-arrow-right"></i><span>Sign Out</span></button>
+              </form>
+            </li>
+          </ul>
+        </li>
+      </ul>
+    </nav>
+  </header>
+
+  <aside id="sidebar" class="sidebar">
+    <ul class="sidebar-nav" id="sidebar-nav">
+      <li class="nav-item">
+        <a class="nav-link {% if request.resolver_match.url_name != 'workflow_dashboard' %}collapsed{% endif %}" href="{% url 'workflow_dashboard' %}">
+          <i class="bi bi-grid"></i><span>Dashboard</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if request.resolver_match.url_name == 'workflow_dashboard' %}collapsed{% endif %}" href="{% url 'workflow_dashboard' %}">
+          <i class="bi bi-briefcase"></i><span>Enquiries &amp; Quotations</span>
+        </a>
+      </li>
+      {% if current_role == 'Marketing Executive' %}
+      <li class="nav-item">
+        <a class="nav-link {% if request.resolver_match.url_name != 'workflow_add_enquiry' %}collapsed{% endif %}" href="{% url 'workflow_add_enquiry' %}">
+          <i class="bi bi-folder-plus"></i><span>Add Enquiry</span>
+        </a>
+      </li>
+      {% endif %}
+      <li class="nav-heading">Account</li>
+      <li class="nav-item"><a class="nav-link collapsed" href="{% url 'workflow_profile' %}"><i class="bi bi-person-rolodex"></i><span>View Profile</span></a></li>
+      <li class="nav-item"><a class="nav-link collapsed" href="{% url 'workflow_change_password' %}"><i class="bi bi-gear"></i><span>Change Password</span></a></li>
+      {% if current_role == 'Admin' %}
+      <li class="nav-item"><a class="nav-link collapsed" href="{% url 'Admin_home' %}"><i class="bi bi-arrow-left-circle"></i><span>Admin Dashboard</span></a></li>
+      {% elif current_role == 'Project Manager' %}
+      <li class="nav-item"><a class="nav-link collapsed" href="{% url 'PMHome' %}"><i class="bi bi-arrow-left-circle"></i><span>Project Dashboard</span></a></li>
+      {% elif current_role == 'Accountant' %}
+      <li class="nav-item"><a class="nav-link collapsed" href="{% url 'achome' %}"><i class="bi bi-arrow-left-circle"></i><span>Account Dashboard</span></a></li>
+      {% endif %}
+      <li class="nav-item">
+        <form method="post" action="{% url 'workflow_logout' %}">
+          {% csrf_token %}
+          <button class="nav-link collapsed border-0 bg-transparent w-100 text-start" type="submit"><i class="bi bi-box-arrow-right"></i><span>Logout</span></button>
+        </form>
+      </li>
+    </ul>
+  </aside>
+
+  <main id="main" class="main">
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show">
+        {{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+    {% block body %}{% endblock %}
+  </main>
+
+  <footer id="footer" class="footer">
+    <div class="copyright">&copy; Copyright <strong><span>BLUERAY</span></strong>. All Rights Reserved</div>
+  </footer>
+  <a href="#" class="back-to-top d-flex align-items-center justify-content-center"><i class="bi bi-arrow-up-short"></i></a>
+  <script src="{% static 'index/vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+  <script src="{% static 'index/vendor/simple-datatables/simple-datatables.js' %}"></script>
+  <script src="{% static 'index/js/main.js' %}"></script>
+  {% block extra_scripts %}{% endblock %}
 </body>
 </html>

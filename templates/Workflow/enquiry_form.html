@@ -1,14 +1,65 @@
 {% extends 'Workflow/base.html' %}
 {% block body %}
-<div class="pagetitle"><h1>Add Project Enquiry</h1></div>
-<div class="card"><div class="card-body"><h5 class="card-title">Client and enquiry details</h5>
-<form method="post" enctype="multipart/form-data" class="row g-3">{% csrf_token %}
-  <div class="col-md-6"><label class="form-label">Enquiry title</label><input class="form-control" name="title" maxlength="150" required></div>
-  <div class="col-md-6"><label class="form-label">Client name</label><input class="form-control" name="client_name" maxlength="100" required></div>
-  <div class="col-md-6"><label class="form-label">Client email</label><input class="form-control" type="email" name="client_email"></div>
-  <div class="col-md-6"><label class="form-label">Client phone</label><input class="form-control" name="client_phone" maxlength="40"></div>
-  <div class="col-12"><label class="form-label">Scope / remarks</label><textarea class="form-control" name="description" rows="4"></textarea></div>
-  <div class="col-12"><label class="form-label">Files</label><input class="form-control" type="file" name="files" multiple accept=".xlsx,.xls,.jpg,.jpeg,.png,.pdf,.dwg,.dxf,.doc,.docx"><div class="form-text">Excel, photos, PDF, CAD and Word files; maximum 20 MB each.</div></div>
-  <div class="col-12"><button class="btn btn-primary" type="submit">Save Enquiry</button> <a class="btn btn-outline-secondary" href="{% url 'workflow_dashboard' %}">Cancel</a></div>
-</form></div></div>
+<div class="pagetitle">
+  <h1>Add Project Enquiry</h1>
+  <nav><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'workflow_dashboard' %}">Enquiries</a></li><li class="breadcrumb-item active">Add Enquiry</li></ol></nav>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h5 class="card-title">Client and Enquiry Details</h5>
+    <form method="post" enctype="multipart/form-data" class="row g-3">
+      {% csrf_token %}
+      <div class="col-md-6"><label class="form-label">Enquiry title</label><input class="form-control" name="title" maxlength="150" required></div>
+      <div class="col-md-6"><label class="form-label">Client name</label><input class="form-control" name="client_name" maxlength="100" required></div>
+      <div class="col-md-6"><label class="form-label">Client email</label><input class="form-control" type="email" name="client_email"></div>
+      <div class="col-md-6"><label class="form-label">Client phone</label><input class="form-control" name="client_phone" maxlength="40"></div>
+      <div class="col-12"><label class="form-label">Scope / remarks</label><textarea class="form-control" name="description" rows="4"></textarea></div>
+      <div class="col-12">
+        <label class="form-label">Enquiry files</label>
+        <div id="enquiryFileRows">
+          <div class="file-row d-flex gap-2 mb-2">
+            <input class="form-control file-input" type="file" name="files" multiple accept=".xlsx,.xls,.jpg,.jpeg,.png,.pdf,.dwg,.dxf,.doc,.docx">
+            <button class="btn btn-outline-danger remove-file-row d-none" type="button" aria-label="Remove file row"><i class="bi bi-trash"></i></button>
+          </div>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <button class="btn btn-sm btn-outline-primary" id="addFileRow" type="button"><i class="bi bi-plus-lg"></i> Add Another File Selection</button>
+          <span class="small text-muted" id="selectedFileSummary">No files selected</span>
+        </div>
+        <div class="form-text">Select several files in one window, or add more file-selection rows. Excel, photos, PDF, CAD and Word files; maximum 20 MB each.</div>
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i> Save Enquiry</button>
+        <a class="btn btn-outline-secondary" href="{% url 'workflow_dashboard' %}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  const rows = document.getElementById('enquiryFileRows');
+  const summary = document.getElementById('selectedFileSummary');
+  function updateSummary() {
+    const files = Array.from(rows.querySelectorAll('.file-input')).flatMap(input => Array.from(input.files));
+    summary.textContent = files.length ? `${files.length} file(s) selected: ${files.map(file => file.name).join(', ')}` : 'No files selected';
+    rows.querySelectorAll('.remove-file-row').forEach(button => button.classList.toggle('d-none', rows.children.length === 1));
+  }
+  document.getElementById('addFileRow').addEventListener('click', function () {
+    const row = rows.firstElementChild.cloneNode(true);
+    row.querySelector('.file-input').value = '';
+    rows.appendChild(row);
+    updateSummary();
+  });
+  rows.addEventListener('change', updateSummary);
+  rows.addEventListener('click', function (event) {
+    const button = event.target.closest('.remove-file-row');
+    if (button && rows.children.length > 1) {
+      button.closest('.file-row').remove();
+      updateSummary();
+    }
+  });
+})();
+</script>
 {% endblock %}

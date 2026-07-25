@@ -1,10 +1,39 @@
 {% extends "Project Manager/pmindex.html" %}
 {% block body %}
-<div class="card"><div class="card-body"><h5 class="card-title">Add Dates to Scope of Work</h5>
-<form method="post" action="{% url 'Add_work_schedule_post' %}" class="row g-3">{% csrf_token %}<input type="hidden" value="{{ id }}" name="id"><input type="hidden" value="{{ data.id }}" name="pid">
-  <div class="col-12"><label class="form-label">Scope of work</label><select name="work" class="form-select" required><option value="">Select unscheduled work</option>{% for item in data1 %}<option value="{{ item.id }}">{{ item.workname }}</option>{% endfor %}</select></div>
-  <div class="col-md-6"><label class="form-label">Start date</label><input type="date" name="start" class="form-control" required></div>
-  <div class="col-md-6"><label class="form-label">End date</label><input type="date" name="end" class="form-control" required></div>
-  <div class="col-12"><button class="btn btn-primary" type="submit">Add Dates</button></div>
-</form></div></div>
+<div class="pagetitle">
+  <h1>Add Work Schedule</h1>
+  <nav><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'View_work' id %}">Scope of Work</a></li><li class="breadcrumb-item active">Schedule</li></ol></nav>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h5 class="card-title">Schedule Scope of Work</h5>
+    {% if data1 %}
+    <div class="alert alert-info"><i class="bi bi-info-circle"></i> All unscheduled scope items are shown below. Enter the dates and save the complete schedule at once.</div>
+    <form method="post" action="{% url 'Add_work_schedule_post' %}">
+      {% csrf_token %}
+      <input type="hidden" value="{{ id }}" name="id">
+      <input type="hidden" value="{{ data.id }}" name="pid">
+      <div class="table-responsive">
+        <table class="table table-bordered align-middle">
+          <thead><tr><th style="width: 24%">Category</th><th>Scope of Work</th><th style="width: 18%">Start Date</th><th style="width: 18%">End Date</th></tr></thead>
+          <tbody>
+          {% for item in data1 %}
+            <tr>
+              <td>{{ item.category }}</td>
+              <td><input type="hidden" name="work" value="{{ item.id }}">{{ item.workname }}</td>
+              <td><input type="date" name="start" class="form-control" required></td>
+              <td><input type="date" name="end" class="form-control" required></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i> Save All Schedules</button>
+    </form>
+    {% else %}
+    <div class="alert alert-success mb-0">All scope items already have a schedule. <a href="{% url 'View_work_schedules' id %}" class="alert-link">View the current schedule</a>.</div>
+    {% endif %}
+  </div>
+</div>
 {% endblock %}

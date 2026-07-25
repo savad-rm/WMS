@@ -1,15 +1,97 @@
 {% extends 'Workflow/base.html' %}
 {% block body %}
-<div class="pagetitle d-flex justify-content-between align-items-center"><div><h1>Project Enquiries</h1><nav><ol class="breadcrumb"><li class="breadcrumb-item active">Marketing and estimation workflow</li></ol></nav></div>{% if can_add %}<a class="btn btn-primary" href="{% url 'workflow_add_enquiry' %}"><i class="bi bi-plus-lg"></i> Add Enquiry</a>{% endif %}</div>
+<div class="pagetitle">
+  <h1>Dashboard</h1>
+  <nav>
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'workflow_dashboard' %}">Home</a></li>
+      <li class="breadcrumb-item active">Dashboard</li>
+    </ol>
+  </nav>
+</div>
+
 <section class="section dashboard">
-  <div class="row g-3 mb-4">
-    <div class="col-sm-6 col-xl-3"><div class="card info-card"><div class="card-body"><h5 class="card-title">Open</h5><h3>{{ summary.open }}</h3></div></div></div>
-    <div class="col-sm-6 col-xl-3"><div class="card info-card"><div class="card-body"><h5 class="card-title">Assigned</h5><h3>{{ summary.assigned }}</h3></div></div></div>
-    <div class="col-sm-6 col-xl-3"><div class="card info-card"><div class="card-body"><h5 class="card-title">Awaiting approval</h5><h3>{{ summary.awaiting_approval }}</h3></div></div></div>
-    <div class="col-sm-6 col-xl-3"><div class="card info-card"><div class="card-body"><h5 class="card-title">Awarded</h5><h3>{{ summary.awarded }}</h3></div></div></div>
+  <div class="row">
+    <div class="col-lg-3 col-md-6">
+      <div class="card info-card sales-card">
+        <div class="card-body">
+          <h5 class="card-title">Open Enquiries</h5>
+          <div class="d-flex align-items-center">
+            <div class="card-icon rounded-circle d-flex align-items-center justify-content-center"><i class="bi bi-inbox"></i></div>
+            <div class="ps-3"><h6>{{ summary.open }}</h6><span class="text-muted small pt-2">Awaiting assignment</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="card info-card revenue-card">
+        <div class="card-body">
+          <h5 class="card-title">Assigned</h5>
+          <div class="d-flex align-items-center">
+            <div class="card-icon rounded-circle d-flex align-items-center justify-content-center"><i class="bi bi-person-check"></i></div>
+            <div class="ps-3"><h6>{{ summary.assigned }}</h6><span class="text-muted small pt-2">With estimators</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="card info-card customers-card">
+        <div class="card-body">
+          <h5 class="card-title">Awaiting Approval</h5>
+          <div class="d-flex align-items-center">
+            <div class="card-icon rounded-circle d-flex align-items-center justify-content-center"><i class="bi bi-hourglass-split"></i></div>
+            <div class="ps-3"><h6>{{ summary.awaiting_approval }}</h6><span class="text-muted small pt-2">Quotation reviews</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="card info-card revenue-card">
+        <div class="card-body">
+          <h5 class="card-title">Awarded</h5>
+          <div class="d-flex align-items-center">
+            <div class="card-icon rounded-circle d-flex align-items-center justify-content-center"><i class="bi bi-trophy"></i></div>
+            <div class="ps-3"><h6>{{ summary.awarded }}</h6><span class="text-muted small pt-2">Accepted by clients</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
-  <div class="card"><div class="card-body"><h5 class="card-title">Enquiries</h5><div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Title</th><th>Client</th><th>Assigned estimator</th><th>Status</th><th>Updated</th><th></th></tr></thead><tbody>
-  {% for item in enquiries %}<tr><td>{{ item.title }}</td><td>{{ item.client_name }}</td><td>{{ item.assigned_to.name|default:'Not assigned' }}</td><td><span class="badge bg-primary">{{ item.get_status_display }}</span></td><td>{{ item.updated_at|date:'d M Y H:i' }}</td><td><a class="btn btn-sm btn-outline-primary" href="{% url 'workflow_detail' item.id %}">View</a></td></tr>{% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No enquiries are available for your role.</td></tr>{% endfor %}
-  </tbody></table></div></div></div>
+
+  <div class="card">
+    <div class="card-body">
+      <h5 class="card-title">Enquiries and Quotations</h5>
+      <div class="dataTable-top d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+          {% if can_add %}
+          <a class="btn btn-primary" href="{% url 'workflow_add_enquiry' %}"><i class="bi bi-plus-lg"></i> Add Enquiry</a>
+          {% endif %}
+        </div>
+        <form class="d-flex gap-2" method="get">
+          <input class="form-control" type="search" name="q" value="{{ query }}" placeholder="Search enquiries" aria-label="Search enquiries">
+          <button class="btn btn-outline-primary" type="submit"><i class="bi bi-search"></i></button>
+        </form>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle workflow-table">
+          <thead><tr><th>Title</th><th>Client</th><th>Assigned Estimator</th><th>Status</th><th>Updated</th><th>Action</th></tr></thead>
+          <tbody>
+            {% for item in enquiries %}
+            <tr>
+              <td>{{ item.title }}</td>
+              <td>{{ item.client_name }}</td>
+              <td>{{ item.assigned_to.name|default:'Not assigned' }}</td>
+              <td><span class="badge bg-primary">{{ item.get_status_display }}</span></td>
+              <td>{{ item.updated_at|date:'d M Y H:i' }}</td>
+              <td><a class="btn btn-sm btn-outline-primary" href="{% url 'workflow_detail' item.id %}">View</a></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center text-muted py-4">No enquiries are available for your role.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </section>
 {% endblock %}

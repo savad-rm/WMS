@@ -20,6 +20,7 @@
     .workflow-table thead th { background: #00a0dc; color: #fff; white-space: nowrap; }
     .workflow-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
     .file-row + .file-row { margin-top: .75rem; }
+    .quotation-entry-table thead th { background: #00a0dc; color: #fff; white-space: nowrap; }
   </style>
   {% block extra_head %}{% endblock %}
 </head>
@@ -93,9 +94,9 @@
       <li class="nav-heading">Account</li>
       <li class="nav-item"><a class="nav-link collapsed" href="{% url 'workflow_profile' %}"><i class="bi bi-person-rolodex"></i><span>View Profile</span></a></li>
       <li class="nav-item"><a class="nav-link collapsed" href="{% url 'workflow_change_password' %}"><i class="bi bi-gear"></i><span>Change Password</span></a></li>
-      {% if current_role == 'Admin' %}
+      {% if current_role == 'Admin' or current_role == 'Operation Manager' %}
       <li class="nav-item"><a class="nav-link collapsed" href="{% url 'Admin_home' %}"><i class="bi bi-arrow-left-circle"></i><span>Admin Dashboard</span></a></li>
-      {% elif current_role == 'Project Manager' %}
+      {% elif current_role == 'Project Manager' or current_role == 'Project Engineer' %}
       <li class="nav-item"><a class="nav-link collapsed" href="{% url 'PMHome' %}"><i class="bi bi-arrow-left-circle"></i><span>Project Dashboard</span></a></li>
       {% elif current_role == 'Accountant' %}
       <li class="nav-item"><a class="nav-link collapsed" href="{% url 'achome' %}"><i class="bi bi-arrow-left-circle"></i><span>Account Dashboard</span></a></li>
@@ -125,6 +126,7 @@
   <script src="{% static 'index/vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
   <script src="{% static 'index/vendor/simple-datatables/simple-datatables.js' %}"></script>
   <script src="{% static 'index/js/main.js' %}"></script>
+  <script src="{% static 'index/js/wms-ui.js' %}"></script>
   {% block extra_scripts %}{% endblock %}
 </body>
 </html>

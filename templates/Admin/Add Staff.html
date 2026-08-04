@@ -18,7 +18,7 @@
     </tr>
     <tr>
       <td style="background-color: #00a0dc;color: white">Phone</td>
-      <td><input type="text" name="phone" id="textfield3" class="form-control" value="{{ form_data.phone|default:'' }}" required="" pattern="[987][0-9]{9}"/></td>
+      <td><input type="tel" name="phone" id="textfield3" class="form-control" value="{{ form_data.phone|default:'' }}" required pattern="\+?[0-9 ()-]{8,20}" title="Enter a Qatar or international number with 8 to 15 digits"/></td>
     </tr>
     <tr>
       <td style="background-color: #00a0dc;color: white">Photo</td>
@@ -32,28 +32,21 @@
     </tr>
     <tr>
       <td style="background-color: #00a0dc;color: white">Place</td>
-      <td><input type="text" name="place" id="textfield5" class="form-control"/></td>
+      <td><input type="text" name="place" id="textfield5" class="form-control" value="{{ form_data.place|default:'' }}"/></td>
     </tr>
     <tr>
       <td style="background-color: #00a0dc;color: white">Nation</td>
-      <td><input type="text" name="nation" id="textfield7" class="form-control"/></td>
+      <td><input type="text" name="nation" id="textfield7" class="form-control" value="{{ form_data.nation|default:'' }}"/></td>
     </tr>
     <tr>
       <td style="background-color: #00a0dc;color: white">Contact(Home)</td>
-      <td><input type="text" name="phone2" id="textfield3" class="form-control"/></td>
+      <td><input type="tel" name="phone2" class="form-control" value="{{ form_data.phone2|default:'' }}" pattern="\+?[0-9 ()-]{8,20}" title="Enter 8 to 15 digits"/></td>
     </tr>
     <tr>
       <td style="background-color: #00a0dc;color: white" >Designation</td>
       <td ><label>
-        <select name="designation" id="select"  class="form-control" required="">
-            <option value="Project Manager">Project Manager</option>
-            <option value="Supervisor">Supervisor</option>
-            <option value="Accountant">Accountant</option>
-            <option value="Purchaser">Purchaser</option>
-            <option value="Marketing Executive">Marketing Executive</option>
-            <option value="Marketing Manager">Marketing Manager</option>
-            <option value="Estimator">Estimator</option>
-            <option value="Document Controller">Document Controller</option>
+        <select name="designation" id="select" class="form-control" required>
+          {% for role in designations %}<option value="{{ role }}" {% if form_data.designation == role %}selected{% endif %}>{{ role }}</option>{% endfor %}
         </select>
       </label></td>
     </tr>

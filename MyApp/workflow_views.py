@@ -16,13 +16,15 @@ from django.views.decorators.http import require_POST
 
 from .models import (
     costing, enquiry, enquiry_attachment, enquiry_comment, login,
-    project_document, quotation, staff,
+    project_document, quotation, quotation_line, staff,
 )
+from .middleware import role_is_allowed
 
 
 WORKFLOW_ROLES = {
     'Admin', 'Marketing Executive', 'Marketing Manager', 'Estimator',
-    'Document Controller', 'Project Manager', 'Accountant',
+    'Document Controller', 'Project Manager', 'Project Engineer',
+    'Operation Manager', 'Accountant',
 }
 UPLOAD_EXTENSIONS = ('xlsx', 'xls', 'jpg', 'jpeg', 'png', 'pdf', 'dwg', 'dxf', 'doc', 'docx')
 MAX_UPLOAD_SIZE = 20 * 1024 * 1024
@@ -49,7 +51,7 @@ def role_required(*allowed_roles):
             if not account:
                 messages.error(request, 'Please sign in to continue.')
                 return redirect('login')
-            if account.usertype not in allowed_roles:
+            if not role_is_allowed(account.usertype, allowed_roles):
                 return HttpResponseForbidden('You do not have permission to perform this action.')
             request.workflow_account = account
             request.workflow_staff = _current_staff(request)
@@ -76,7 +78,7 @@ def _non_negative_decimal(request, field, label):
     return value
 
 
-def _render(request, template, context=None):
+def _render(request, template, context=None, status=200):
     context = context or {}
     context.update({
         'current_role': request.workflow_account.usertype,
@@ -84,7 +86,7 @@ def _render(request, template, context=None):
         'current_staff': getattr(request, 'workflow_staff', None),
         'workflow_roles': WORKFLOW_ROLES,
     })
-    return render(request, template, context)
+    return render(request, template, context, status=status)
 
 
 def _can_access_enquiry(request, record):
@@ -96,9 +98,46 @@ def _can_access_enquiry(request, record):
     return True
 
 
+def _workflow_role(role):
+    if role in ('Project Engineer', 'Operation Manager'):
+        return 'Project Manager'
+    return role
+
+
+def _detail_record(enquiry_id):
+    return get_object_or_404(
+        enquiry.objects.select_related('created_by', 'assigned_to', 'PROJECT').prefetch_related(
+            'attachments', 'comments__author', 'project_documents__verified_by',
+            Prefetch('quotations', queryset=quotation.objects.select_related(
+                'created_by', 'manager_approved_by', 'accountant_approved_by',
+                'costing', 'costing__approved_by',
+            ).prefetch_related('lines')),
+        ), pk=enquiry_id,
+    )
+
+
+def _detail_context(request, record, extra=None):
+    role = _workflow_role(request.workflow_account.usertype)
+    context = {
+        'enquiry': record,
+        'estimators': staff.objects.filter(designation='Estimator').only('id', 'name'),
+        'can_assign': role in ('Marketing Manager', 'Project Manager'),
+        'can_quote': role == 'Estimator',
+        'can_manager_approve': role == 'Marketing Manager',
+        'can_accountant_approve': role == 'Accountant',
+        'can_approve_costing': role == 'Project Manager',
+        'can_submit': role == 'Document Controller',
+        'can_award': role == 'Marketing Executive',
+        'can_collect': role == 'Marketing Executive',
+        'can_verify': role == 'Document Controller',
+    }
+    context.update(extra or {})
+    return context
+
+
 @role_required(*WORKFLOW_ROLES)
 def dashboard(request):
-    role = request.workflow_account.usertype
+    role = _workflow_role(request.workflow_account.usertype)
     records = enquiry.objects.select_related('created_by', 'assigned_to', 'PROJECT')
     if role == 'Marketing Executive':
         records = records.filter(created_by=request.workflow_account)
@@ -171,13 +210,18 @@ def add_enquiry(request):
         client_name = request.POST.get('client_name', '').strip()
         if not title or not client_name:
             messages.error(request, 'Enquiry title and client name are required.')
-            return _render(request, 'Workflow/enquiry_form.html')
+            return _render(request, 'Workflow/enquiry_form.html', {
+                'form_data': request.POST,
+            }, status=400)
         uploads = request.FILES.getlist('files')
         try:
             for upload in uploads:
                 _validate_upload(upload)
         except ValidationError as exc:
             messages.error(request, exc.messages[0])
+            return _render(request, 'Workflow/enquiry_form.html', {
+                'form_data': request.POST,
+            }, status=400)
         else:
             with transaction.atomic():
                 record = enquiry.objects.create(
@@ -199,31 +243,10 @@ def add_enquiry(request):
 
 @role_required(*WORKFLOW_ROLES)
 def detail(request, enquiry_id):
-    record = get_object_or_404(
-        enquiry.objects.select_related('created_by', 'assigned_to', 'PROJECT').prefetch_related(
-            'attachments', 'comments__author', 'project_documents__verified_by',
-            Prefetch('quotations', queryset=quotation.objects.select_related(
-                'created_by', 'manager_approved_by', 'accountant_approved_by',
-                'costing', 'costing__approved_by',
-            )),
-        ), pk=enquiry_id,
-    )
-    role = request.workflow_account.usertype
+    record = _detail_record(enquiry_id)
     if not _can_access_enquiry(request, record):
         return HttpResponseForbidden('You do not have permission to view this enquiry.')
-    return _render(request, 'Workflow/enquiry_detail.html', {
-        'enquiry': record,
-        'estimators': staff.objects.filter(designation='Estimator').only('id', 'name'),
-        'can_assign': role in ('Marketing Manager', 'Project Manager'),
-        'can_quote': role == 'Estimator',
-        'can_manager_approve': role == 'Marketing Manager',
-        'can_accountant_approve': role == 'Accountant',
-        'can_approve_costing': role == 'Project Manager',
-        'can_submit': role == 'Document Controller',
-        'can_award': role == 'Marketing Executive',
-        'can_collect': role == 'Marketing Executive',
-        'can_verify': role == 'Document Controller',
-    })
+    return _render(request, 'Workflow/enquiry_detail.html', _detail_context(request, record))
 
 
 @require_POST
@@ -254,31 +277,98 @@ def assign_estimator(request, enquiry_id):
 @require_POST
 @role_required('Estimator')
 def add_quotation(request, enquiry_id):
-    record = get_object_or_404(enquiry, pk=enquiry_id, assigned_to=request.workflow_staff)
+    record = get_object_or_404(
+        enquiry.objects.prefetch_related('quotations__lines'),
+        pk=enquiry_id, assigned_to=request.workflow_staff,
+    )
+    item_codes = request.POST.getlist('item_code')
+    descriptions = request.POST.getlist('line_description')
+    units = request.POST.getlist('unit')
+    quantities = request.POST.getlist('quantity')
+    rates = request.POST.getlist('unit_rate')
+    quote_rows = [
+        {'item_code': code, 'description': description, 'unit': unit,
+         'quantity': quantity, 'unit_rate': rate}
+        for code, description, unit, quantity, rate in zip(
+            item_codes, descriptions, units, quantities, rates
+        )
+    ]
+    form_context = {
+        'quote_form': request.POST,
+        'quote_rows': quote_rows,
+    }
+
+    def quotation_error(message):
+        messages.error(request, message)
+        return _render(
+            request, 'Workflow/enquiry_detail.html',
+            _detail_context(request, record, form_context), status=400,
+        )
+
     upload = request.FILES.get('file')
     if upload:
         try:
             _validate_upload(upload)
         except ValidationError as exc:
-            messages.error(request, exc.messages[0])
-            return redirect('workflow_detail', enquiry_id=enquiry_id)
+            return quotation_error(exc.messages[0])
     try:
-        amount = _non_negative_decimal(request, 'amount', 'Quotation amount')
         material_amount = _non_negative_decimal(request, 'material_cost', 'Material cost')
         labour_amount = _non_negative_decimal(request, 'labour_cost', 'Labour cost')
         other_amount = _non_negative_decimal(request, 'other_cost', 'Other cost')
     except ValidationError as exc:
-        messages.error(request, exc.messages[0])
-        return redirect('workflow_detail', enquiry_id=enquiry_id)
-    if amount <= 0:
-        messages.error(request, 'Quotation amount must be greater than zero.')
-        return redirect('workflow_detail', enquiry_id=enquiry_id)
+        return quotation_error(exc.messages[0])
+
+    if not (len(item_codes) == len(descriptions) == len(units) == len(quantities) == len(rates)):
+        return quotation_error('Quotation line-item data is incomplete.')
+    parsed_lines = []
+    for position, row in enumerate(quote_rows, start=1):
+        values = tuple(str(value).strip() for value in row.values())
+        if not any(values):
+            continue
+        if not row['description'].strip() or not row['quantity'] or not row['unit_rate']:
+            return quotation_error(f'Complete the description, quantity and rate for line {position}.')
+        try:
+            quantity = Decimal(row['quantity'])
+            rate = Decimal(row['unit_rate'])
+        except InvalidOperation:
+            return quotation_error(f'Quantity and rate on line {position} must be valid numbers.')
+        if not quantity.is_finite() or not rate.is_finite() or quantity <= 0 or rate < 0:
+            return quotation_error(f'Line {position} requires a positive quantity and non-negative rate.')
+        parsed_lines.append({
+            **row, 'quantity': quantity, 'unit_rate': rate,
+            'amount': quantity * rate, 'position': position,
+        })
+
+    # Preserve compatibility for integrations that still send a single total.
+    if not parsed_lines and request.POST.get('amount'):
+        try:
+            legacy_amount = _non_negative_decimal(request, 'amount', 'Quotation amount')
+        except ValidationError as exc:
+            return quotation_error(exc.messages[0])
+        if legacy_amount > 0:
+            parsed_lines.append({
+                'item_code': '', 'description': request.POST.get('details', '').strip() or 'Quotation total',
+                'unit': 'lot', 'quantity': Decimal('1'), 'unit_rate': legacy_amount,
+                'amount': legacy_amount, 'position': 1,
+            })
+    if not parsed_lines:
+        return quotation_error('Add at least one quotation line item.')
+    amount = sum((item['amount'] for item in parsed_lines), Decimal('0'))
     with transaction.atomic():
         version = (quotation.objects.filter(ENQUIRY=record).aggregate(v=Max('version'))['v'] or 0) + 1
         quote = quotation.objects.create(
             ENQUIRY=record, version=version, amount=amount,
             details=request.POST.get('details', '').strip(), file=upload or '', created_by=request.workflow_staff,
         )
+        quotation_line.objects.bulk_create([
+            quotation_line(
+                QUOTATION=quote, item_code=item['item_code'].strip(),
+                description=item['description'].strip(), unit=item['unit'].strip(),
+                quantity=item['quantity'], unit_rate=item['unit_rate'],
+                amount=item['amount'], position=item['position'],
+            )
+            for item in parsed_lines
+        ])
         costing.objects.create(
             QUOTATION=quote,
             material_cost=material_amount,

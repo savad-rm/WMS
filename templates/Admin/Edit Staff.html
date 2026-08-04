@@ -34,7 +34,7 @@
     </tr>
     <tr>
       <td>Phone</td>
-      <td><input type="text" name="phone" id="textfield3"  value="{{ data.phone }}" class="form-control" pattern="[987][0-9]{9}"/></td>
+      <td><input type="tel" name="phone" id="textfield3" value="{{ data.phone }}" class="form-control" pattern="\+?[0-9 ()-]{8,20}" title="Enter a Qatar or international number with 8 to 15 digits" required/></td>
     </tr>
     <tr>
       <td>Photo</td>
@@ -54,21 +54,13 @@
     </tr>
     <tr>
       <td>Contact(Home)</td>
-      <td><input type="text" name="phone2" id="textfield3"  value="{{ data.phone }}" class="form-control"/></td>
+      <td><input type="tel" name="phone2" value="{{ data.phone2 }}" class="form-control" pattern="\+?[0-9 ()-]{8,20}" title="Enter 8 to 15 digits"/></td>
     </tr>
     <tr>
       <td>Designation</td>
       <td>
-        <select name="designation"  id="select" class="form-control">
-            <option  value="Project Manager" {% if data.designation == 'Project Manager' %} selected {% endif %} >Project Manager</option>
-            <option  value="Supervisor" {% if data.designation == 'Supervisor' %} selected {% endif %} >Supervisor</option>
-            <option   value="Accountant" {% if data.designation == 'Accountant' %} selected {% endif %}>Accountant</option>
-            <option value="Purchaser" {% if data.designation == 'Purchaser' %} selected {% endif %}>Purchaser</option>
-            <option value="Marketing Executive" {% if data.designation == 'Marketing Executive' %} selected {% endif %}>Marketing Executive</option>
-            <option value="Marketing Manager" {% if data.designation == 'Marketing Manager' %} selected {% endif %}>Marketing Manager</option>
-            <option value="Estimator" {% if data.designation == 'Estimator' %} selected {% endif %}>Estimator</option>
-            <option value="Document Controller" {% if data.designation == 'Document Controller' %} selected {% endif %}>Document Controller</option>
-
+        <select name="designation" id="select" class="form-control" required>
+          {% for role in designations %}<option value="{{ role }}" {% if data.designation == role %}selected{% endif %}>{{ role }}</option>{% endfor %}
         </select>
       </td>
     </tr>

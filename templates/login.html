@@ -42,6 +42,7 @@ License URL: http://creativecommons.org/licenses/by/3.0/
 {#		<h1>B<span>EL</span>L<span></span>E<span>Z</span>A</h1>#}
         <h1>WORKSPHERE</h1>
 		<div class="header-main">
+			{% for message in messages %}<div style="background:#fff;color:#b42318;padding:10px 14px;margin-bottom:12px;border-radius:4px;text-align:center">{{ message }}</div>{% endfor %}
 			<div class="main-icon">
 				<span class="fa fa-eercast"></span>
 			</div>
@@ -50,7 +51,7 @@ License URL: http://creativecommons.org/licenses/by/3.0/
                     {% csrf_token %}
 					<div class="icon1">
 						<span class="fa fa-user"></span>
-						<input type="email" name="username" placeholder="User Name" required=""/>
+						<input type="email" name="username" value="{{ username|default:'' }}" placeholder="User Name" required=""/>
 					</div>
 					<div class="icon1">
 						<span class="fa fa-lock"></span>

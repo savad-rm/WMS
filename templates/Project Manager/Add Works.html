@@ -11,11 +11,19 @@
   <div class="alert alert-info"><i class="bi bi-info-circle"></i> Add the full scope list here. Project dates are entered together from the Work Schedule page after the scope is saved.</div>
   <div class="row g-2 px-2 pb-2 d-none d-lg-flex text-muted small fw-semibold"><div class="col-lg-4">Category</div><div class="col-lg-7">Scope of work</div><div class="col-lg-1"></div></div>
   <div id="scopeRows">
+    {% if form_rows %}{% for row in form_rows %}
+    <div class="bulk-row row g-2 align-items-end border rounded p-2 mb-2">
+      <div class="col-lg-4"><label class="form-label d-lg-none">Category</label><input name="category" value="{{ row.category }}" list="scopeCategories" class="form-control" required></div>
+      <div class="col-lg-7"><label class="form-label d-lg-none">Scope of work</label><input name="work" value="{{ row.work }}" class="form-control" required></div>
+      <div class="col-lg-1"><button type="button" class="btn btn-outline-danger remove-row w-100" aria-label="Remove row"><i class="bi bi-trash"></i></button></div>
+    </div>
+    {% endfor %}{% else %}
     <div class="bulk-row row g-2 align-items-end border rounded p-2 mb-2">
       <div class="col-lg-4"><label class="form-label d-lg-none">Category</label><input name="category" list="scopeCategories" class="form-control" required></div>
       <div class="col-lg-7"><label class="form-label d-lg-none">Scope of work</label><input name="work" class="form-control" required></div>
       <div class="col-lg-1"><button type="button" class="btn btn-outline-danger remove-row w-100" aria-label="Remove row"><i class="bi bi-trash"></i></button></div>
     </div>
+    {% endif %}
   </div>
   <div id="scopeMessage" class="alert d-none mt-3"></div>
   <button class="btn btn-primary mt-3" type="submit">Save All Scope Items</button>

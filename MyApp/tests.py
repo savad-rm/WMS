@@ -73,6 +73,7 @@ class WorkflowTests(TestCase):
         self.assertEqual(response.status_code, 302)
         quote = quotation.objects.get()
         self.assertEqual(quote.status, 'manager_review')
+        self.assertEqual(quote.lines.count(), 1)
         self.assertEqual(quote.costing.total, 8500)
 
         self.sign_in_as(*self.manager)
@@ -126,8 +127,76 @@ class WorkflowTests(TestCase):
             'amount': 'NaN', 'material_cost': 'Infinity',
             'labour_cost': '0', 'other_cost': '0',
         })
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(response, 'finite number', status_code=400)
         self.assertFalse(quotation.objects.filter(ENQUIRY=record).exists())
+
+    def test_quotation_line_items_calculate_total(self):
+        record = enquiry.objects.create(
+            title='Line quotation', client_name='Client', created_by=self.executive[0],
+            assigned_to=self.estimator[1], status='assigned',
+        )
+        self.sign_in_as(*self.estimator)
+        response = self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), {
+            'item_code': ['A-01', 'A-02'],
+            'line_description': ['Gypsum partition', 'Painting'],
+            'unit': ['m2', 'm2'],
+            'quantity': ['10', '5'],
+            'unit_rate': ['25.50', '12'],
+            'material_cost': '150', 'labour_cost': '80', 'other_cost': '0',
+        })
+        self.assertEqual(response.status_code, 302)
+        quote = quotation.objects.get(ENQUIRY=record)
+        self.assertEqual(quote.amount, 315)
+        self.assertEqual(list(quote.lines.values_list('amount', flat=True)), [255, 60])
+
+    def test_invalid_enquiry_preserves_submitted_values(self):
+        self.sign_in_as(*self.executive)
+        response = self.client.post(reverse('workflow_add_enquiry'), {
+            'title': 'Remember this title', 'client_name': '',
+            'client_email': 'client@example.com', 'description': 'Retain this scope',
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(response, 'value="Remember this title"', status_code=400)
+        self.assertContains(response, 'Retain this scope', status_code=400)
+
+    def test_admin_workflow_has_working_main_dashboard_link(self):
+        admin = login.objects.create(username='workflow-admin@example.com', password='x', usertype='Admin')
+        session = self.client.session
+        session['lid'] = admin.pk
+        session['role'] = 'Admin'
+        session.save()
+        response = self.client.get(reverse('workflow_dashboard'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse('Admin_home'))
+
+    def test_new_operational_roles_can_sign_in(self):
+        engineer = self.create_user('Project Engineer', 20)
+        operation_manager = self.create_user('Operation Manager', 21)
+        response = self.client.post(reverse('login_post'), {
+            'username': engineer[0].username, 'password': 'test-password',
+        })
+        self.assertRedirects(response, reverse('PMHome'), fetch_redirect_response=False)
+        response = self.client.post(reverse('login_post'), {
+            'username': operation_manager[0].username, 'password': 'test-password',
+        })
+        self.assertRedirects(response, reverse('Admin_home'), fetch_redirect_response=False)
+
+    def test_admin_can_add_qatar_number_and_project_engineer_role(self):
+        admin = login.objects.create(username='staff-admin@example.com', password='x', usertype='Admin')
+        session = self.client.session
+        session['lid'] = admin.pk
+        session['role'] = 'Admin'
+        session.save()
+        response = self.client.post(reverse('Add_staff_post'), {
+            'name': 'Qatar Engineer', 'dob': '1990-01-01', 'phone': '+974 5512 3456',
+            'email': 'qatar.engineer@example.com', 'place': 'Doha', 'nation': 'Qatar',
+            'phone2': '', 'designation': 'Project Engineer',
+        })
+        self.assertRedirects(response, reverse('View_Staff'), fetch_redirect_response=False)
+        person = staff.objects.get(email='qatar.engineer@example.com')
+        self.assertEqual(person.phone, '+97455123456')
+        self.assertEqual(person.designation, 'Project Engineer')
 
     def test_cad_viewer_and_file_are_private_to_authorized_users(self):
         with tempfile.TemporaryDirectory() as media_root, self.settings(MEDIA_ROOT=media_root):
@@ -303,7 +372,7 @@ class BulkPlanningTests(TestCase):
         response = self.client.post(reverse('Add_Requirement_Estimate_post'), {
             'pid': self.target.pk, 'pr': '0', 'm': '0', 'c': '0', 'est': 'EST-001',
         })
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
         self.assertEqual(estimate.objects.filter(est_no='EST-001').count(), 2)
         self.assertTrue(estimate.objects.filter(PROJECT=self.target, est_no='EST-001').exists())
 
@@ -324,7 +393,7 @@ class BulkPlanningTests(TestCase):
             'pid': self.target.pk, 'mid': request_row.pk,
             'material': self.paint.pk, 'quantity': '4',
         })
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
         request_row.refresh_from_db()
         self.assertEqual(request_row.MATERIAL, self.paint)
         self.assertEqual(request_row.quantity, '4')

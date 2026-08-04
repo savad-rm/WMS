@@ -31,21 +31,16 @@
   <div class="card-body pb-2">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
       <h5 class="card-title mb-0 text-truncate" title="{{ cad_file_name }}">{{ cad_file_name }}</h5>
-      <span class="text-muted cad-viewer-help"><i class="bi bi-mouse"></i> Wheel to zoom · Middle-button drag to pan · Use the right toolbar for layers and measurements</span>
+      <span class="text-muted cad-viewer-help"><i class="bi bi-mouse"></i> Wheel to zoom &middot; Middle-button drag to pan &middot; Use the right toolbar for layers and measurements</span>
     </div>
   </div>
   <div class="cad-viewer-shell">
     <div id="cad-viewer" data-file-url="{{ cad_file_url }}" data-file-name="{{ cad_file_name }}"></div>
     <div id="cad-viewer-status" data-state="loading" role="status" aria-live="polite">
-      <div class="cad-status-card">
-        <i class="bi bi-bounding-box cad-status-icon"></i>
-        <div data-status-message>Preparing the local CAD viewer…</div>
-      </div>
+      <div class="cad-status-card"><i class="bi bi-bounding-box cad-status-icon"></i><div data-status-message>Preparing the local CAD viewer...</div></div>
     </div>
   </div>
 </div>
 {% endblock %}
 
-{% block extra_scripts %}
-<script type="module" src="{% static 'cad_viewer/cad-viewer.js' %}"></script>
-{% endblock %}
+{% block extra_scripts %}<script type="module" src="{% static 'cad_viewer/cad-viewer.js' %}"></script>{% endblock %}

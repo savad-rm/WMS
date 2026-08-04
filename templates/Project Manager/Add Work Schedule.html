@@ -22,8 +22,8 @@
             <tr>
               <td>{{ item.category }}</td>
               <td><input type="hidden" name="work" value="{{ item.id }}">{{ item.workname }}</td>
-              <td><input type="date" name="start" class="form-control" required></td>
-              <td><input type="date" name="end" class="form-control" required></td>
+              <td><input type="date" name="start" value="{{ item.submitted_start|default:'' }}" class="form-control" required></td>
+              <td><input type="date" name="end" value="{{ item.submitted_end|default:'' }}" class="form-control" required></td>
             </tr>
           {% endfor %}
           </tbody>

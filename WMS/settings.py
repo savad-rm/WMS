@@ -60,6 +60,8 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {'login': '10/minute'},
 }
 
+MESSAGE_TAGS = {40: 'danger'}
+
 WMS_MOBILE_TOKEN_MAX_AGE = int(os.environ.get('WMS_MOBILE_TOKEN_MAX_AGE', str(30 * 24 * 60 * 60)))
 
 MIDDLEWARE = [
@@ -70,6 +72,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'MyApp.middleware.LegacyScriptAlertMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 

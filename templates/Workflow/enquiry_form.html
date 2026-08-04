@@ -10,11 +10,11 @@
     <h5 class="card-title">Client and Enquiry Details</h5>
     <form method="post" enctype="multipart/form-data" class="row g-3">
       {% csrf_token %}
-      <div class="col-md-6"><label class="form-label">Enquiry title</label><input class="form-control" name="title" maxlength="150" required></div>
-      <div class="col-md-6"><label class="form-label">Client name</label><input class="form-control" name="client_name" maxlength="100" required></div>
-      <div class="col-md-6"><label class="form-label">Client email</label><input class="form-control" type="email" name="client_email"></div>
-      <div class="col-md-6"><label class="form-label">Client phone</label><input class="form-control" name="client_phone" maxlength="40"></div>
-      <div class="col-12"><label class="form-label">Scope / remarks</label><textarea class="form-control" name="description" rows="4"></textarea></div>
+      <div class="col-md-6"><label class="form-label">Enquiry title</label><input class="form-control" name="title" value="{{ form_data.title|default:'' }}" maxlength="150" required></div>
+      <div class="col-md-6"><label class="form-label">Client name</label><input class="form-control" name="client_name" value="{{ form_data.client_name|default:'' }}" maxlength="100" required></div>
+      <div class="col-md-6"><label class="form-label">Client email</label><input class="form-control" type="email" name="client_email" value="{{ form_data.client_email|default:'' }}"></div>
+      <div class="col-md-6"><label class="form-label">Client phone</label><input class="form-control" type="tel" name="client_phone" value="{{ form_data.client_phone|default:'' }}" maxlength="40"></div>
+      <div class="col-12"><label class="form-label">Scope / remarks</label><textarea class="form-control" name="description" rows="4">{{ form_data.description|default:'' }}</textarea></div>
       <div class="col-12">
         <label class="form-label">Enquiry files</label>
         <div id="enquiryFileRows">

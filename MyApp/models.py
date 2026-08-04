@@ -337,6 +337,21 @@ class quotation(models.Model):
         constraints = [models.UniqueConstraint(fields=('ENQUIRY', 'version'), name='unique_enquiry_quotation_version')]
 
 
+class quotation_line(models.Model):
+    QUOTATION = models.ForeignKey(quotation, on_delete=models.CASCADE, related_name='lines')
+    item_code = models.CharField(max_length=40, blank=True)
+    description = models.CharField(max_length=255)
+    unit = models.CharField(max_length=30, blank=True)
+    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+    unit_rate = models.DecimalField(max_digits=14, decimal_places=2)
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ('position', 'id')
+        indexes = [models.Index(fields=('QUOTATION', 'position'), name='quotation_line_order_idx')]
+
+
 class costing(models.Model):
     QUOTATION = models.OneToOneField(quotation, on_delete=models.CASCADE, related_name='costing')
     material_cost = models.DecimalField(max_digits=14, decimal_places=2, default=0)

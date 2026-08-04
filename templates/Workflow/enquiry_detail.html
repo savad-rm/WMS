@@ -10,116 +10,149 @@
 
 <div class="row">
   <div class="col-lg-8">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Enquiry Details</h5>
-        <dl class="row mb-0">
-          <dt class="col-sm-4">Client</dt><dd class="col-sm-8">{{ enquiry.client_name }}</dd>
-          <dt class="col-sm-4">Contact</dt><dd class="col-sm-8">{{ enquiry.client_email|default:'—' }}{% if enquiry.client_phone %} · {{ enquiry.client_phone }}{% endif %}</dd>
-          <dt class="col-sm-4">Assigned estimator</dt><dd class="col-sm-8">{{ enquiry.assigned_to.name|default:'Not assigned' }}</dd>
-          <dt class="col-sm-4">Scope / remarks</dt><dd class="col-sm-8">{{ enquiry.description|linebreaksbr|default:'—' }}</dd>
-        </dl>
-      </div>
-    </div>
+    <div class="card"><div class="card-body">
+      <h5 class="card-title">Enquiry Details</h5>
+      <dl class="row mb-0">
+        <dt class="col-sm-4">Client</dt><dd class="col-sm-8">{{ enquiry.client_name }}</dd>
+        <dt class="col-sm-4">Contact</dt><dd class="col-sm-8">{{ enquiry.client_email|default:'-' }}{% if enquiry.client_phone %} &middot; {{ enquiry.client_phone }}{% endif %}</dd>
+        <dt class="col-sm-4">Assigned estimator</dt><dd class="col-sm-8">{{ enquiry.assigned_to.name|default:'Not assigned' }}</dd>
+        <dt class="col-sm-4">Scope / remarks</dt><dd class="col-sm-8">{{ enquiry.description|linebreaksbr|default:'-' }}</dd>
+      </dl>
+    </div></div>
 
     {% if can_assign %}
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Assign to Estimator</h5>
-        <form method="post" action="{% url 'workflow_assign' enquiry.id %}" class="row g-2">
-          {% csrf_token %}
-          <div class="col-md-9"><select name="estimator" class="form-select" required><option value="">Select estimator</option>{% for person in estimators %}<option value="{{ person.id }}">{{ person.name }}</option>{% endfor %}</select></div>
-          <div class="col-md-3"><button class="btn btn-primary w-100">Assign</button></div>
-        </form>
-      </div>
-    </div>
+    <div class="card"><div class="card-body">
+      <h5 class="card-title">Assign to Estimator</h5>
+      <form method="post" action="{% url 'workflow_assign' enquiry.id %}" class="row g-2">{% csrf_token %}
+        <div class="col-md-9"><select name="estimator" class="form-select" required><option value="">Select estimator</option>{% for person in estimators %}<option value="{{ person.id }}" {% if enquiry.assigned_to_id == person.id %}selected{% endif %}>{{ person.name }}</option>{% endfor %}</select></div>
+        <div class="col-md-3"><button class="btn btn-primary w-100">Assign</button></div>
+      </form>
+    </div></div>
     {% endif %}
 
     {% if can_quote %}
-    <div class="card">
-      <div class="card-body">
+    <div class="card"><div class="card-body">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
         <h5 class="card-title">Add Quotation and Costing</h5>
-        <form method="post" enctype="multipart/form-data" action="{% url 'workflow_add_quotation' enquiry.id %}" class="row g-3">
-          {% csrf_token %}
-          <div class="col-md-4"><label class="form-label">Quotation amount</label><input type="number" min="0" step="0.01" name="amount" class="form-control" required></div>
-          <div class="col-md-8"><label class="form-label">Quotation file</label><input type="file" name="file" class="form-control" accept=".xlsx,.xls,.pdf,.doc,.docx"></div>
-          <div class="col-12"><label class="form-label">Details</label><textarea name="details" class="form-control"></textarea></div>
-          <div class="col-md-4"><label class="form-label">Material cost</label><input type="number" min="0" step="0.01" name="material_cost" class="form-control"></div>
-          <div class="col-md-4"><label class="form-label">Labour cost</label><input type="number" min="0" step="0.01" name="labour_cost" class="form-control"></div>
-          <div class="col-md-4"><label class="form-label">Other cost</label><input type="number" min="0" step="0.01" name="other_cost" class="form-control"></div>
-          <div class="col-12"><label class="form-label">Costing notes</label><textarea name="costing_notes" class="form-control"></textarea></div>
-          <div><button class="btn btn-primary">Send for Approval</button></div>
-        </form>
+        <button class="btn btn-sm btn-outline-primary" id="addQuotationRow" type="button"><i class="bi bi-plus-lg"></i> Add Line</button>
       </div>
-    </div>
+      <form method="post" enctype="multipart/form-data" action="{% url 'workflow_add_quotation' enquiry.id %}" class="row g-3" id="quotationForm">{% csrf_token %}
+        <div class="col-12">
+          <div class="table-responsive border rounded">
+            <table class="table table-bordered align-middle mb-0 quotation-entry-table">
+              <thead><tr><th style="width:11%">Item</th><th>Description</th><th style="width:12%">Unit</th><th style="width:13%">Quantity</th><th style="width:15%">Rate</th><th style="width:15%">Amount</th><th style="width:52px"></th></tr></thead>
+              <tbody id="quotationRows">
+              {% if quote_rows %}
+                {% for row in quote_rows %}
+                <tr class="quotation-row"><td><input name="item_code" value="{{ row.item_code }}" class="form-control form-control-sm"></td><td><input name="line_description" value="{{ row.description }}" class="form-control form-control-sm" required></td><td><input name="unit" value="{{ row.unit }}" class="form-control form-control-sm" placeholder="no / m2"></td><td><input type="number" name="quantity" value="{{ row.quantity }}" min="0.01" step="0.01" class="form-control form-control-sm line-quantity" required></td><td><input type="number" name="unit_rate" value="{{ row.unit_rate }}" min="0" step="0.01" class="form-control form-control-sm line-rate" required></td><td class="text-end line-amount">0.00</td><td><button class="btn btn-sm btn-outline-danger remove-quotation-row" type="button" aria-label="Remove line"><i class="bi bi-trash"></i></button></td></tr>
+                {% endfor %}
+              {% else %}
+                <tr class="quotation-row"><td><input name="item_code" class="form-control form-control-sm"></td><td><input name="line_description" class="form-control form-control-sm" required></td><td><input name="unit" class="form-control form-control-sm" placeholder="no / m2"></td><td><input type="number" name="quantity" min="0.01" step="0.01" class="form-control form-control-sm line-quantity" required></td><td><input type="number" name="unit_rate" min="0" step="0.01" class="form-control form-control-sm line-rate" required></td><td class="text-end line-amount">0.00</td><td><button class="btn btn-sm btn-outline-danger remove-quotation-row" type="button" aria-label="Remove line"><i class="bi bi-trash"></i></button></td></tr>
+              {% endif %}
+              </tbody>
+              <tfoot><tr><th colspan="5" class="text-end">Quotation Total</th><th class="text-end" id="quotationTotal">0.00</th><th></th></tr></tfoot>
+            </table>
+          </div>
+          <div class="form-text">Add one row per item. You can paste tab-separated rows copied from Excel into the first Item cell.</div>
+        </div>
+        <div class="col-md-8"><label class="form-label">Quotation file (optional)</label><input type="file" name="file" class="form-control" accept=".xlsx,.xls,.pdf,.doc,.docx"></div>
+        <div class="col-md-4"><label class="form-label">Quotation notes</label><textarea name="details" class="form-control" rows="1">{{ quote_form.details|default:'' }}</textarea></div>
+        <div class="col-md-4"><label class="form-label">Material cost</label><input type="number" min="0" step="0.01" name="material_cost" value="{{ quote_form.material_cost|default:'' }}" class="form-control"></div>
+        <div class="col-md-4"><label class="form-label">Labour cost</label><input type="number" min="0" step="0.01" name="labour_cost" value="{{ quote_form.labour_cost|default:'' }}" class="form-control"></div>
+        <div class="col-md-4"><label class="form-label">Other cost</label><input type="number" min="0" step="0.01" name="other_cost" value="{{ quote_form.other_cost|default:'' }}" class="form-control"></div>
+        <div class="col-12"><label class="form-label">Costing notes</label><textarea name="costing_notes" class="form-control">{{ quote_form.costing_notes|default:'' }}</textarea></div>
+        <div><button class="btn btn-primary">Send for Approval</button></div>
+      </form>
+    </div></div>
     {% endif %}
 
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Quotations</h5>
-        {% for quote in enquiry.quotations.all %}
-        <div class="border rounded p-3 mb-3">
-          <div class="d-flex flex-wrap justify-content-between gap-2"><strong>Version {{ quote.version }} — {{ quote.amount }}</strong><span class="badge bg-info text-dark">{{ quote.get_status_display }}</span></div>
-          <p class="mt-2">{{ quote.details|default:'No details' }}</p>
-          {% if quote.file %}<a href="{{ quote.file.url }}" target="_blank" rel="noopener">View quotation file</a>{% endif %}
-          <div class="small text-muted mt-2">Costing: Material {{ quote.costing.material_cost }}, Labour {{ quote.costing.labour_cost }}, Other {{ quote.costing.other_cost }} — Total {{ quote.costing.total }}</div>
-          <div class="mt-2">{% if quote.costing.approved_at %}<span class="badge bg-success">Costing approved</span>{% else %}<span class="badge bg-warning text-dark">Costing approval pending</span>{% endif %}</div>
-          <div class="workflow-actions mt-3">
-            {% if can_manager_approve and quote.status == 'manager_review' %}<form method="post" action="{% url 'workflow_manager_approve' quote.id %}">{% csrf_token %}<button class="btn btn-sm btn-primary">Manager Approve (1st)</button></form>{% endif %}
-            {% if can_accountant_approve and quote.status == 'accountant_review' %}<form method="post" action="{% url 'workflow_accountant_approve' quote.id %}">{% csrf_token %}<button class="btn btn-sm btn-primary">Accountant Approve (2nd)</button></form>{% endif %}
-            {% if can_approve_costing and not quote.costing.approved_at %}<form method="post" action="{% url 'workflow_approve_costing' quote.id %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary">Approve Costing</button></form>{% endif %}
-            {% if can_submit and quote.status == 'approved' and quote.costing.approved_at %}<form method="post" action="{% url 'workflow_submit_quotation' quote.id %}">{% csrf_token %}<button class="btn btn-sm btn-primary">Submit to Client</button></form>{% endif %}
-            {% if can_award and quote.status == 'submitted' %}<form method="post" action="{% url 'workflow_award_project' quote.id %}">{% csrf_token %}<button class="btn btn-sm btn-success">Record Client Acceptance</button></form>{% endif %}
-          </div>
+    <div class="card"><div class="card-body">
+      <h5 class="card-title">Quotations</h5>
+      {% for quote in enquiry.quotations.all %}
+      <div class="border rounded p-3 mb-3">
+        <div class="d-flex flex-wrap justify-content-between gap-2"><strong>Version {{ quote.version }} &mdash; {{ quote.amount }}</strong><span class="badge bg-info text-dark">{{ quote.get_status_display }}</span></div>
+        <p class="mt-2">{{ quote.details|default:'No details' }}</p>
+        {% if quote.file %}<a href="{{ quote.file.url }}" target="_blank" rel="noopener">View quotation file</a>{% endif %}
+        {% if quote.lines.all %}<div class="table-responsive mt-3"><table class="table table-sm table-bordered"><thead><tr><th>Item</th><th>Description</th><th>Unit</th><th class="text-end">Qty</th><th class="text-end">Rate</th><th class="text-end">Amount</th></tr></thead><tbody>{% for line in quote.lines.all %}<tr><td>{{ line.item_code|default:'-' }}</td><td>{{ line.description }}</td><td>{{ line.unit|default:'-' }}</td><td class="text-end">{{ line.quantity }}</td><td class="text-end">{{ line.unit_rate }}</td><td class="text-end">{{ line.amount }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+        <div class="small text-muted mt-2">Costing: Material {{ quote.costing.material_cost }}, Labour {{ quote.costing.labour_cost }}, Other {{ quote.costing.other_cost }} &mdash; Total {{ quote.costing.total }}</div>
+        <div class="mt-2">{% if quote.costing.approved_at %}<span class="badge bg-success">Costing approved</span>{% else %}<span class="badge bg-warning text-dark">Costing approval pending</span>{% endif %}</div>
+        <div class="workflow-actions mt-3">
+          {% if can_manager_approve and quote.status == 'manager_review' %}<form method="post" action="{% url 'workflow_manager_approve' quote.id %}">{% csrf_token %}<button class="btn btn-sm btn-primary">Manager Approve (1st)</button></form>{% endif %}
+          {% if can_accountant_approve and quote.status == 'accountant_review' %}<form method="post" action="{% url 'workflow_accountant_approve' quote.id %}">{% csrf_token %}<button class="btn btn-sm btn-primary">Accountant Approve (2nd)</button></form>{% endif %}
+          {% if can_approve_costing and not quote.costing.approved_at %}<form method="post" action="{% url 'workflow_approve_costing' quote.id %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary">Approve Costing</button></form>{% endif %}
+          {% if can_submit and quote.status == 'approved' and quote.costing.approved_at %}<form method="post" action="{% url 'workflow_submit_quotation' quote.id %}">{% csrf_token %}<button class="btn btn-sm btn-primary">Submit to Client</button></form>{% endif %}
+          {% if can_award and quote.status == 'submitted' %}<form method="post" action="{% url 'workflow_award_project' quote.id %}">{% csrf_token %}<button class="btn btn-sm btn-success">Record Client Acceptance</button></form>{% endif %}
         </div>
-        {% empty %}<p class="text-muted">No quotations added.</p>{% endfor %}
       </div>
-    </div>
+      {% empty %}<p class="text-muted">No quotations added.</p>{% endfor %}
+    </div></div>
   </div>
 
   <div class="col-lg-4">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Enquiry Files</h5>
-        {% for item in enquiry.attachments.all %}
-        <div class="d-flex align-items-center justify-content-between gap-2 border-top py-2">
-          <span class="text-truncate" title="{{ item.original_name }}">{{ item.original_name }}</span>
-          <span class="d-flex gap-1 flex-shrink-0">{% if item.is_cad %}<a class="btn btn-sm btn-primary" href="{% url 'workflow_cad_viewer' 'enquiry' item.id %}"><i class="bi bi-bounding-box"></i> View CAD</a><a class="btn btn-sm btn-outline-primary" href="{% url 'workflow_cad_file' 'enquiry' item.id %}" target="_blank" rel="noopener"><i class="bi bi-download"></i></a>{% else %}<a class="btn btn-sm btn-outline-primary" href="{{ item.file.url }}" target="_blank" rel="noopener"><i class="bi bi-download"></i></a>{% endif %}</span>
-        </div>
-        {% empty %}<p class="text-muted">No files.</p>{% endfor %}
-      </div>
-    </div>
+    <div class="card"><div class="card-body">
+      <h5 class="card-title">Enquiry Files</h5>
+      {% for item in enquiry.attachments.all %}<div class="d-flex align-items-center justify-content-between gap-2 border-top py-2"><span class="text-truncate" title="{{ item.original_name }}">{{ item.original_name }}</span><span class="d-flex gap-1 flex-shrink-0">{% if item.is_cad %}<a class="btn btn-sm btn-primary" href="{% url 'workflow_cad_viewer' 'enquiry' item.id %}"><i class="bi bi-bounding-box"></i> View CAD</a><a class="btn btn-sm btn-outline-primary" href="{% url 'workflow_cad_file' 'enquiry' item.id %}" target="_blank" rel="noopener"><i class="bi bi-download"></i></a>{% else %}<a class="btn btn-sm btn-outline-primary" href="{{ item.file.url }}" target="_blank" rel="noopener"><i class="bi bi-download"></i></a>{% endif %}</span></div>{% empty %}<p class="text-muted">No files.</p>{% endfor %}
+    </div></div>
 
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Client Project Documents</h5>
-        {% if can_collect %}
-        <form method="post" enctype="multipart/form-data" action="{% url 'workflow_collect_document' enquiry.id %}" class="mb-3">
-          {% csrf_token %}
-          <select name="document_type" class="form-select mb-2"><option value="client">Client document</option><option value="cad">CAD drawing</option><option value="contract">Contract</option><option value="other">Other</option></select>
-          <div id="documentFileRows"><div class="file-row d-flex gap-2 mb-2"><input type="file" name="files" class="form-control document-file-input" multiple required><button class="btn btn-outline-danger remove-document-row d-none" type="button" aria-label="Remove document row"><i class="bi bi-trash"></i></button></div></div>
-          <button class="btn btn-sm btn-outline-primary mb-2" id="addDocumentRow" type="button"><i class="bi bi-plus-lg"></i> Add Another Selection</button>
-          <button class="btn btn-sm btn-primary mb-2" type="submit">Upload Documents</button>
-        </form>
-        {% endif %}
-        {% for doc in enquiry.project_documents.all %}
-        <div class="border-top py-2">
-          <div class="d-flex align-items-center justify-content-between gap-2"><span>{{ doc.get_document_type_display }}</span><span class="d-flex gap-1">{% if doc.is_cad %}<a class="btn btn-sm btn-primary" href="{% url 'workflow_cad_viewer' 'document' doc.id %}"><i class="bi bi-bounding-box"></i> View CAD</a><a class="btn btn-sm btn-outline-primary" href="{% url 'workflow_cad_file' 'document' doc.id %}" target="_blank" rel="noopener"><i class="bi bi-download"></i></a>{% else %}<a class="btn btn-sm btn-outline-primary" href="{{ doc.file.url }}" target="_blank" rel="noopener"><i class="bi bi-download"></i></a>{% endif %}</span></div>
-          {% if doc.verified_at %}<span class="badge bg-success">Verified</span>{% elif can_verify %}<form method="post" action="{% url 'workflow_verify_document' doc.id %}" class="mt-1">{% csrf_token %}<button class="btn btn-sm btn-outline-primary">Verify</button></form>{% else %}<span class="badge bg-warning text-dark">Pending verification</span>{% endif %}
-        </div>
-        {% empty %}<p class="text-muted">No documents collected.</p>{% endfor %}
-      </div>
-    </div>
+    <div class="card"><div class="card-body">
+      <h5 class="card-title">Client Project Documents</h5>
+      {% if can_collect %}<form method="post" enctype="multipart/form-data" action="{% url 'workflow_collect_document' enquiry.id %}" class="mb-3">{% csrf_token %}<select name="document_type" class="form-select mb-2"><option value="client">Client document</option><option value="cad">CAD drawing</option><option value="contract">Contract</option><option value="other">Other</option></select><div id="documentFileRows"><div class="file-row d-flex gap-2 mb-2"><input type="file" name="files" class="form-control document-file-input" multiple required><button class="btn btn-outline-danger remove-document-row d-none" type="button" aria-label="Remove document row"><i class="bi bi-trash"></i></button></div></div><button class="btn btn-sm btn-outline-primary mb-2" id="addDocumentRow" type="button"><i class="bi bi-plus-lg"></i> Add Another Selection</button> <button class="btn btn-sm btn-primary mb-2" type="submit">Upload Documents</button></form>{% endif %}
+      {% for doc in enquiry.project_documents.all %}<div class="border-top py-2"><div class="d-flex align-items-center justify-content-between gap-2"><span>{{ doc.get_document_type_display }}</span><span class="d-flex gap-1">{% if doc.is_cad %}<a class="btn btn-sm btn-primary" href="{% url 'workflow_cad_viewer' 'document' doc.id %}"><i class="bi bi-bounding-box"></i> View CAD</a><a class="btn btn-sm btn-outline-primary" href="{% url 'workflow_cad_file' 'document' doc.id %}" target="_blank" rel="noopener"><i class="bi bi-download"></i></a>{% else %}<a class="btn btn-sm btn-outline-primary" href="{{ doc.file.url }}" target="_blank" rel="noopener"><i class="bi bi-download"></i></a>{% endif %}</span></div>{% if doc.verified_at %}<span class="badge bg-success">Verified</span>{% elif can_verify %}<form method="post" action="{% url 'workflow_verify_document' doc.id %}" class="mt-1">{% csrf_token %}<button class="btn btn-sm btn-outline-primary">Verify</button></form>{% else %}<span class="badge bg-warning text-dark">Pending verification</span>{% endif %}</div>{% empty %}<p class="text-muted">No documents collected.</p>{% endfor %}
+    </div></div>
 
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Comments and Remarks</h5>
-        {% for item in enquiry.comments.all %}<div class="border-bottom py-2"><strong>{{ item.author.usertype }}</strong><div>{{ item.comment|linebreaksbr }}</div><small class="text-muted">{{ item.created_at|date:'d M Y H:i' }}</small></div>{% empty %}<p class="text-muted">No comments.</p>{% endfor %}
-        <form method="post" action="{% url 'workflow_add_comment' enquiry.id %}" class="mt-3">{% csrf_token %}<textarea name="comment" class="form-control mb-2" rows="3" required></textarea><button class="btn btn-sm btn-primary">Add Comment</button></form>
-      </div>
-    </div>
+    <div class="card"><div class="card-body">
+      <h5 class="card-title">Comments and Remarks</h5>
+      {% for item in enquiry.comments.all %}<div class="border-bottom py-2"><strong>{{ item.author.usertype }}</strong><div>{{ item.comment|linebreaksbr }}</div><small class="text-muted">{{ item.created_at|date:'d M Y H:i' }}</small></div>{% empty %}<p class="text-muted">No comments.</p>{% endfor %}
+      <form method="post" action="{% url 'workflow_add_comment' enquiry.id %}" class="mt-3">{% csrf_token %}<textarea name="comment" class="form-control mb-2" rows="3" required></textarea><button class="btn btn-sm btn-primary">Add Comment</button></form>
+    </div></div>
   </div>
 </div>
+
+{% if can_quote %}
+<script>
+(function () {
+  const rows = document.getElementById('quotationRows');
+  const template = rows.querySelector('.quotation-row').cloneNode(true);
+  const fields = ['item_code', 'line_description', 'unit', 'quantity', 'unit_rate'];
+  function updateTotals() {
+    let total = 0;
+    rows.querySelectorAll('.quotation-row').forEach(row => {
+      const amount = (parseFloat(row.querySelector('.line-quantity').value) || 0) * (parseFloat(row.querySelector('.line-rate').value) || 0);
+      row.querySelector('.line-amount').textContent = amount.toFixed(2);
+      total += amount;
+    });
+    document.getElementById('quotationTotal').textContent = total.toFixed(2);
+  }
+  function addRow(values = []) {
+    const row = template.cloneNode(true);
+    fields.forEach((name, index) => { row.querySelector(`[name="${name}"]`).value = values[index] || ''; });
+    rows.appendChild(row);
+    updateTotals();
+  }
+  document.getElementById('addQuotationRow').addEventListener('click', () => addRow());
+  rows.addEventListener('input', updateTotals);
+  rows.addEventListener('click', event => {
+    const button = event.target.closest('.remove-quotation-row');
+    if (!button) return;
+    if (rows.children.length > 1) button.closest('.quotation-row').remove();
+    else fields.forEach(name => { button.closest('tr').querySelector(`[name="${name}"]`).value = ''; });
+    updateTotals();
+  });
+  rows.addEventListener('paste', event => {
+    if (event.target.name !== 'item_code') return;
+    const text = event.clipboardData.getData('text');
+    const pastedRows = text.trim().split(/\r?\n/).map(line => line.split('\t'));
+    if (pastedRows.length < 2 && pastedRows[0].length < 2) return;
+    event.preventDefault();
+    const targetRow = event.target.closest('tr');
+    fields.forEach((name, index) => { targetRow.querySelector(`[name="${name}"]`).value = pastedRows[0][index] || ''; });
+    pastedRows.slice(1).forEach(addRow);
+    updateTotals();
+  });
+  updateTotals();
+})();
+</script>
+{% endif %}
 
 {% if can_collect %}
 <script>

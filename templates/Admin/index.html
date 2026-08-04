@@ -464,6 +464,7 @@
     </div><!-- End Page Title -->
 
     <section class="section dashboard">
+        {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show">{{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>{% endfor %}
         {% block body %}
 
         {% endblock %}
@@ -1144,6 +1145,7 @@
 
   <!-- Template Main JS File -->
   <script src="{% static 'index/js/main.js' %}"></script>
+  <script src="{% static 'index/js/wms-ui.js' %}"></script>
 
 </body>
 

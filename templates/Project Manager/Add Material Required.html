@@ -10,6 +10,15 @@
   <datalist id="materialCategories"><option value="Preliminaries"><option value="Electrical"><option value="Fire Alarm"><option value="HVAC"><option value="Fire Fighting"><option value="Flooring"><option value="Ceiling"><option value="Gypsum Cladding"><option value="Glass Partition"><option value="Cleaning"><option value="Demolition"><option value="Shop Front"><option value="Joinery Work"><option value="Painting"></datalist>
   <div class="row g-2 px-2 pb-2 d-none d-xl-flex text-muted small fw-semibold"><div class="col-xl-3">Category</div><div class="col-xl-4">Material</div><div class="col-xl-2">Quantity</div><div class="col-xl-2">Price / unit</div><div class="col-xl-1"></div></div>
   <div id="materialRows">
+    {% if form_rows %}{% for row in form_rows %}
+    <div class="bulk-row row g-2 align-items-end border rounded p-2 mb-2">
+      <div class="col-xl-3"><label class="form-label d-xl-none">Category</label><input name="category" value="{{ row.category }}" list="materialCategories" class="form-control" required></div>
+      <div class="col-xl-4"><label class="form-label d-xl-none">Material</label><select name="material" class="form-select" required><option value="">Select material</option>{% for item in data2 %}<option value="{{ item.id }}" {% if row.material == item.id|stringformat:'s' %}selected{% endif %}>{{ item.name }} - {{ item.unit }}</option>{% endfor %}</select></div>
+      <div class="col-xl-2"><label class="form-label d-xl-none">Quantity</label><input type="number" min="0" step="0.01" name="quantity" value="{{ row.quantity }}" class="form-control" required></div>
+      <div class="col-xl-2"><label class="form-label d-xl-none">Price / unit</label><input type="number" min="0" step="0.01" name="price" value="{{ row.price }}" class="form-control" required></div>
+      <div class="col-xl-1"><button type="button" class="btn btn-outline-danger remove-row w-100" aria-label="Remove row"><i class="bi bi-trash"></i></button></div>
+    </div>
+    {% endfor %}{% else %}
     <div class="bulk-row row g-2 align-items-end border rounded p-2 mb-2">
       <div class="col-xl-3"><label class="form-label d-xl-none">Category</label><input name="category" list="materialCategories" class="form-control" required></div>
       <div class="col-xl-4"><label class="form-label d-xl-none">Material</label><select name="material" class="form-select" required><option value="">Select material</option>{% for item in data2 %}<option value="{{ item.id }}">{{ item.name }} - {{ item.unit }}</option>{% endfor %}</select></div>
@@ -17,6 +26,7 @@
       <div class="col-xl-2"><label class="form-label d-xl-none">Price / unit</label><input type="number" min="0" step="0.01" name="price" class="form-control" required></div>
       <div class="col-xl-1"><button type="button" class="btn btn-outline-danger remove-row w-100" aria-label="Remove row"><i class="bi bi-trash"></i></button></div>
     </div>
+    {% endif %}
   </div>
   <div id="materialMessage" class="alert d-none mt-3"></div>
   <button class="btn btn-primary mt-3" type="submit">Save All Material Requirements</button>

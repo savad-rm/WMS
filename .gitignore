@@ -5,3 +5,16 @@ node_modules/
 staticfiles/
 db.pre_workflow_backup.sqlite3
 *.sqlite3
+
+# Local database-browser binaries are tooling, not application dependencies.
+/*.dll
+/DB Browser for SQLite.exe
+/DB Browser for SQLCipher.exe
+/bearer/
+/extensions/
+/imageformats/
+/licenses/
+/platforms/
+/printsupport/
+/styles/
+/translations/

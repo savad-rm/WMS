@@ -43,14 +43,14 @@ from MyApp.models import (
 from .authentication import issue_token
 
 
-MANAGEMENT_ROLES = frozenset(('Admin', 'Accountant'))
+MANAGEMENT_ROLES = frozenset(('Admin', 'Operation Manager', 'Accountant'))
 GLOBAL_PROJECT_ROLES = frozenset((
-    'Admin', 'Accountant', 'Marketing Executive', 'Marketing Manager',
+    'Admin', 'Operation Manager', 'Accountant', 'Marketing Executive', 'Marketing Manager',
     'Estimator', 'Document Controller',
 ))
 WORKFLOW_ROLES = frozenset((
     'Admin', 'Marketing Executive', 'Marketing Manager', 'Estimator',
-    'Document Controller', 'Project Manager', 'Accountant',
+    'Document Controller', 'Project Manager', 'Project Engineer', 'Operation Manager', 'Accountant',
 ))
 SITE_WRITE_ROLES = frozenset(('Supervisor',))
 
@@ -61,6 +61,12 @@ class LoginThrottle(AnonRateThrottle):
 
 def _person(account):
     return staff.objects.filter(LOGIN=account).first()
+
+
+def _effective_role(account):
+    if account.usertype in ('Project Engineer', 'Operation Manager'):
+        return 'Project Manager'
+    return account.usertype
 
 
 def _user_payload(account):
@@ -84,7 +90,7 @@ def _project_queryset(account):
     person = _person(account)
     if not person:
         return queryset.none()
-    if account.usertype == 'Project Manager':
+    if account.usertype in ('Project Manager', 'Project Engineer'):
         return queryset.filter(project_manager_allocation__STAFF=person)
     if account.usertype == 'Supervisor':
         return queryset.filter(supervisor_allocation__STAFF=person)
@@ -292,7 +298,7 @@ class ProjectDetailView(APIView):
             },
             'capabilities': {
                 'site_updates': request.user.usertype in SITE_WRITE_ROLES,
-                'approve_material_requests': request.user.usertype in ('Admin', 'Project Manager'),
+                'approve_material_requests': request.user.usertype in ('Admin', 'Operation Manager', 'Project Manager', 'Project Engineer'),
                 'chat': True,
             },
         })
@@ -392,7 +398,7 @@ class SiteUpdateView(APIView):
 
 class MaterialRequestDecisionView(APIView):
     def post(self, request, request_id, decision):
-        if request.user.usertype not in ('Admin', 'Project Manager'):
+        if request.user.usertype not in ('Admin', 'Operation Manager', 'Project Manager', 'Project Engineer'):
             raise PermissionDenied('Only a project manager can review material requests.')
         if decision not in ('approve', 'reject'):
             raise ValidationError({'decision': ['Use approve or reject.']})
@@ -472,7 +478,7 @@ class EnquiryDetailView(APIView):
             raise PermissionDenied('You cannot access this enquiry.')
         result = _enquiry_payload(record, detailed=True)
         result['available_actions'] = _enquiry_actions(request.user, record)
-        if request.user.usertype in ('Marketing Manager', 'Project Manager'):
+        if _effective_role(request.user) in ('Marketing Manager', 'Project Manager'):
             result['estimators'] = list(staff.objects.filter(designation='Estimator').values('id', 'name'))
         return Response({'enquiry': result})
 
@@ -497,7 +503,7 @@ class EnquiryCommentView(APIView):
 
 def _enquiry_actions(account, record):
     actions = []
-    role = account.usertype
+    role = _effective_role(account)
     latest = record.quotations.first()
     if role in ('Marketing Manager', 'Project Manager'):
         actions.append('assign')
@@ -539,7 +545,8 @@ class EnquiryActionView(APIView):
             raise PermissionDenied('You cannot access this enquiry.')
         person = _person(request.user)
         with transaction.atomic():
-            if action == 'assign' and request.user.usertype in ('Marketing Manager', 'Project Manager'):
+            effective_role = _effective_role(request.user)
+            if action == 'assign' and effective_role in ('Marketing Manager', 'Project Manager'):
                 estimator = staff.objects.filter(pk=request.data.get('estimator_id'), designation='Estimator').first()
                 if not estimator:
                     raise ValidationError({'estimator_id': ['Select a valid estimator.']})
@@ -580,7 +587,7 @@ class EnquiryActionView(APIView):
                     latest.save(update_fields=('status', 'accountant_approved_by', 'accountant_approved_at', 'updated_at'))
                     record.status = 'approved'
                     record.save(update_fields=('status', 'updated_at'))
-                elif action == 'costing_approve' and request.user.usertype == 'Project Manager':
+                elif action == 'costing_approve' and effective_role == 'Project Manager':
                     cost = costing.objects.filter(QUOTATION=latest).first()
                     if not cost:
                         raise ValidationError({'action': ['No costing is attached.']})

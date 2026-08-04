@@ -1,10 +1,12 @@
 from django.core.files.storage import FileSystemStorage
+from django.core.exceptions import ValidationError
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.contrib.auth.hashers import check_password, make_password
 from django.contrib import messages
 from django.db import IntegrityError, transaction as db_transaction
 from django.views.decorators.http import require_POST
+from itertools import zip_longest
 from MyApp.middleware import legacy_role_required
 
 from MyApp.models import (
@@ -41,6 +43,28 @@ from MyApp.models import (
     work_progress,
     worker_entry,
 )
+
+
+STAFF_DESIGNATIONS = (
+    'Project Manager', 'Project Engineer', 'Operation Manager', 'Supervisor',
+    'Accountant', 'Purchaser', 'Marketing Executive', 'Marketing Manager',
+    'Estimator', 'Document Controller',
+)
+
+
+def _normalise_phone(value, label='Mobile number'):
+    cleaned = ''.join(character for character in value.strip() if character not in ' -()')
+    if cleaned.startswith('00'):
+        cleaned = f'+{cleaned[2:]}'
+    digits = cleaned[1:] if cleaned.startswith('+') else cleaned
+    if not digits.isdigit() or not 8 <= len(digits) <= 15:
+        raise ValidationError(f'{label} must contain 8 to 15 digits and may start with +.')
+    return cleaned
+
+
+def _posted_rows(request, *field_names):
+    columns = [request.POST.getlist(name) for name in field_names]
+    return [dict(zip(field_names, values)) for values in zip_longest(*columns, fillvalue='')]
 
 
 def _chat_messages(project_id, current_login_id):
@@ -80,20 +104,27 @@ def _change_session_password(request, failure_url):
     new = request.POST.get('new', '')
     confirm = request.POST.get('confirm', '')
     if not _password_matches(account, old):
-        return HttpResponse(f"<script>alert('Current Password Must Be Valid');window.location='{failure_url}'</script>")
-    if not new or new != confirm:
-        return HttpResponse(f"<script>alert('Password Mismatched');window.location='{failure_url}'</script>")
+        messages.error(request, 'The current password is incorrect.')
+        return redirect(failure_url)
+    if len(new) < 8:
+        messages.error(request, 'The new password must contain at least 8 characters.')
+        return redirect(failure_url)
+    if new != confirm:
+        messages.error(request, 'The new password and confirmation do not match.')
+        return redirect(failure_url)
     account.password = make_password(new)
     account.save(update_fields=('password',))
     request.session.flush()
-    return HttpResponse("<script>alert('Password Changed');window.location='/WMS/login/'</script>")
+    messages.success(request, 'Password changed successfully. Sign in with your new password.')
+    return redirect('login')
 
 def login_post(request):
     name=request.POST['username'].strip().lower()
     password=request.POST['password']
     d=login.objects.filter(username__iexact=name).first()
     if not _password_matches(d, password):
-        return HttpResponse('''<script>alert('invalid username or password');window.location='/WMS/login/'</script>''')
+        messages.error(request, 'Invalid email address or password.')
+        return render(request, 'login.html', {'username': name}, status=400)
     if d.password == password:
         d.password = make_password(password)
         d.save(update_fields=('password',))
@@ -106,6 +137,10 @@ def login_post(request):
         return redirect('Admin_home')
     if d.usertype=="Project Manager" and s:
         return redirect('PMHome')
+    if d.usertype=="Project Engineer" and s:
+        return redirect('PMHome')
+    if d.usertype=="Operation Manager" and s:
+        return redirect('Admin_home')
     if d.usertype=="Supervisor" and s:
         return render(request,"Supervisor/spindex.html")
     if d.usertype=="Accountant" and s:
@@ -115,14 +150,17 @@ def login_post(request):
     if d.usertype in ('Marketing Executive', 'Marketing Manager', 'Estimator', 'Document Controller') and s:
         return redirect('workflow_dashboard')
     request.session.flush()
-    return HttpResponse('''<script>alert('User profile is incomplete');window.location='/WMS/login/'</script>''')
+    messages.error(request, 'The user profile is incomplete. Contact the administrator.')
+    return redirect('login')
 
 
 ##################################################  ADMIN  #######################################################################
 
+@legacy_role_required('Admin')
 def Admin_home(request):
     return render(request,'Admin/index.html')
 
+@legacy_role_required('Admin')
 def Add_project(request):
     return render(request,'Admin/Add Project.html', {
         'source_projects': project.objects.all().only('id', 'project_no', 'project_name').order_by('project_name'),
@@ -130,6 +168,7 @@ def Add_project(request):
     })
 
 @require_POST
+@legacy_role_required('Admin')
 @db_transaction.atomic
 def Add_project_post(request):
     pno=request.POST['project_no']
@@ -214,10 +253,12 @@ def Add_project_post(request):
     messages.success(request, 'Project added successfully.')
     return redirect('View_Project')
 
+@legacy_role_required('Admin')
 def Add_staff(request):
-    return render(request,'Admin/Add Staff.html')
+    return render(request,'Admin/Add Staff.html', {'designations': STAFF_DESIGNATIONS})
 
 @require_POST
+@legacy_role_required('Admin')
 def Add_staff_post(request):
     name = request.POST['name']
     dob = request.POST['dob']
@@ -231,9 +272,21 @@ def Add_staff_post(request):
     designation = request.POST['designation']
 
     from datetime import datetime
+    form_context = {'form_data': request.POST, 'designations': STAFF_DESIGNATIONS}
+    try:
+        phone = _normalise_phone(phone)
+        phone2 = _normalise_phone(phone2, 'Home contact') if phone2.strip() else ''
+    except ValidationError as exc:
+        return render(request, 'Admin/Add Staff.html', {
+            **form_context, 'error': exc.messages[0],
+        }, status=400)
+    if designation not in STAFF_DESIGNATIONS:
+        return render(request, 'Admin/Add Staff.html', {
+            **form_context, 'error': 'Select a valid staff role.',
+        }, status=400)
     if login.objects.filter(username__iexact=email).exists() or staff.objects.filter(email__iexact=email).exists():
         return render(request, 'Admin/Add Staff.html', {
-            'error': 'A staff user with this email already exists.', 'form_data': request.POST,
+            **form_context, 'error': 'A staff user with this email already exists.',
         }, status=400)
     fs = FileSystemStorage()
     photo_url = ''
@@ -250,7 +303,7 @@ def Add_staff_post(request):
             )
     except IntegrityError:
         return render(request, 'Admin/Add Staff.html', {
-            'error': 'A staff user with this email already exists.', 'form_data': request.POST,
+            **form_context, 'error': 'A staff user with this email already exists.',
         }, status=400)
     messages.success(request, 'Staff added successfully.')
     return redirect('View_Staff')
@@ -314,10 +367,13 @@ def Delete_project(request,id):
     project.objects.filter(pk=id).delete()
     return HttpResponse("<script>alert('Project Deleted');window.location='/WMS/View_Project/'</script>")
 
+@legacy_role_required('Admin')
 def Edit_staff(request,id):
     res=staff.objects.get(pk=id)
-    return render(request,'Admin/Edit Staff.html',{'data':res})
+    return render(request,'Admin/Edit Staff.html',{'data':res, 'designations': STAFF_DESIGNATIONS})
 
+@require_POST
+@legacy_role_required('Admin')
 def Edit_staff_post(request):
     sid=request.POST['sid']
     name = request.POST['name']
@@ -330,8 +386,18 @@ def Edit_staff_post(request):
     phone2 = request.POST['phone2']
     designation = request.POST['designation']
     current_staff = staff.objects.select_related('LOGIN').get(pk=sid)
+    try:
+        phone = _normalise_phone(phone)
+        phone2 = _normalise_phone(phone2, 'Home contact') if phone2.strip() else ''
+    except ValidationError as exc:
+        messages.error(request, exc.messages[0])
+        return redirect('Edit_staff', id=sid)
+    if designation not in STAFF_DESIGNATIONS:
+        messages.error(request, 'Select a valid staff role.')
+        return redirect('Edit_staff', id=sid)
     if staff.objects.filter(email__iexact=email).exclude(pk=sid).exists() or login.objects.filter(username__iexact=email).exclude(pk=current_staff.LOGIN_id).exists():
-        return HttpResponse("<script>alert('A staff user with this email already exists');history.back()</script>", status=400)
+        messages.error(request, 'A staff user with this email already exists.')
+        return redirect('Edit_staff', id=sid)
     updates = dict(name=name, dob=dob, phone=phone, email=email, place=place,
                    phone2=phone2, nation=nation, designation=designation)
     if 'photo' in request.FILES:
@@ -344,12 +410,16 @@ def Edit_staff_post(request):
     with db_transaction.atomic():
         staff.objects.filter(id=sid).update(**updates)
         login.objects.filter(pk=current_staff.LOGIN_id).update(username=email, usertype=designation)
-    return HttpResponse("<script>alert('Edited Staff');window.location='/WMS/View_Staff/'</script>")
+    messages.success(request, 'Staff updated successfully.')
+    return redirect('View_Staff')
 
+@require_POST
+@legacy_role_required('Admin')
 def Delete_staff(request,id,lid):
     login.objects.get(pk=lid).delete()
     staff.objects.filter(id=id).delete()
-    return HttpResponse("<script>alert('Deleted Successfully');window.location='/WMS/View_Staff/'</script>")
+    messages.success(request, 'Staff deleted successfully.')
+    return redirect('View_Staff')
 
 def Delete_chata(request,id,pid):
     lid=request.session['lid']
@@ -608,10 +678,12 @@ def schedule_searcha(request):
     res2 = project.objects.get(id=id, status='ongoing')
     return render(request, 'Admin/View Schedule.html', {'data': res2,'data2':res,'id':id})
 
+@legacy_role_required('Admin')
 def View_Staff(request):
     res=staff.objects.all()
     return render(request,'Admin/View Staff.html',{'data':res})
 
+@legacy_role_required('Admin')
 def search_staff(request):
     w=request.POST['text']
     res = staff.objects.filter(name__icontains=w)
@@ -841,28 +913,38 @@ def Add_material_required_post(request):
     material_ids=request.POST.getlist('material')
     quantities=request.POST.getlist('quantity')
     prices=request.POST.getlist('price')
+    form_rows = _posted_rows(request, 'category', 'material', 'quantity', 'price')
+
+    def form_error(message):
+        messages.error(request, message)
+        return render(request, 'Project Manager/Add Material Required.html', {
+            'data': p, 'data2': material.objects.all().order_by('name'),
+            'source_projects': project.objects.exclude(id=p.pk).only('id', 'project_no', 'project_name').order_by('project_name'),
+            'form_rows': form_rows,
+        }, status=400)
+
     if not (len(categories) == len(material_ids) == len(quantities) == len(prices)):
-        return HttpResponse('Invalid material row data', status=400)
+        return form_error('Material row data is incomplete.')
     try:
         normalized_material_ids = [int(value) for value in material_ids]
     except (TypeError, ValueError):
-        return HttpResponse('Every material row must reference a valid material', status=400)
+        return form_error('Every material row must reference a valid material.')
     material_map = material.objects.in_bulk(normalized_material_ids)
     rows=[]
     for category, material_id, quantity, price in zip(categories, normalized_material_ids, quantities, prices):
         if not all((category.strip(), material_id, quantity, price)) or material_id not in material_map:
-            return HttpResponse('Every material row must be complete', status=400)
+            return form_error('Every material row must be complete.')
         try:
             if float(quantity) < 0 or float(price) < 0:
                 raise ValueError
         except ValueError:
-            return HttpResponse('Quantity and price must be valid positive numbers', status=400)
+            return form_error('Quantity and price must be valid positive numbers.')
         rows.append(material_required(
             PROJECT=p, MATERIAL=material_map[material_id], category=category.strip(),
             quantity=quantity, price=price,
         ))
     if not rows:
-        return HttpResponse('Add at least one material row', status=400)
+        return form_error('Add at least one material row.')
     material_required.objects.bulk_create(rows)
     messages.success(request, f'{len(rows)} material requirement(s) added successfully.')
     return redirect('View_materials_required', id=pid)
@@ -877,11 +959,14 @@ def Add_material(request):
 def Add_material_post(request):
     names=request.POST.getlist('name')
     units=request.POST.getlist('unit')
+    form_rows = _posted_rows(request, 'name', 'unit')
     if len(names) != len(units):
-        return HttpResponse('Invalid material row data', status=400)
+        messages.error(request, 'Material row data is incomplete.')
+        return render(request, 'Project Manager/Add Materials.html', {'form_rows': form_rows}, status=400)
     rows=[material(name=name.strip(), unit=unit) for name, unit in zip(names, units) if name.strip() and unit]
     if not rows:
-        return HttpResponse('Add at least one material row', status=400)
+        messages.error(request, 'Add at least one material row.')
+        return render(request, 'Project Manager/Add Materials.html', {'form_rows': form_rows}, status=400)
     material.objects.bulk_create(rows)
     messages.success(request, f'{len(rows)} material(s) added successfully.')
     return redirect('View_material')
@@ -1047,32 +1132,48 @@ def Add_work_schedule_post(request):
     work_ids=request.POST.getlist('work')
     starts=request.POST.getlist('start')
     ends=request.POST.getlist('end')
+    unscheduled_work = list(work.objects.filter(
+        PROJECT=p, schedule__isnull=True
+    ).only('id', 'category', 'workname').order_by('category', 'workname'))
+
+    def schedule_error(message):
+        submitted = {
+            str(work_id): (start, end)
+            for work_id, start, end in zip_longest(work_ids, starts, ends, fillvalue='')
+        }
+        for item in unscheduled_work:
+            item.submitted_start, item.submitted_end = submitted.get(str(item.pk), ('', ''))
+        messages.error(request, message)
+        return render(request, 'Project Manager/Add Work Schedule.html', {
+            'data': p, 'data1': unscheduled_work, 'id': id,
+        }, status=400)
+
     if not work_ids or not (len(work_ids) == len(starts) == len(ends)):
-        return HttpResponse('Invalid schedule row data', status=400)
+        return schedule_error('Schedule row data is incomplete.')
     try:
         normalized_work_ids=[int(value) for value in work_ids]
     except (TypeError, ValueError):
-        return HttpResponse('Every schedule row must reference a valid scope item', status=400)
+        return schedule_error('Every schedule row must reference a valid scope item.')
     if len(normalized_work_ids) != len(set(normalized_work_ids)):
-        return HttpResponse('Each scope item can only appear once', status=400)
+        return schedule_error('Each scope item can only appear once.')
     work_map=work.objects.filter(
         PROJECT=p, pk__in=normalized_work_ids, schedule__isnull=True
     ).in_bulk()
     if len(work_map) != len(set(normalized_work_ids)):
-        return HttpResponse('A scope item is invalid or already scheduled', status=400)
+        return schedule_error('A scope item is invalid or already scheduled.')
     schedule_rows=[]
     from datetime import date, datetime
     progress_rows=[]
     for work_id, start_date, end_date in zip(normalized_work_ids, starts, ends):
         if not start_date or not end_date:
-            return HttpResponse('Start and end dates are required for every scope item', status=400)
+            return schedule_error('Start and end dates are required for every scope item.')
         try:
             parsed_start = date.fromisoformat(start_date)
             parsed_end = date.fromisoformat(end_date)
         except ValueError:
-            return HttpResponse('Every schedule row requires valid dates', status=400)
+            return schedule_error('Every schedule row requires valid dates.')
         if parsed_end < parsed_start:
-            return HttpResponse('End date cannot precede start date', status=400)
+            return schedule_error('End date cannot precede start date.')
         scope_item=work_map[work_id]
         schedule_rows.append(schedule(
             PROJECT=p, WORK=scope_item, from_date=parsed_start, to_date=parsed_end
@@ -1103,17 +1204,27 @@ def Add_works_post(request):
     p=project.objects.get(pk=pid)
     categories=request.POST.getlist('category')
     work_names=request.POST.getlist('work')
+    form_rows = _posted_rows(request, 'category', 'work')
+
+    def form_error(message):
+        messages.error(request, message)
+        return render(request, 'Project Manager/Add Works.html', {
+            'data': p, 'id': id,
+            'source_projects': project.objects.exclude(id=p.pk).only('id', 'project_no', 'project_name').order_by('project_name'),
+            'form_rows': form_rows,
+        }, status=400)
+
     if len(categories) != len(work_names):
-        return HttpResponse('Invalid scope row data', status=400)
+        return form_error('Scope row data is incomplete.')
     work_rows=[]
     for category, work_name in zip(categories, work_names):
         category=category.strip()
         work_name=work_name.strip()
         if not category or not work_name:
-            return HttpResponse('Every scope row requires a category and description', status=400)
+            return form_error('Every scope row requires a category and description.')
         work_rows.append(work(PROJECT=p, category=category, workname=work_name))
     if not work_rows:
-        return HttpResponse('Add at least one scope row', status=400)
+        return form_error('Add at least one scope row.')
     work.objects.bulk_create(work_rows)
     messages.success(request, f'{len(work_rows)} scope item(s) added successfully.')
     return redirect('View_work', id=id)

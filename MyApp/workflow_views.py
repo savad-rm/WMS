@@ -12,13 +12,17 @@ from django.http import FileResponse, Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_POST
 
 from .models import (
     costing, enquiry, enquiry_attachment, enquiry_comment, login,
-    project_document, quotation, quotation_line, staff,
+    project_document, quotation, quotation_line, staff, workflow_notification,
 )
 from .middleware import role_is_allowed
+from .deadline_notifications import ensure_quotation_deadline_notifications
+from .quotation_exports import build_quotation_excel, build_quotation_pdf
+from .quotation_numbers import assign_quotation_reference
 
 
 WORKFLOW_ROLES = {
@@ -28,6 +32,36 @@ WORKFLOW_ROLES = {
 }
 UPLOAD_EXTENSIONS = ('xlsx', 'xls', 'jpg', 'jpeg', 'png', 'pdf', 'dwg', 'dxf', 'doc', 'docx')
 MAX_UPLOAD_SIZE = 20 * 1024 * 1024
+
+DEFAULT_PAYMENT_TERMS = (
+    '50% in Advance upon confirmation of the work\n'
+    '20% upon submittal of progressive invoice\n'
+    '20% upon submittal of progressive invoice\n'
+    '10% on completion of the project'
+)
+DEFAULT_MOBILIZATION = (
+    'Work shall commence within 3 days after receipt of the advance payment, '
+    'approved drawings, and site handover.'
+)
+DEFAULT_VARIATIONS = (
+    'Any changes to the approved design, materials, quantities, finishes, or scope '
+    'requested by the Client shall be subject to a separate variation order and may '
+    'affect the project cost and completion period.'
+)
+DEFAULT_CLIENT_RESPONSIBILITIES = (
+    'Provide unrestricted access to the work site.\n'
+    'Ensure availability of electricity and water during the construction period.\n'
+    'Obtain necessary landlord/building management approvals unless specifically included in our scope.\n'
+    'Provide timely approvals for drawings, materials, and samples.'
+)
+DEFAULT_MATERIAL_APPROVAL = (
+    'All materials and finishes shall be subject to Client approval. Equivalent '
+    'materials may be proposed if specified materials become unavailable.'
+)
+DEFAULT_CLOSING_TEXT = (
+    'We hope the above quote meets your requirement and we assure quality work '
+    'completed on time. If you have any further queries, please feel free to contact us.'
+)
 
 
 def _current_login(request):
@@ -79,12 +113,19 @@ def _non_negative_decimal(request, field, label):
 
 
 def _render(request, template, context=None, status=200):
+    ensure_quotation_deadline_notifications()
     context = context or {}
     context.update({
         'current_role': request.workflow_account.usertype,
         'current_account': request.workflow_account,
         'current_staff': getattr(request, 'workflow_staff', None),
         'workflow_roles': WORKFLOW_ROLES,
+        'workflow_notifications': workflow_notification.objects.filter(
+            recipient=request.workflow_account,
+        ).select_related('ENQUIRY')[:6],
+        'workflow_unread_count': workflow_notification.objects.filter(
+            recipient=request.workflow_account, read_at__isnull=True,
+        ).count(),
     })
     return render(request, template, context, status=status)
 
@@ -213,6 +254,20 @@ def add_enquiry(request):
             return _render(request, 'Workflow/enquiry_form.html', {
                 'form_data': request.POST,
             }, status=400)
+        deadline_value = request.POST.get('quotation_deadline', '').strip()
+        deadline = parse_datetime(deadline_value) if deadline_value else None
+        if not deadline:
+            messages.error(request, 'Enter the quotation submission deadline.')
+            return _render(request, 'Workflow/enquiry_form.html', {
+                'form_data': request.POST,
+            }, status=400)
+        if timezone.is_naive(deadline):
+            deadline = timezone.make_aware(deadline, timezone.get_current_timezone())
+        if deadline <= timezone.now():
+            messages.error(request, 'The quotation deadline must be in the future.')
+            return _render(request, 'Workflow/enquiry_form.html', {
+                'form_data': request.POST,
+            }, status=400)
         uploads = request.FILES.getlist('files')
         try:
             for upload in uploads:
@@ -230,6 +285,7 @@ def add_enquiry(request):
                     client_email=request.POST.get('client_email', '').strip().lower(),
                     client_phone=request.POST.get('client_phone', '').strip(),
                     description=request.POST.get('description', '').strip(),
+                    quotation_deadline=deadline,
                     created_by=request.workflow_account,
                 )
                 for upload in uploads:
@@ -353,13 +409,45 @@ def add_quotation(request, enquiry_id):
             })
     if not parsed_lines:
         return quotation_error('Add at least one quotation line item.')
+    try:
+        validity_days = int(request.POST.get('validity_days') or 14)
+    except ValueError:
+        return quotation_error('Quotation validity must be a whole number of days.')
+    if not 1 <= validity_days <= 365:
+        return quotation_error('Quotation validity must be between 1 and 365 days.')
     amount = sum((item['amount'] for item in parsed_lines), Decimal('0'))
     with transaction.atomic():
-        version = (quotation.objects.filter(ENQUIRY=record).aggregate(v=Max('version'))['v'] or 0) + 1
+        existing_quotes = quotation.objects.select_for_update().filter(ENQUIRY=record)
+        version = (existing_quotes.aggregate(v=Max('version'))['v'] or 0) + 1
+        first_quote = existing_quotes.order_by('version', 'id').first()
+        revision = (existing_quotes.aggregate(v=Max('revision'))['v'] or 0) + 1 if first_quote else 0
         quote = quotation.objects.create(
             ENQUIRY=record, version=version, amount=amount,
-            details=request.POST.get('details', '').strip(), file=upload or '', created_by=request.workflow_staff,
+            revision=revision,
+            details=request.POST.get('details', '').strip(),
+            subject=request.POST.get('subject', '').strip() or f'Quotation for {record.title}',
+            client_address=request.POST.get('client_address', '').strip() or 'Doha-State of Qatar',
+            introduction=request.POST.get('introduction', '').strip(),
+            validity_days=validity_days,
+            payment_terms=request.POST.get('payment_terms', '').strip() or DEFAULT_PAYMENT_TERMS,
+            mobilization=request.POST.get('mobilization', '').strip() or DEFAULT_MOBILIZATION,
+            variations=request.POST.get('variations', '').strip() or DEFAULT_VARIATIONS,
+            client_responsibilities=(
+                request.POST.get('client_responsibilities', '').strip()
+                or DEFAULT_CLIENT_RESPONSIBILITIES
+            ),
+            material_approval=(
+                request.POST.get('material_approval', '').strip()
+                or DEFAULT_MATERIAL_APPROVAL
+            ),
+            project_duration=request.POST.get('project_duration', '').strip(),
+            closing_text=request.POST.get('closing_text', '').strip() or DEFAULT_CLOSING_TEXT,
+            signatory_name=request.POST.get('signatory_name', '').strip() or request.workflow_staff.name,
+            signatory_title=request.POST.get('signatory_title', '').strip() or request.workflow_staff.designation,
+            signatory_phone=request.POST.get('signatory_phone', '').strip() or request.workflow_staff.phone,
+            file=upload or '', created_by=request.workflow_staff,
         )
+        assign_quotation_reference(quote, first_quote)
         quotation_line.objects.bulk_create([
             quotation_line(
                 QUOTATION=quote, item_code=item['item_code'].strip(),
@@ -378,8 +466,53 @@ def add_quotation(request, enquiry_id):
         )
         record.status = 'quoted'
         record.save(update_fields=('status', 'updated_at'))
-    messages.success(request, 'Quotation and costing sent for Marketing Manager approval.')
+    action = 'Revised quotation' if quote.revision else 'Quotation'
+    messages.success(
+        request,
+        f'{action} {quote.display_number} and costing sent for Marketing Manager approval.',
+    )
     return redirect('workflow_detail', enquiry_id=enquiry_id)
+
+
+@role_required(*WORKFLOW_ROLES)
+def download_quotation(request, quote_id, file_format):
+    quote = get_object_or_404(
+        quotation.objects.select_related('ENQUIRY').prefetch_related('lines'), pk=quote_id,
+    )
+    if not _can_access_enquiry(request, quote.ENQUIRY):
+        return HttpResponseForbidden('You do not have permission to download this quotation.')
+    safe_number = quote.display_number.replace('/', '-').replace('\\', '-')
+    if file_format == 'xlsx':
+        content = build_quotation_excel(quote)
+        content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        filename = f'{safe_number}.xlsx'
+    elif file_format == 'pdf':
+        content = build_quotation_pdf(quote)
+        content_type = 'application/pdf'
+        filename = f'{safe_number}.pdf'
+    else:
+        raise Http404('Unsupported quotation format.')
+    return FileResponse(content, as_attachment=True, filename=filename, content_type=content_type)
+
+
+@role_required(*WORKFLOW_ROLES)
+def workflow_notifications(request):
+    notices = workflow_notification.objects.filter(
+        recipient=request.workflow_account,
+    ).select_related('ENQUIRY')
+    return _render(request, 'Workflow/notifications.html', {'notifications': notices})
+
+
+@require_POST
+@role_required(*WORKFLOW_ROLES)
+def read_workflow_notification(request, notification_id):
+    notice = get_object_or_404(
+        workflow_notification, pk=notification_id, recipient=request.workflow_account,
+    )
+    if not notice.read_at:
+        notice.read_at = timezone.now()
+        notice.save(update_fields=('read_at',))
+    return redirect(notice.link or 'workflow_notifications')
 
 
 @require_POST

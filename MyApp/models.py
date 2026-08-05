@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 
 CAD_FILE_EXTENSIONS = frozenset(('.dwg', '.dxf'))
@@ -275,6 +276,7 @@ class enquiry(models.Model):
     client_email = models.EmailField(blank=True)
     client_phone = models.CharField(max_length=40, blank=True)
     description = models.TextField(blank=True)
+    quotation_deadline = models.DateTimeField(null=True, blank=True, db_index=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open', db_index=True)
     created_by = models.ForeignKey(login, on_delete=models.PROTECT, related_name='created_enquiries')
     assigned_to = models.ForeignKey(staff, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_enquiries')
@@ -320,8 +322,26 @@ class quotation(models.Model):
 
     ENQUIRY = models.ForeignKey(enquiry, on_delete=models.CASCADE, related_name='quotations')
     version = models.PositiveIntegerField(default=1)
+    quotation_number = models.CharField(max_length=60, unique=True, null=True, blank=True)
+    sequence_number = models.PositiveIntegerField(null=True, blank=True, db_index=True)
+    revision = models.PositiveIntegerField(default=0)
+    issue_date = models.DateField(default=timezone.localdate)
     amount = models.DecimalField(max_digits=14, decimal_places=2)
     details = models.TextField(blank=True)
+    subject = models.CharField(max_length=255, blank=True)
+    client_address = models.CharField(max_length=255, blank=True)
+    introduction = models.TextField(blank=True)
+    validity_days = models.PositiveIntegerField(default=14)
+    payment_terms = models.TextField(blank=True)
+    mobilization = models.TextField(blank=True)
+    variations = models.TextField(blank=True)
+    client_responsibilities = models.TextField(blank=True)
+    material_approval = models.TextField(blank=True)
+    project_duration = models.TextField(blank=True)
+    closing_text = models.TextField(blank=True)
+    signatory_name = models.CharField(max_length=100, blank=True)
+    signatory_title = models.CharField(max_length=100, blank=True)
+    signatory_phone = models.CharField(max_length=40, blank=True)
     file = models.FileField(upload_to='quotations/%Y/%m/', blank=True)
     status = models.CharField(max_length=25, choices=STATUS_CHOICES, default='manager_review', db_index=True)
     created_by = models.ForeignKey(staff, on_delete=models.PROTECT, related_name='created_quotations')
@@ -335,6 +355,16 @@ class quotation(models.Model):
     class Meta:
         ordering = ('-created_at',)
         constraints = [models.UniqueConstraint(fields=('ENQUIRY', 'version'), name='unique_enquiry_quotation_version')]
+
+    @property
+    def display_number(self):
+        return self.quotation_number or f'Quotation {self.pk}'
+
+
+class quotation_counter(models.Model):
+    """Single locked row used to allocate gap-free base quotation references."""
+
+    next_value = models.PositiveIntegerField(default=1)
 
 
 class quotation_line(models.Model):
@@ -350,6 +380,39 @@ class quotation_line(models.Model):
     class Meta:
         ordering = ('position', 'id')
         indexes = [models.Index(fields=('QUOTATION', 'position'), name='quotation_line_order_idx')]
+
+
+class workflow_notification(models.Model):
+    LEVEL_CHOICES = [
+        ('info', 'Information'),
+        ('warning', 'Warning'),
+        ('danger', 'Urgent'),
+    ]
+
+    recipient = models.ForeignKey(login, on_delete=models.CASCADE, related_name='workflow_notifications')
+    ENQUIRY = models.ForeignKey(
+        enquiry, on_delete=models.CASCADE, null=True, blank=True,
+        related_name='deadline_notifications',
+    )
+    event = models.CharField(max_length=40, default='quotation_deadline')
+    level = models.CharField(max_length=10, choices=LEVEL_CHOICES, default='info')
+    message = models.CharField(max_length=255)
+    due_at = models.DateTimeField(null=True, blank=True)
+    link = models.CharField(max_length=255, blank=True)
+    dedupe_key = models.CharField(max_length=160, unique=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ('-created_at',)
+        indexes = [
+            models.Index(fields=('recipient', 'read_at', 'created_at'), name='workflow_notice_recipient_idx'),
+            models.Index(fields=('event', 'due_at'), name='workflow_notice_due_idx'),
+        ]
+
+    @property
+    def status(self):
+        return 'read' if self.read_at else 'unread'
 
 
 class costing(models.Model):

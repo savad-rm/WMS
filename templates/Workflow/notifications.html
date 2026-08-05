@@ -1,0 +1,16 @@
+{% extends 'Workflow/base.html' %}
+{% block body %}
+<div class="pagetitle"><h1>Deadline Alerts</h1><nav><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'workflow_dashboard' %}">Dashboard</a></li><li class="breadcrumb-item active">Notifications</li></ol></nav></div>
+<div class="card"><div class="card-body"><h5 class="card-title">Quotation Deadline Notifications</h5>
+  <div class="list-group list-group-flush">
+    {% for notice in notifications %}
+    <form method="post" action="{% url 'workflow_notification_read' notice.id %}" class="list-group-item list-group-item-action px-0">{% csrf_token %}
+      <button type="submit" class="border-0 bg-transparent w-100 text-start d-flex gap-3 align-items-start">
+        <i class="bi bi-clock-history fs-4 text-{% if notice.level == 'danger' %}danger{% elif notice.level == 'warning' %}warning{% else %}primary{% endif %}"></i>
+        <span class="flex-grow-1"><span class="d-flex justify-content-between gap-2"><strong>{{ notice.ENQUIRY.title|default:'Workflow notification' }}</strong>{% if not notice.read_at %}<span class="badge bg-primary">New</span>{% endif %}</span><span class="d-block">{{ notice.message }}</span><small class="text-muted">{{ notice.created_at|date:'d M Y, h:i A' }}</small></span>
+      </button>
+    </form>
+    {% empty %}<p class="text-muted">No deadline notifications.</p>{% endfor %}
+  </div>
+</div></div>
+{% endblock %}

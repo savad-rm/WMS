@@ -32,7 +32,9 @@ async function startViewer() {
   }
 
   try {
-    applyUiTheme('dark', root)
+    // Most architectural drawings use black/true-colour linework. A light canvas
+    // keeps those entities visible instead of presenting an apparently blank view.
+    applyUiTheme('light', root)
     AcApDocManager.createInstance({
       container: root,
       busyIndicatorHost: root,
@@ -95,7 +97,19 @@ async function startViewer() {
       mode: AcEdOpenMode.Read,
       sysVars: { lwdisplay: false }
     })
-    if (!opened) throw new Error('The drawing could not be decoded.')
+    const view = AcApDocManager.instance.curView
+    if (!opened && !view) throw new Error('The drawing could not be decoded.')
+
+    setStatus('Fitting the drawing to the available view...')
+    if (view) {
+      view.backgroundColor = 0xffffff
+      const processingDeadline = Date.now() + 10000
+      while (view.isProcessingEntities && Date.now() < processingDeadline) {
+        await new Promise(resolve => window.setTimeout(resolve, 100))
+      }
+      view.zoomToFitDrawing(5000)
+      view.isDirty = true
+    }
 
     setStatus('', 'ready')
   } catch (error) {

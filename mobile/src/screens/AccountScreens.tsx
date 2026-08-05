@@ -6,10 +6,10 @@ import {Button, Card, Field, ScreenState, sharedStyles, StatusPill} from '../com
 import {useLoad} from '../hooks/useLoad';
 import {colors, spacing} from '../theme';
 
-type Notice = {id: number; date: string; message: string; status: string; type: string; project_name: string};
+type Notice = {id: string; date: string; message: string; status: string; type: string; project_name: string};
 export function AlertsScreen() {
   const state = useLoad(() => apiFetch<{results: Notice[]}>('/notifications/'), []);
-  const markRead = async (id: number) => {await apiFetch(`/notifications/${id}/read/`, {method: 'POST'}); await state.reload();};
+  const markRead = async (id: string) => {await apiFetch(`/notifications/${id}/read/`, {method: 'POST'}); await state.reload();};
   if (!state.data && (state.loading || state.error)) return <ScreenState loading={state.loading} error={state.error} onRetry={state.reload} />;
   return <FlatList style={sharedStyles.screen} contentContainerStyle={sharedStyles.content} data={state.data?.results ?? []} keyExtractor={item => String(item.id)} refreshControl={<RefreshControl refreshing={state.loading} onRefresh={state.reload} />} ListHeaderComponent={<View><Text style={sharedStyles.title}>Notifications</Text><Text style={sharedStyles.subtitle}>Operational alerts and project updates</Text></View>} renderItem={({item}) => <Card><View style={sharedStyles.row}><Text style={styles.noticeTitle}>{item.project_name}</Text><StatusPill value={item.status} /></View><Text>{item.message}</Text><Text style={sharedStyles.subtitle}>{item.type} · {item.date}</Text>{item.status.toLowerCase() !== 'read' && <Text onPress={() => void markRead(item.id)} style={styles.link}>Mark as read</Text>}</Card>} ListEmptyComponent={<Card><Text style={sharedStyles.subtitle}>You are all caught up.</Text></Card>} />;
 }

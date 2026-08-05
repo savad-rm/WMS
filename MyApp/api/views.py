@@ -7,6 +7,7 @@ from django.core.files.storage import default_storage
 from django.db import transaction
 from django.db.models import Max, Q
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -31,6 +32,7 @@ from MyApp.models import (
     photo,
     project,
     quotation,
+    quotation_line,
     costing,
     schedule,
     staff,
@@ -38,9 +40,12 @@ from MyApp.models import (
     work,
     work_progress,
     worker_entry,
+    workflow_notification,
 )
 
 from .authentication import issue_token
+from MyApp.deadline_notifications import ensure_quotation_deadline_notifications
+from MyApp.quotation_numbers import assign_quotation_reference
 
 
 MANAGEMENT_ROLES = frozenset(('Admin', 'Operation Manager', 'Accountant'))
@@ -151,6 +156,7 @@ def _enquiry_payload(record, detailed=False):
         'client_phone': record.client_phone,
         'status': record.status,
         'assigned_to': record.assigned_to.name if record.assigned_to else None,
+        'quotation_deadline': _iso(record.quotation_deadline),
         'created_at': _iso(record.created_at),
         'updated_at': _iso(record.updated_at),
     }
@@ -173,6 +179,8 @@ def _enquiry_payload(record, detailed=False):
             'quotations': [{
                 'id': quote.pk,
                 'version': quote.version,
+                'quotation_number': quote.display_number,
+                'revision': quote.revision,
                 'amount': str(quote.amount),
                 'status': quote.status,
                 'details': quote.details,
@@ -222,6 +230,7 @@ class MeView(APIView):
 
 class DashboardView(APIView):
     def get(self, request):
+        ensure_quotation_deadline_notifications()
         projects = _project_queryset(request.user).distinct()
         person = _person(request.user)
         pending_requests = material_request.objects.filter(PROJECT__in=projects, status__iexact='pending')
@@ -239,7 +248,12 @@ class DashboardView(APIView):
                 'projects': projects.count(),
                 'ongoing_projects': projects.filter(status__iexact='ongoing').count(),
                 'pending_material_requests': pending_requests.count(),
-                'unread_notifications': notices.exclude(status__iexact='read').count(),
+                'unread_notifications': (
+                    notices.exclude(status__iexact='read').count()
+                    + workflow_notification.objects.filter(
+                        recipient=request.user, read_at__isnull=True,
+                    ).count()
+                ),
                 'open_enquiries': enquiries.exclude(status__in=('closed', 'awarded')).count(),
             },
             'recent_projects': [_project_payload(item) for item in projects.order_by('-id')[:5]],
@@ -414,19 +428,46 @@ class MaterialRequestDecisionView(APIView):
 
 class NotificationListView(APIView):
     def get(self, request):
+        ensure_quotation_deadline_notifications()
         person = _person(request.user)
         queryset = notification.objects.filter(STAFF=person).select_related('PROJECT').order_by('-id') if person else notification.objects.none()
-        return Response({'results': [{
-            'id': item.pk, 'date': item.date, 'message': item.notification,
+        project_notices = [{
+            'id': f'project:{item.pk}', 'date': item.date, 'message': item.notification,
             'status': item.status, 'type': item.type,
             'project_id': item.PROJECT_id, 'project_name': item.PROJECT.project_name,
-        } for item in queryset]})
+            'enquiry_id': None, 'link': None,
+        } for item in queryset]
+        workflow_notices = [{
+            'id': f'workflow:{item.pk}',
+            'date': _iso(item.created_at),
+            'message': item.message,
+            'status': item.status,
+            'type': 'Quotation deadline',
+            'project_id': None,
+            'project_name': item.ENQUIRY.title if item.ENQUIRY else 'Enquiry workflow',
+            'enquiry_id': item.ENQUIRY_id,
+            'link': item.link,
+        } for item in workflow_notification.objects.filter(
+            recipient=request.user,
+        ).select_related('ENQUIRY')]
+        results = workflow_notices + project_notices
+        return Response({'results': results})
 
 
 class NotificationReadView(APIView):
     def post(self, request, notification_id):
-        person = _person(request.user)
-        updated = notification.objects.filter(pk=notification_id, STAFF=person).update(status='read')
+        try:
+            source, raw_id = notification_id.split(':', 1)
+            item_id = int(raw_id)
+        except (AttributeError, TypeError, ValueError):
+            source, item_id = 'project', notification_id
+        if source == 'workflow':
+            updated = workflow_notification.objects.filter(
+                pk=item_id, recipient=request.user,
+            ).update(read_at=timezone.now())
+        else:
+            person = _person(request.user)
+            updated = notification.objects.filter(pk=item_id, STAFF=person).update(status='read')
         if not updated:
             raise NotFound('Notification not found.')
         return Response({'id': notification_id, 'status': 'read'})
@@ -452,6 +493,13 @@ class EnquiryListView(APIView):
         client_name = str(request.data.get('client_name', '')).strip()
         if not title or not client_name:
             raise ValidationError({'title': ['Title and client name are required.']})
+        deadline = parse_datetime(str(request.data.get('quotation_deadline', '')).strip())
+        if not deadline:
+            raise ValidationError({'quotation_deadline': ['A quotation submission deadline is required.']})
+        if timezone.is_naive(deadline):
+            deadline = timezone.make_aware(deadline, timezone.get_current_timezone())
+        if deadline <= timezone.now():
+            raise ValidationError({'quotation_deadline': ['The deadline must be in the future.']})
         with transaction.atomic():
             record = enquiry.objects.create(
                 title=title,
@@ -459,6 +507,7 @@ class EnquiryListView(APIView):
                 client_email=str(request.data.get('client_email', '')).strip(),
                 client_phone=str(request.data.get('client_phone', '')).strip(),
                 description=str(request.data.get('description', '')).strip(),
+                quotation_deadline=deadline,
                 created_by=request.user,
             )
             for upload in request.FILES.getlist('files'):
@@ -557,10 +606,20 @@ class EnquiryActionView(APIView):
                 amount = _decimal(request.data, 'amount')
                 if amount <= 0:
                     raise ValidationError({'amount': ['Quotation amount must be greater than zero.']})
-                version = (quotation.objects.filter(ENQUIRY=record).aggregate(value=Max('version'))['value'] or 0) + 1
+                existing_quotes = quotation.objects.select_for_update().filter(ENQUIRY=record)
+                version = (existing_quotes.aggregate(value=Max('version'))['value'] or 0) + 1
+                first_quote = existing_quotes.order_by('version', 'id').first()
+                revision = (existing_quotes.aggregate(value=Max('revision'))['value'] or 0) + 1 if first_quote else 0
                 quote = quotation.objects.create(
-                    ENQUIRY=record, version=version, amount=amount,
+                    ENQUIRY=record, version=version, revision=revision, amount=amount,
+                    subject=str(request.data.get('subject', '')).strip() or f'Quotation for {record.title}',
                     details=str(request.data.get('details', '')).strip(), created_by=person,
+                )
+                assign_quotation_reference(quote, first_quote)
+                quotation_line.objects.create(
+                    QUOTATION=quote,
+                    description=quote.details or 'Quotation total',
+                    unit='lot', quantity=1, unit_rate=amount, amount=amount, position=1,
                 )
                 costing.objects.create(
                     QUOTATION=quote,

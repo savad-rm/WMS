@@ -16,6 +16,7 @@
         <dt class="col-sm-4">Client</dt><dd class="col-sm-8">{{ enquiry.client_name }}</dd>
         <dt class="col-sm-4">Contact</dt><dd class="col-sm-8">{{ enquiry.client_email|default:'-' }}{% if enquiry.client_phone %} &middot; {{ enquiry.client_phone }}{% endif %}</dd>
         <dt class="col-sm-4">Assigned estimator</dt><dd class="col-sm-8">{{ enquiry.assigned_to.name|default:'Not assigned' }}</dd>
+        <dt class="col-sm-4">Quotation deadline</dt><dd class="col-sm-8"><strong class="text-danger">{{ enquiry.quotation_deadline|date:'d M Y, h:i A'|default:'Not set' }}</strong></dd>
         <dt class="col-sm-4">Scope / remarks</dt><dd class="col-sm-8">{{ enquiry.description|linebreaksbr|default:'-' }}</dd>
       </dl>
     </div></div>
@@ -33,7 +34,7 @@
     {% if can_quote %}
     <div class="card"><div class="card-body">
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <h5 class="card-title">Add Quotation and Costing</h5>
+        <div><h5 class="card-title mb-0">{% if enquiry.quotations.all %}Create Revised Quotation{% else %}Create Quotation{% endif %}</h5><small class="text-muted">The chronological quotation or revision number is assigned automatically.</small></div>
         <button class="btn btn-sm btn-outline-primary" id="addQuotationRow" type="button"><i class="bi bi-plus-lg"></i> Add Line</button>
       </div>
       <form method="post" enctype="multipart/form-data" action="{% url 'workflow_add_quotation' enquiry.id %}" class="row g-3" id="quotationForm">{% csrf_token %}
@@ -55,13 +56,29 @@
           </div>
           <div class="form-text">Add one row per item. You can paste tab-separated rows copied from Excel into the first Item cell.</div>
         </div>
-        <div class="col-md-8"><label class="form-label">Quotation file (optional)</label><input type="file" name="file" class="form-control" accept=".xlsx,.xls,.pdf,.doc,.docx"></div>
-        <div class="col-md-4"><label class="form-label">Quotation notes</label><textarea name="details" class="form-control" rows="1">{{ quote_form.details|default:'' }}</textarea></div>
+        <div class="col-12"><hr><h6 class="text-primary fw-bold">Exalter Quotation Template Details</h6></div>
+        <div class="col-md-8"><label class="form-label">Subject</label><input name="subject" value="{{ quote_form.subject|default:'' }}" class="form-control" placeholder="Quotation for {{ enquiry.title }}" required></div>
+        <div class="col-md-4"><label class="form-label">Validity (days)</label><input type="number" name="validity_days" value="{{ quote_form.validity_days|default:'14' }}" min="1" max="365" class="form-control" required></div>
+        <div class="col-md-6"><label class="form-label">Client address</label><input name="client_address" value="{{ quote_form.client_address|default:'Doha-State of Qatar' }}" class="form-control"></div>
+        <div class="col-md-6"><label class="form-label">Introduction</label><textarea name="introduction" class="form-control" rows="2">{{ quote_form.introduction|default:'' }}</textarea></div>
+        <div class="col-12"><label class="form-label">Scope of Work</label><textarea name="details" class="form-control" rows="3" required>{{ quote_form.details|default:enquiry.description }}</textarea></div>
+        <div class="col-md-6"><label class="form-label">Payment Terms <span class="text-muted">(one line per stage)</span></label><textarea name="payment_terms" class="form-control" rows="5">{{ quote_form.payment_terms|default:'' }}</textarea></div>
+        <div class="col-md-6"><label class="form-label">Client Responsibilities <span class="text-muted">(one line per item)</span></label><textarea name="client_responsibilities" class="form-control" rows="5">{{ quote_form.client_responsibilities|default:'' }}</textarea></div>
+        <div class="col-md-6"><label class="form-label">Mobilization</label><textarea name="mobilization" class="form-control" rows="3">{{ quote_form.mobilization|default:'' }}</textarea></div>
+        <div class="col-md-6"><label class="form-label">Variations</label><textarea name="variations" class="form-control" rows="3">{{ quote_form.variations|default:'' }}</textarea></div>
+        <div class="col-md-6"><label class="form-label">Material Approval</label><textarea name="material_approval" class="form-control" rows="3">{{ quote_form.material_approval|default:'' }}</textarea></div>
+        <div class="col-md-6"><label class="form-label">Project Duration</label><textarea name="project_duration" class="form-control" rows="3" placeholder="The project completion period will be ...">{{ quote_form.project_duration|default:'' }}</textarea></div>
+        <div class="col-12"><label class="form-label">Closing Text</label><textarea name="closing_text" class="form-control" rows="2">{{ quote_form.closing_text|default:'' }}</textarea></div>
+        <div class="col-md-4"><label class="form-label">Signatory Name</label><input name="signatory_name" value="{{ quote_form.signatory_name|default:current_staff.name }}" class="form-control"></div>
+        <div class="col-md-4"><label class="form-label">Signatory Title</label><input name="signatory_title" value="{{ quote_form.signatory_title|default:current_staff.designation }}" class="form-control"></div>
+        <div class="col-md-4"><label class="form-label">Signatory Mobile</label><input name="signatory_phone" value="{{ quote_form.signatory_phone|default:current_staff.phone }}" class="form-control"></div>
+        <div class="col-12"><label class="form-label">Supporting quotation file (optional)</label><input type="file" name="file" class="form-control" accept=".xlsx,.xls,.pdf,.doc,.docx"></div>
+        <div class="col-12"><hr><h6 class="text-primary fw-bold">Internal Costing</h6><div class="form-text">These figures are for approval workflow and are not printed in the client quotation.</div></div>
         <div class="col-md-4"><label class="form-label">Material cost</label><input type="number" min="0" step="0.01" name="material_cost" value="{{ quote_form.material_cost|default:'' }}" class="form-control"></div>
         <div class="col-md-4"><label class="form-label">Labour cost</label><input type="number" min="0" step="0.01" name="labour_cost" value="{{ quote_form.labour_cost|default:'' }}" class="form-control"></div>
         <div class="col-md-4"><label class="form-label">Other cost</label><input type="number" min="0" step="0.01" name="other_cost" value="{{ quote_form.other_cost|default:'' }}" class="form-control"></div>
         <div class="col-12"><label class="form-label">Costing notes</label><textarea name="costing_notes" class="form-control">{{ quote_form.costing_notes|default:'' }}</textarea></div>
-        <div><button class="btn btn-primary">Send for Approval</button></div>
+        <div><button class="btn btn-primary"><i class="bi bi-send-check"></i> Generate and Send for Approval</button></div>
       </form>
     </div></div>
     {% endif %}
@@ -70,8 +87,9 @@
       <h5 class="card-title">Quotations</h5>
       {% for quote in enquiry.quotations.all %}
       <div class="border rounded p-3 mb-3">
-        <div class="d-flex flex-wrap justify-content-between gap-2"><strong>Version {{ quote.version }} &mdash; {{ quote.amount }}</strong><span class="badge bg-info text-dark">{{ quote.get_status_display }}</span></div>
-        <p class="mt-2">{{ quote.details|default:'No details' }}</p>
+        <div class="d-flex flex-wrap justify-content-between gap-2"><div><strong>{{ quote.display_number }}</strong>{% if quote.revision %}<span class="badge bg-secondary ms-2">Revision R{{ quote.revision }}</span>{% endif %}<div class="small text-muted">Issued {{ quote.issue_date|date:'d M Y' }} &middot; QAR {{ quote.amount }}</div></div><span class="badge bg-info text-dark align-self-start">{{ quote.get_status_display }}</span></div>
+        <p class="mt-2"><strong>{{ quote.subject }}</strong><br>{{ quote.details|default:'No scope details' }}</p>
+        <div class="workflow-actions mb-2"><a class="btn btn-sm btn-outline-success" href="{% url 'workflow_download_quotation' quote.id 'xlsx' %}"><i class="bi bi-file-earmark-excel"></i> Download Excel</a><a class="btn btn-sm btn-outline-danger" href="{% url 'workflow_download_quotation' quote.id 'pdf' %}"><i class="bi bi-file-earmark-pdf"></i> Download PDF</a></div>
         {% if quote.file %}<a href="{{ quote.file.url }}" target="_blank" rel="noopener">View quotation file</a>{% endif %}
         {% if quote.lines.all %}<div class="table-responsive mt-3"><table class="table table-sm table-bordered"><thead><tr><th>Item</th><th>Description</th><th>Unit</th><th class="text-end">Qty</th><th class="text-end">Rate</th><th class="text-end">Amount</th></tr></thead><tbody>{% for line in quote.lines.all %}<tr><td>{{ line.item_code|default:'-' }}</td><td>{{ line.description }}</td><td>{{ line.unit|default:'-' }}</td><td class="text-end">{{ line.quantity }}</td><td class="text-end">{{ line.unit_rate }}</td><td class="text-end">{{ line.amount }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
         <div class="small text-muted mt-2">Costing: Material {{ quote.costing.material_cost }}, Labour {{ quote.costing.labour_cost }}, Other {{ quote.costing.other_cost }} &mdash; Total {{ quote.costing.total }}</div>

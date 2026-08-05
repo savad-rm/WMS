@@ -1,16 +1,19 @@
 import tempfile
+from datetime import timedelta
 
 from django.db import IntegrityError, transaction
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from .models import (
     chat, enquiry, enquiry_attachment, estimate, login, material, material_request,
     material_required, project, project_document, project_manager_allocation, quotation,
-    schedule, staff, supervisor_allocation, work, work_progress,
+    schedule, staff, supervisor_allocation, work, work_progress, workflow_notification,
 )
+from .deadline_notifications import ensure_quotation_deadline_notifications
 
 
 class WorkflowTests(TestCase):
@@ -55,6 +58,7 @@ class WorkflowTests(TestCase):
         response = self.client.post(reverse('workflow_add_enquiry'), {
             'title': 'Office fit-out', 'client_name': 'Example Client',
             'client_email': 'client@example.com', 'description': 'Fit-out scope',
+            'quotation_deadline': (timezone.now() + timedelta(days=10)).isoformat(),
         })
         record = enquiry.objects.get()
         self.assertRedirects(response, reverse('workflow_detail', args=(record.pk,)))
@@ -150,6 +154,76 @@ class WorkflowTests(TestCase):
         self.assertEqual(quote.amount, 315)
         self.assertEqual(list(quote.lines.values_list('amount', flat=True)), [255, 60])
 
+    def test_quotation_revisions_keep_base_reference(self):
+        record = enquiry.objects.create(
+            title='Revision test', client_name='Client', created_by=self.executive[0],
+            assigned_to=self.estimator[1], status='assigned',
+        )
+        self.sign_in_as(*self.estimator)
+        payload = {
+            'amount': '1000', 'details': 'Initial scope',
+            'material_cost': '100', 'labour_cost': '100', 'other_cost': '0',
+        }
+        self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), payload)
+        payload['amount'] = '1250'
+        payload['details'] = 'Revised scope'
+        self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), payload)
+        first, revision = quotation.objects.filter(ENQUIRY=record).order_by('version')
+        self.assertRegex(first.quotation_number, r'^QTN/\d{4}/ETC/\d{2}/\d{2}$')
+        self.assertEqual(revision.quotation_number, f'{first.quotation_number}-R1')
+        self.assertEqual((first.revision, revision.revision), (0, 1))
+        self.assertEqual(first.sequence_number, revision.sequence_number)
+        next_record = enquiry.objects.create(
+            title='Next new enquiry', client_name='Client', created_by=self.executive[0],
+            assigned_to=self.estimator[1], status='assigned',
+        )
+        self.client.post(reverse('workflow_add_quotation', args=(next_record.pk,)), payload)
+        next_quote = quotation.objects.get(ENQUIRY=next_record)
+        self.assertEqual(next_quote.sequence_number, first.sequence_number + 1)
+        self.assertEqual(next_quote.revision, 0)
+
+    def test_quotation_downloads_use_generated_template_formats(self):
+        record = enquiry.objects.create(
+            title='Export test', client_name='Perfect Media', created_by=self.executive[0],
+            assigned_to=self.estimator[1], status='assigned',
+        )
+        self.sign_in_as(*self.estimator)
+        self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), {
+            'item_code': ['1', '2'],
+            'line_description': ['Painting work', 'Surface preparation'],
+            'unit': ['Item', 'm2'], 'quantity': ['1', '10'],
+            'unit_rate': ['2800', '25'], 'details': 'Painting scope',
+            'project_duration': 'The project duration is 30 days.',
+            'material_cost': '1000', 'labour_cost': '500', 'other_cost': '0',
+        })
+        quote = quotation.objects.get(ENQUIRY=record)
+        excel = self.client.get(reverse('workflow_download_quotation', args=(quote.pk, 'xlsx')))
+        excel_bytes = b''.join(excel.streaming_content)
+        self.assertEqual(excel.status_code, 200)
+        self.assertTrue(excel_bytes.startswith(b'PK'))
+        pdf = self.client.get(reverse('workflow_download_quotation', args=(quote.pk, 'pdf')))
+        pdf_bytes = b''.join(pdf.streaming_content)
+        self.assertEqual(pdf.status_code, 200)
+        self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+
+    def test_deadline_notifications_are_related_and_deduplicated(self):
+        record = enquiry.objects.create(
+            title='Urgent tender', client_name='Client', created_by=self.executive[0],
+            assigned_to=self.estimator[1], status='assigned',
+            quotation_deadline=timezone.now() + timedelta(days=2),
+        )
+        created = ensure_quotation_deadline_notifications()
+        self.assertGreaterEqual(created, 2)
+        self.assertTrue(workflow_notification.objects.filter(
+            ENQUIRY=record, recipient=self.executive[0], level='warning',
+        ).exists())
+        self.assertTrue(workflow_notification.objects.filter(
+            ENQUIRY=record, recipient=self.estimator[0], level='warning',
+        ).exists())
+        count = workflow_notification.objects.count()
+        ensure_quotation_deadline_notifications()
+        self.assertEqual(workflow_notification.objects.count(), count)
+
     def test_invalid_enquiry_preserves_submitted_values(self):
         self.sign_in_as(*self.executive)
         response = self.client.post(reverse('workflow_add_enquiry'), {
@@ -235,6 +309,7 @@ class WorkflowTests(TestCase):
             response = self.client.post(reverse('workflow_add_enquiry'), {
                 'title': 'Multi-file enquiry',
                 'client_name': 'Example Client',
+                'quotation_deadline': (timezone.now() + timedelta(days=10)).isoformat(),
                 'files': [
                     SimpleUploadedFile('scope.pdf', b'%PDF-1.4 test'),
                     SimpleUploadedFile('floor-plan.dxf', b'0\nSECTION\n0\nEOF\n'),
@@ -494,7 +569,11 @@ class MobileApiTests(TestCase):
         headers = self.api_headers(self.marketing[0])
         response = self.client.post(
             reverse('mobile_api:enquiries'),
-            {'title': 'New fit-out', 'client_name': 'Mobile Client', 'description': 'New request'},
+            {
+                'title': 'New fit-out', 'client_name': 'Mobile Client',
+                'description': 'New request',
+                'quotation_deadline': (timezone.now() + timedelta(days=10)).isoformat(),
+            },
             content_type='application/json', **headers,
         )
         self.assertEqual(response.status_code, 201)

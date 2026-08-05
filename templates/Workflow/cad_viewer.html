@@ -5,7 +5,7 @@
 <link href="{% static 'cad_viewer/cad-viewer.css' %}" rel="stylesheet">
 <style>
   .cad-viewer-card { overflow: hidden; }
-  .cad-viewer-shell { position: relative; height: min(74vh, 820px); min-height: 520px; background: #111827; }
+  .cad-viewer-shell { position: relative; height: min(74vh, 820px); min-height: 520px; background: #f8fafc; }
   .cad-viewer-help { font-size: .82rem; }
   @media (max-width: 768px) { .cad-viewer-shell { height: 68vh; min-height: 440px; } }
 </style>
@@ -43,4 +43,4 @@
 </div>
 {% endblock %}
 
-{% block extra_scripts %}<script type="module" src="{% static 'cad_viewer/cad-viewer.js' %}"></script>{% endblock %}
+{% block extra_scripts %}<script type="module" src="{% static 'cad_viewer/cad-viewer.js' %}?v=20260804-2"></script>{% endblock %}

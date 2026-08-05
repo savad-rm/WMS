@@ -19,9 +19,9 @@ export type Dashboard = {
 export type Enquiry = {
   id: number; title: string; client_name: string; client_email: string;
   client_phone: string; status: string; assigned_to: string | null;
-  created_at: string; updated_at: string; description?: string;
+  created_at: string; updated_at: string; quotation_deadline: string; description?: string;
   comments?: {id: number; author: string; comment: string; created_at: string}[];
-  quotations?: {id: number; version: number; amount: string; status: string; details: string}[];
+  quotations?: {id: number; version: number; quotation_number: string; revision: number; amount: string; status: string; details: string}[];
   attachments?: {id: number; name: string; url: string; is_cad: boolean}[];
   available_actions?: string[];
   estimators?: {id: number; name: string}[];

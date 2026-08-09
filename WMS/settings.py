@@ -101,17 +101,36 @@ WSGI_APPLICATION = 'WMS.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME':BASE_DIR /'db.sqlite3',
-        # 'NAME': 'wmscopy',
-        # 'USER':'root',
-        # 'PASSWORD':'',
-        # 'HOST':'localhost',
-        # 'PORT':'3306',
+DATABASE_ENGINE = os.environ.get('WMS_DB_ENGINE', 'sqlite').strip().lower()
+if DATABASE_ENGINE == 'sqlite':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': Path(os.environ.get('WMS_DB_NAME', BASE_DIR / 'db.sqlite3')),
+        }
     }
-}
+elif DATABASE_ENGINE == 'postgresql':
+    required_database_settings = ('WMS_DB_NAME', 'WMS_DB_USER', 'WMS_DB_PASSWORD', 'WMS_DB_HOST')
+    missing_database_settings = [name for name in required_database_settings if not os.environ.get(name)]
+    if missing_database_settings:
+        raise ImproperlyConfigured(
+            f'Missing PostgreSQL settings: {", ".join(missing_database_settings)}'
+        )
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ['WMS_DB_NAME'],
+            'USER': os.environ['WMS_DB_USER'],
+            'PASSWORD': os.environ['WMS_DB_PASSWORD'],
+            'HOST': os.environ['WMS_DB_HOST'],
+            'PORT': os.environ.get('WMS_DB_PORT', '5432'),
+            'CONN_MAX_AGE': int(os.environ.get('WMS_DB_CONN_MAX_AGE', '60')),
+            'CONN_HEALTH_CHECKS': True,
+            'OPTIONS': {'sslmode': os.environ.get('WMS_DB_SSLMODE', 'require')},
+        }
+    }
+else:
+    raise ImproperlyConfigured('WMS_DB_ENGINE must be sqlite or postgresql.')
 
 
 # Password validation
@@ -159,6 +178,12 @@ MEDIA_ROOT =os.path.join(BASE_DIR,'media')
 MEDIA_URL ='/media/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+# Backups are deliberately stored outside the code and upload directories.
+# The command is scheduled by the operating system or cloud scheduler so web
+# worker scaling can never create duplicate backup jobs.
+WMS_BACKUP_ROOT = os.environ.get('WMS_BACKUP_ROOT', str(BASE_DIR.parent / 'wms_backups'))
+WMS_BACKUP_RETENTION_DAYS = int(os.environ.get('WMS_BACKUP_RETENTION_DAYS', '30'))
+
 DATA_UPLOAD_MAX_MEMORY_SIZE = 25 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
@@ -169,6 +194,13 @@ SECURE_SSL_REDIRECT = os.environ.get('WMS_SECURE_SSL_REDIRECT', 'false').lower()
 SECURE_HSTS_SECONDS = int(os.environ.get('WMS_SECURE_HSTS_SECONDS', '0'))
 SECURE_HSTS_INCLUDE_SUBDOMAINS = SECURE_HSTS_SECONDS > 0
 SECURE_HSTS_PRELOAD = SECURE_HSTS_SECONDS > 0
+if os.environ.get('WMS_BEHIND_HTTPS_PROXY', 'false').lower() in ('1', 'true', 'yes'):
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get('WMS_CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
+]
 
 
 

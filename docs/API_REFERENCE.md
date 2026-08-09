@@ -23,7 +23,7 @@ Error envelope:
 | GET | `me/` | Current account/staff profile | Authenticated |
 | PATCH | `me/` | Change password using `current_password`, `new_password` | Authenticated |
 
-Login payload: `{"email":"employee@example.com","password":"secret"}`.
+Login payload: `{"username":"firstname.lastname","password":"secret"}`. The legacy `email` request key remains accepted for already-released mobile clients, but it contains the account login identifier rather than necessarily being an email address.
 
 ## Dashboard and projects
 

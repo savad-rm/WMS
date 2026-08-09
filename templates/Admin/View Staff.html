@@ -7,16 +7,16 @@
 <form method="post" action="{% url 'search_staff' %}" class="d-flex gap-2 justify-content-end mb-3">{% csrf_token %}<input type="search" name="text" placeholder="Enter name here..." class="form-control" style="max-width:320px"><button type="submit" class="btn btn-outline-info">Search</button></form>
 <div class="table-responsive">
   <table class="table table-striped align-middle">
-    <thead><tr style="background-color:#00a0dc;color:white"><th>Sl.No</th><th>Name</th><th>DOB</th><th>Phone</th><th>Photo</th><th>Email</th><th>Address</th><th>Contact (Home)</th><th>Designation</th><th>Actions</th></tr></thead>
+    <thead><tr style="background-color:#00a0dc;color:white"><th>Sl.No</th><th>Name</th><th>Username</th><th>DOB</th><th>Phone</th><th>Photo</th><th>Email</th><th>Address</th><th>Contact (Home)</th><th>Designation</th><th>Actions</th></tr></thead>
     <tbody>
     {% for i in data %}
       <tr>
-        <td>{{ forloop.counter }}</td><td>{{ i.name }}</td><td>{{ i.dob }}</td><td>{{ i.phone }}</td>
+        <td>{{ forloop.counter }}</td><td>{{ i.name }}</td><td>{{ i.LOGIN.username }}</td><td>{{ i.dob }}</td><td>{{ i.phone }}</td>
         <td>{% if i.photo %}<img src="{{ i.photo }}" height="64" width="64" alt="{{ i.name }}" class="rounded object-fit-cover">{% else %}<span class="text-muted">No photo</span>{% endif %}</td>
         <td>{{ i.email }}</td><td>{{ i.place }}<br>{{ i.nation }}</td><td>{{ i.phone2|default:'-' }}</td><td>{{ i.designation }}</td>
         <td><div class="d-flex gap-1"><a href="{% url 'Edit_staff' i.id %}" class="btn btn-primary btn-sm">Edit</a><form method="post" action="{% url 'Delete_staff' i.id i.LOGIN.id %}" onsubmit="return confirm('Are you sure you want to delete this staff user?')">{% csrf_token %}<button class="btn btn-danger btn-sm" type="submit">Delete</button></form></div></td>
       </tr>
-    {% empty %}<tr><td colspan="10" class="text-center text-muted py-4">No staff found.</td></tr>{% endfor %}
+    {% empty %}<tr><td colspan="11" class="text-center text-muted py-4">No staff found.</td></tr>{% endfor %}
     </tbody>
   </table>
 </div>

@@ -17,6 +17,18 @@
       <td width="70">Name</td>
       <td width="218"><input type="text" name="name" id="textfield" value="{{ data.name }}" class="form-control"/></td>
     </tr>
+    <tr>
+      <td>Username</td>
+      <td><input type="text" name="username" value="{{ data.LOGIN.username }}" class="form-control" maxlength="254" autocomplete="username" autocapitalize="none" required/><small class="text-muted">Changing this changes the staff member's login ID. New IDs use 3–50 lowercase letters, numbers, dots, underscores or hyphens.</small></td>
+    </tr>
+    <tr>
+      <td>Reset Password</td>
+      <td><input type="password" name="password" class="form-control" minlength="8" autocomplete="new-password"/><small class="text-muted">Leave blank to keep the current password. A reset signs out mobile sessions.</small></td>
+    </tr>
+    <tr>
+      <td>Confirm Password</td>
+      <td><input type="password" name="password_confirmation" class="form-control" minlength="8" autocomplete="new-password"/></td>
+    </tr>
 {#    <tr>#}
 {#      <td>Gender</td>#}
 {#      <td>#}

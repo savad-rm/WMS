@@ -9,8 +9,23 @@
     <tr>
       <td width="70" style="background-color: #00a0dc;color: white" >Name</td>
       <td width="218">
-        <input type="text" name="name" id="textfield" class="form-control" value="{{ form_data.name|default:'' }}" required=""/>
+        <input type="text" name="name" id="staff-name" class="form-control" value="{{ form_data.name|default:'' }}" required=""/>
       </td>
+    </tr>
+    <tr>
+      <td style="background-color: #00a0dc;color: white">Username</td>
+      <td>
+        <input type="text" name="username" id="staff-username" class="form-control" value="{{ form_data.username|default:'' }}" minlength="3" maxlength="50" pattern="[a-z0-9][a-z0-9._-]{2,49}" autocomplete="username" autocapitalize="none" required/>
+        <small class="text-muted">Permanent login ID, for example <strong>firstname.lastname</strong>. It does not change when the email changes.</small>
+      </td>
+    </tr>
+    <tr>
+      <td style="background-color: #00a0dc;color: white">Password</td>
+      <td><input type="password" name="password" class="form-control" minlength="8" autocomplete="new-password" required/><small class="text-muted">Use at least 8 characters; avoid common or numeric-only passwords.</small></td>
+    </tr>
+    <tr>
+      <td style="background-color: #00a0dc;color: white">Confirm Password</td>
+      <td><input type="password" name="password_confirmation" class="form-control" minlength="8" autocomplete="new-password" required/></td>
     </tr>
     <tr >
       <td style="background-color: #00a0dc;color: white">DOB</td>
@@ -55,6 +70,19 @@
     </tr>
   </table>
 </form>
+<script>
+  (() => {
+    const name = document.getElementById('staff-name');
+    const username = document.getElementById('staff-username');
+    let manuallyEdited = Boolean(username.value);
+    username.addEventListener('input', () => { manuallyEdited = true; });
+    name.addEventListener('input', () => {
+      if (manuallyEdited) return;
+      username.value = name.value.toLowerCase().trim()
+        .replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '').slice(0, 50);
+    });
+  })();
+</script>
 {% endblock %}
 {#</body>#}
 {#</html>#}

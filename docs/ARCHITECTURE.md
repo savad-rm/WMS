@@ -35,7 +35,7 @@ flowchart TB
 
 ## Authentication
 
-1. Client submits email/password over HTTPS.
+1. Client submits username/password over HTTPS. Legacy email-based usernames remain accepted during transition.
 2. Server verifies the Django password hash and returns a timestamped signed token containing account ID and token version.
 3. SecureStore uses Android Keystore or iOS Keychain storage.
 4. Every request validates signature, age, account, and token version.

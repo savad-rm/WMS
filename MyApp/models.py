@@ -11,6 +11,10 @@ def _is_cad_file(file_name):
 # Create your models here.
 
 class login(models.Model):
+    # Historical migration state calls this an EmailField, but its database
+    # representation is a VARCHAR and the application now treats it as a stable
+    # username. Keep the field declaration migration-compatible until the
+    # Flyway-managed schema/state transition is scheduled.
     username=models.EmailField(max_length=254, unique=True)
     password=models.CharField(max_length=128)
     usertype=models.CharField(max_length=50)

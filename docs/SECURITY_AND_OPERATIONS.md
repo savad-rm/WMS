@@ -28,6 +28,7 @@ Capture request ID, timestamp, route, method, status, latency, authenticated acc
 ## Backup and recovery
 
 - Back up database and media together so references remain consistent.
+- Schedule `manage.py backup_wms`; each completed set includes checksums and a manifest and must be copied to encrypted off-site storage.
 - Define recovery-point and recovery-time objectives with the business owner.
 - Keep off-site encrypted copies and test restoration on a schedule.
 - Before migrations, create a labeled backup and record its checksum/location.

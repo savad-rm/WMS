@@ -78,7 +78,8 @@ def _user_payload(account):
     person = _person(account)
     return {
         'id': account.pk,
-        'email': account.username,
+        'username': account.username,
+        'email': person.email if person else '',
         'role': account.usertype,
         'staff_id': person.pk if person else None,
         'name': person.name if person else account.username,
@@ -196,11 +197,15 @@ class LoginView(APIView):
     throttle_classes = (LoginThrottle,)
 
     def post(self, request):
-        email = str(request.data.get('email', '')).strip()
+        # Keep accepting the legacy ``email`` key so already-installed mobile
+        # clients continue to work while new clients send ``username``.
+        username = str(
+            request.data.get('username') or request.data.get('email') or ''
+        ).strip().lower()
         password = str(request.data.get('password', ''))
-        account = login.objects.filter(username__iexact=email).first()
+        account = login.objects.filter(username__iexact=username).first()
         if not account or not check_password(password, account.password):
-            raise ValidationError({'credentials': ['Invalid email or password.']})
+            raise ValidationError({'credentials': ['Invalid username or password.']})
         return Response({'token': issue_token(account), 'user': _user_payload(account)})
 
 

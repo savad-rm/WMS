@@ -18,14 +18,12 @@
 1. Announce maintenance/risk window and identify rollback owner.
 2. Back up the database and `media/`; verify backup readability.
 3. Deploy application code and install `requirements.txt` into the WMS virtual environment.
-4. Run:
+4. Have the Flyway team apply the approved schema SQL and record its version, then run:
 
 ```powershell
 ..venv\Scripts\python.exe manage.py check
 ..venv\Scripts\python.exe manage.py makemigrations --check --dry-run
 ..venv\Scripts\python.exe manage.py test
-..venv\Scripts\python.exe manage.py migrate --plan
-..venv\Scripts\python.exe manage.py migrate
 ..venv\Scripts\python.exe manage.py collectstatic --noinput
 ..venv\Scripts\python.exe manage.py check --deploy
 ```
@@ -49,6 +47,8 @@
 - Backend code: redeploy the prior artifact only if its migrations are forward-compatible.
 - Database: never reverse a data migration blindly. Restore the verified backup when a destructive migration cannot safely reverse.
 - Record incident timeline, affected versions, decision owner, and follow-up actions.
+
+Use [Current firm deployment](CURRENT_FIRM_DEPLOYMENT_GUIDE.md) for the complete production procedure and [Commercial multi-client deployment](COMMERCIAL_MULTI_TENANT_DEPLOYMENT_GUIDE.md) for customer isolation and productization.
 
 ## Post-release evidence
 

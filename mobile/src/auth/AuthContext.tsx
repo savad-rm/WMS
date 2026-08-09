@@ -4,7 +4,7 @@ import {User} from '../types';
 
 type AuthState = {
   user: User | null; loading: boolean;
-  signIn(email: string, password: string): Promise<void>;
+  signIn(username: string, password: string): Promise<void>;
   signOut(): Promise<void>;
 };
 
@@ -31,9 +31,9 @@ export function AuthProvider({children}: React.PropsWithChildren) {
 
   const value = useMemo<AuthState>(() => ({
     user, loading,
-    signIn: async (email, password) => {
+    signIn: async (username, password) => {
       const response = await apiFetch<{token: string; user: User}>('/auth/login/', {
-        method: 'POST', body: JSON.stringify({email, password}),
+        method: 'POST', body: JSON.stringify({username, password}),
       });
       await tokenStore.set(response.token);
       setUser(response.user);

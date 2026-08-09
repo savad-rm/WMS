@@ -41,7 +41,7 @@ mobile/
 
 ## User operation
 
-1. Sign in with the web WMS email/password.
+1. Sign in with the same WMS username/password used on the web application.
 2. Home reflects the signed-in role and accessible records.
 3. Projects are filtered by allocation for site roles.
 4. Supervisor uses **Add site update** for progress, material, and worker entries.

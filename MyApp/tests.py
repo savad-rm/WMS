@@ -1,11 +1,17 @@
+import json
+import sqlite3
+import tarfile
 import tempfile
+from contextlib import closing
 from io import BytesIO
 from datetime import timedelta
+from pathlib import Path
 
 from django.db import IntegrityError, transaction
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import Client, TestCase
+from django.core.management import call_command
+from django.test import Client, TestCase, TransactionTestCase
 from django.urls import reverse
 from django.utils import timezone
 
@@ -352,12 +358,50 @@ class WorkflowTests(TestCase):
         response = self.client.post(reverse('Add_staff_post'), {
             'name': 'Qatar Engineer', 'dob': '1990-01-01', 'phone': '+974 5512 3456',
             'email': 'qatar.engineer@example.com', 'place': 'Doha', 'nation': 'Qatar',
-            'phone2': '', 'designation': 'Project Engineer',
+            'phone2': '', 'designation': 'Project Engineer', 'username': 'qatar.engineer',
+            'password': 'SecurePass123!', 'password_confirmation': 'SecurePass123!',
         })
         self.assertRedirects(response, reverse('View_Staff'), fetch_redirect_response=False)
         person = staff.objects.get(email='qatar.engineer@example.com')
         self.assertEqual(person.phone, '+97455123456')
         self.assertEqual(person.designation, 'Project Engineer')
+        self.assertEqual(person.LOGIN.username, 'qatar.engineer')
+        self.assertTrue(check_password('SecurePass123!', person.LOGIN.password))
+        web_login = self.client.post(reverse('login_post'), {
+            'username': 'qatar.engineer', 'password': 'SecurePass123!',
+        })
+        self.assertRedirects(web_login, reverse('PMHome'), fetch_redirect_response=False)
+        mobile_login = self.client.post(
+            reverse('mobile_api:login'),
+            {'username': 'qatar.engineer', 'password': 'SecurePass123!'},
+            content_type='application/json',
+        )
+        self.assertEqual(mobile_login.status_code, 200)
+        self.assertEqual(mobile_login.json()['user']['username'], 'qatar.engineer')
+        self.assertEqual(mobile_login.json()['user']['email'], 'qatar.engineer@example.com')
+
+    def test_admin_can_change_username_and_reset_password_securely(self):
+        admin = login.objects.create(username='staff-admin@example.com', password='x', usertype='Admin')
+        account, person = self.create_user('Project Engineer', 28)
+        session = self.client.session
+        session['lid'] = admin.pk
+        session['role'] = 'Admin'
+        session.save()
+
+        response = self.client.post(reverse('Edit_staff_post'), {
+            'sid': person.pk, 'name': person.name, 'dob': person.dob,
+            'phone': person.phone, 'email': person.email, 'place': person.place,
+            'nation': person.nation, 'phone2': person.phone2,
+            'designation': person.designation, 'username': 'project.engineer',
+            'password': 'NewSecurePass123!',
+            'password_confirmation': 'NewSecurePass123!',
+        })
+
+        self.assertRedirects(response, reverse('View_Staff'), fetch_redirect_response=False)
+        account.refresh_from_db()
+        self.assertEqual(account.username, 'project.engineer')
+        self.assertTrue(check_password('NewSecurePass123!', account.password))
+        self.assertEqual(account.api_token_version, 1)
 
     def test_cad_viewer_and_file_are_private_to_authorized_users(self):
         with tempfile.TemporaryDirectory() as media_root, self.settings(MEDIA_ROOT=media_root):
@@ -763,3 +807,28 @@ class MobileApiTests(TestCase):
             content_type='application/json', **headers,
         )
         self.assertEqual(response.status_code, 201)
+
+
+class BackupCommandTests(TransactionTestCase):
+    def test_sqlite_database_and_media_backup_include_verified_manifest(self):
+        with tempfile.TemporaryDirectory() as temporary_root:
+            temporary_root = Path(temporary_root)
+            media_root = temporary_root / 'media-source'
+            backup_root = temporary_root / 'backup-target'
+            media_root.mkdir()
+            (media_root / 'drawing.dwg').write_bytes(b'local-drawing')
+
+            with self.settings(MEDIA_ROOT=media_root, WMS_BACKUP_ROOT=backup_root):
+                call_command('backup_wms', verbosity=0)
+
+            backup_sets = [path for path in backup_root.iterdir() if path.is_dir()]
+            self.assertEqual(len(backup_sets), 1)
+            manifest = json.loads((backup_sets[0] / 'manifest.json').read_text(encoding='utf-8'))
+            self.assertEqual(manifest['database_engine'], 'sqlite')
+            self.assertIn('database.sqlite3', manifest['files'])
+            self.assertIn('media.tar.gz', manifest['files'])
+            self.assertEqual(len(manifest['files']['database.sqlite3']['sha256']), 64)
+            with closing(sqlite3.connect(backup_sets[0] / 'database.sqlite3')) as database:
+                self.assertEqual(database.execute('PRAGMA integrity_check').fetchone()[0], 'ok')
+            with tarfile.open(backup_sets[0] / 'media.tar.gz', 'r:gz') as archive:
+                self.assertEqual(archive.extractfile('media/drawing.dwg').read(), b'local-drawing')

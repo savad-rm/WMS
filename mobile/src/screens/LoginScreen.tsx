@@ -6,23 +6,23 @@ import {colors, spacing} from '../theme';
 
 export function LoginScreen() {
   const {signIn} = useAuth();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const submit = async () => {
     setLoading(true); setError('');
-    try { await signIn(email.trim(), password); }
+    try { await signIn(username.trim(), password); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Sign in failed.'); }
     finally { setLoading(false); }
   };
   return <SafeAreaView style={styles.screen}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.center}>
     <View style={styles.brand}><View style={styles.logo}><Text style={styles.logoText}>W</Text></View><Text style={styles.title}>WMS Mobile</Text><Text style={styles.subtitle}>Projects, people and site operations in one place.</Text></View>
     <View style={styles.form}>
-      <Field label="Work email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
+      <Field label="Username" value={username} onChangeText={setUsername} autoCapitalize="none" autoComplete="username" />
       <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" />
       {!!error && <Text style={styles.error}>{error}</Text>}
-      <Button title="Sign in" onPress={submit} loading={loading} disabled={!email || !password} />
+      <Button title="Sign in" onPress={submit} loading={loading} disabled={!username || !password} />
       <Text style={styles.help}>Use the same account as the WMS web application.</Text>
     </View>
   </KeyboardAvoidingView></SafeAreaView>;

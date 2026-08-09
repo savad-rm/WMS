@@ -51,7 +51,7 @@ License URL: http://creativecommons.org/licenses/by/3.0/
                     {% csrf_token %}
 					<div class="icon1">
 						<span class="fa fa-user"></span>
-						<input type="email" name="username" value="{{ username|default:'' }}" placeholder="User Name" required=""/>
+						<input type="text" name="username" value="{{ username|default:'' }}" placeholder="Username" autocomplete="username" autocapitalize="none" required=""/>
 					</div>
 					<div class="icon1">
 						<span class="fa fa-lock"></span>

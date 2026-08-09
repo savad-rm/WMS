@@ -1,0 +1,18 @@
+[Unit]
+Description=WMS database and media backup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=wms
+Group=wms
+WorkingDirectory=/srv/wms/app
+EnvironmentFile=/etc/wms/wms.env
+ExecStart=/srv/wms/venv/bin/python manage.py backup_wms
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+[Install]
+WantedBy=multi-user.target

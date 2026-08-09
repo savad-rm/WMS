@@ -4,11 +4,13 @@ from django.conf import settings
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.hashers import check_password, make_password
+from django.contrib.auth.password_validation import validate_password
 from django.contrib import messages
 from django.db import IntegrityError, transaction as db_transaction
 from django.views.decorators.http import require_GET, require_POST
 from io import BytesIO
 from itertools import zip_longest
+import re
 from MyApp.middleware import legacy_role_required
 from MyApp.boq_tools import (
     BOQImportError,
@@ -58,6 +60,27 @@ STAFF_DESIGNATIONS = (
     'Accountant', 'Purchaser', 'Marketing Executive', 'Marketing Manager',
     'Estimator', 'Document Controller',
 )
+
+USERNAME_PATTERN = re.compile(r'^[a-z0-9][a-z0-9._-]{2,49}$')
+
+
+def _normalise_username(value):
+    username = value.strip().lower()
+    if not USERNAME_PATTERN.fullmatch(username):
+        raise ValidationError(
+            'Username must be 3 to 50 characters and use only lowercase letters, '
+            'numbers, dots, underscores or hyphens.'
+        )
+    return username
+
+
+def _validate_new_password(password, confirmation):
+    if password != confirmation:
+        raise ValidationError('Password and confirmation do not match.')
+    try:
+        validate_password(password)
+    except ValidationError as exc:
+        raise ValidationError(' '.join(exc.messages)) from exc
 
 
 def _normalise_phone(value, label='Mobile number'):
@@ -131,7 +154,7 @@ def login_post(request):
     password=request.POST['password']
     d=login.objects.filter(username__iexact=name).first()
     if not _password_matches(d, password):
-        messages.error(request, 'Invalid email address or password.')
+        messages.error(request, 'Invalid username or password.')
         return render(request, 'login.html', {'username': name}, status=400)
     if d.password == password:
         d.password = make_password(password)
@@ -278,10 +301,15 @@ def Add_staff_post(request):
     nation = request.POST['nation']
     phone2 = request.POST['phone2']
     designation = request.POST['designation']
+    username = request.POST.get('username', '')
+    password = request.POST.get('password', '')
+    password_confirmation = request.POST.get('password_confirmation', '')
 
     from datetime import datetime
     form_context = {'form_data': request.POST, 'designations': STAFF_DESIGNATIONS}
     try:
+        username = _normalise_username(username)
+        _validate_new_password(password, password_confirmation)
         phone = _normalise_phone(phone)
         phone2 = _normalise_phone(phone2, 'Home contact') if phone2.strip() else ''
     except ValidationError as exc:
@@ -292,9 +320,13 @@ def Add_staff_post(request):
         return render(request, 'Admin/Add Staff.html', {
             **form_context, 'error': 'Select a valid staff role.',
         }, status=400)
-    if login.objects.filter(username__iexact=email).exists() or staff.objects.filter(email__iexact=email).exists():
+    if login.objects.filter(username__iexact=username).exists():
         return render(request, 'Admin/Add Staff.html', {
-            **form_context, 'error': 'A staff user with this email already exists.',
+            **form_context, 'error': 'This username is already in use.',
+        }, status=400)
+    if staff.objects.filter(email__iexact=email).exists():
+        return render(request, 'Admin/Add Staff.html', {
+            **form_context, 'error': 'A staff profile with this email already exists.',
         }, status=400)
     fs = FileSystemStorage()
     photo_url = ''
@@ -304,14 +336,16 @@ def Add_staff_post(request):
         photo_url=fs.url(saved_name)
     try:
         with db_transaction.atomic():
-            lobj = login.objects.create(username=email, password=make_password(phone), usertype=designation)
+            lobj = login.objects.create(
+                username=username, password=make_password(password), usertype=designation,
+            )
             staff.objects.create(
                 LOGIN=lobj, name=name, dob=dob, phone=phone, email=email, photo=photo_url,
                 place=place, nation=nation, phone2=phone2, designation=designation,
             )
     except IntegrityError:
         return render(request, 'Admin/Add Staff.html', {
-            **form_context, 'error': 'A staff user with this email already exists.',
+            **form_context, 'error': 'The username or email is already in use.',
         }, status=400)
     messages.success(request, 'Staff added successfully.')
     return redirect('View_Staff')
@@ -393,8 +427,19 @@ def Edit_staff_post(request):
     nation = request.POST['nation']
     phone2 = request.POST['phone2']
     designation = request.POST['designation']
+    username = request.POST.get('username', '')
+    new_password = request.POST.get('password', '')
+    password_confirmation = request.POST.get('password_confirmation', '')
     current_staff = staff.objects.select_related('LOGIN').get(pk=sid)
     try:
+        # Legacy accounts may still use an email address as their username. They
+        # remain valid until an administrator deliberately assigns a modern ID.
+        if username.strip().lower() == current_staff.LOGIN.username.lower():
+            username = current_staff.LOGIN.username
+        else:
+            username = _normalise_username(username)
+        if new_password or password_confirmation:
+            _validate_new_password(new_password, password_confirmation)
         phone = _normalise_phone(phone)
         phone2 = _normalise_phone(phone2, 'Home contact') if phone2.strip() else ''
     except ValidationError as exc:
@@ -403,8 +448,11 @@ def Edit_staff_post(request):
     if designation not in STAFF_DESIGNATIONS:
         messages.error(request, 'Select a valid staff role.')
         return redirect('Edit_staff', id=sid)
-    if staff.objects.filter(email__iexact=email).exclude(pk=sid).exists() or login.objects.filter(username__iexact=email).exclude(pk=current_staff.LOGIN_id).exists():
-        messages.error(request, 'A staff user with this email already exists.')
+    if login.objects.filter(username__iexact=username).exclude(pk=current_staff.LOGIN_id).exists():
+        messages.error(request, 'This username is already in use.')
+        return redirect('Edit_staff', id=sid)
+    if staff.objects.filter(email__iexact=email).exclude(pk=sid).exists():
+        messages.error(request, 'A staff profile with this email already exists.')
         return redirect('Edit_staff', id=sid)
     updates = dict(name=name, dob=dob, phone=phone, email=email, place=place,
                    phone2=phone2, nation=nation, designation=designation)
@@ -417,7 +465,13 @@ def Edit_staff_post(request):
         updates['photo'] = fs.url(fn)
     with db_transaction.atomic():
         staff.objects.filter(id=sid).update(**updates)
-        login.objects.filter(pk=current_staff.LOGIN_id).update(username=email, usertype=designation)
+        account_updates = {'username': username, 'usertype': designation}
+        if new_password:
+            account_updates.update({
+                'password': make_password(new_password),
+                'api_token_version': current_staff.LOGIN.api_token_version + 1,
+            })
+        login.objects.filter(pk=current_staff.LOGIN_id).update(**account_updates)
     messages.success(request, 'Staff updated successfully.')
     return redirect('View_Staff')
 

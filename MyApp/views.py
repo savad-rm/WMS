@@ -1,13 +1,21 @@
 from django.core.files.storage import FileSystemStorage
 from django.core.exceptions import ValidationError
-from django.http import HttpResponse, JsonResponse
-from django.shortcuts import render, redirect
+from django.conf import settings
+from django.http import FileResponse, HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.hashers import check_password, make_password
 from django.contrib import messages
 from django.db import IntegrityError, transaction as db_transaction
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
+from io import BytesIO
 from itertools import zip_longest
 from MyApp.middleware import legacy_role_required
+from MyApp.boq_tools import (
+    BOQImportError,
+    build_work_packages,
+    parse_boq_upload,
+    suggest_material,
+)
 
 from MyApp.models import (
     account_sub,
@@ -1247,6 +1255,278 @@ def Project_list_data(request, id, data_type):
     return JsonResponse({'rows': [{
         'category': item.category, 'work': item.workname,
     } for item in scope_rows]})
+
+
+def _boq_session_key(project_id):
+    return f'boq_planning_{project_id}'
+
+
+def _planning_project(request, project_id):
+    """Resolve a planning project while respecting the legacy allocation model."""
+    selected = get_object_or_404(project, pk=project_id)
+    if request.session.get('role') == 'Operation Manager':
+        return selected
+    if not project_manager_allocation.objects.filter(
+        PROJECT=selected, STAFF_id=request.session.get('sid')
+    ).exists():
+        return None
+    return selected
+
+
+def _boq_context(request, selected):
+    draft = request.session.get(_boq_session_key(selected.pk), {})
+    rows = draft.get('rows', [])
+    materials = list(material.objects.all().order_by('name'))
+    for row in rows:
+        suggestion = suggest_material(row['description'], materials)
+        row['suggested_material_id'] = suggestion.id if suggestion else ''
+        row['suggested_material_name'] = suggestion.name if suggestion else ''
+    return {
+        'data': selected,
+        'draft': draft,
+        'boq_rows': rows,
+        'work_packages': build_work_packages(rows) if rows else [],
+        'materials': materials,
+    }
+
+
+@legacy_role_required('Project Manager')
+def BOQ_planning(request, id):
+    selected = _planning_project(request, id)
+    if selected is None:
+        return HttpResponse('You are not allocated to this project.', status=403)
+    return render(request, 'Project Manager/BOQ Planning.html', _boq_context(request, selected))
+
+
+@require_POST
+@legacy_role_required('Project Manager')
+def BOQ_import(request, id):
+    selected = _planning_project(request, id)
+    if selected is None:
+        return HttpResponse('You are not allocated to this project.', status=403)
+    upload = request.FILES.get('boq_file')
+    source_type = request.POST.get('source_type', 'boq')
+    if source_type not in ('boq', 'drawing'):
+        source_type = 'boq'
+    if not upload:
+        messages.error(request, 'Select an Excel or CSV file to continue.')
+        return redirect('BOQ_planning', id=selected.pk)
+    if upload.size > 10 * 1024 * 1024:
+        messages.error(request, 'The uploaded file must not exceed 10 MB.')
+        return redirect('BOQ_planning', id=selected.pk)
+    try:
+        rows = parse_boq_upload(upload)
+    except BOQImportError as exc:
+        messages.error(request, str(exc))
+        return redirect('BOQ_planning', id=selected.pk)
+    request.session[_boq_session_key(selected.pk)] = {
+        'rows': rows,
+        'source_type': source_type,
+        'source_name': upload.name[:180],
+    }
+    request.session.modified = True
+    label = 'drawing measurement schedule' if source_type == 'drawing' else 'BOQ'
+    messages.success(request, f'{len(rows)} measurable row(s) imported from the {label}. Review them before saving.')
+    return redirect('BOQ_planning', id=selected.pk)
+
+
+@require_POST
+@legacy_role_required('Project Manager')
+def BOQ_clear(request, id):
+    selected = _planning_project(request, id)
+    if selected is None:
+        return HttpResponse('You are not allocated to this project.', status=403)
+    request.session.pop(_boq_session_key(selected.pk), None)
+    request.session.modified = True
+    messages.success(request, 'The imported planning draft was cleared. No project data was changed.')
+    return redirect('BOQ_planning', id=selected.pk)
+
+
+@require_POST
+@legacy_role_required('Project Manager')
+@db_transaction.atomic
+def BOQ_save_materials(request, id):
+    selected = _planning_project(request, id)
+    if selected is None:
+        return HttpResponse('You are not allocated to this project.', status=403)
+    draft = request.session.get(_boq_session_key(selected.pk), {})
+    rows = draft.get('rows', [])
+    if not rows:
+        messages.error(request, 'Import a BOQ before preparing the material list.')
+        return redirect('BOQ_planning', id=selected.pk)
+
+    selected_indices = {int(value) for value in request.POST.getlist('include_row') if value.isdigit()}
+    material_ids = request.POST.getlist('material_id')
+    names = request.POST.getlist('new_material_name')
+    units = request.POST.getlist('material_unit')
+    quantities = request.POST.getlist('material_quantity')
+    prices = request.POST.getlist('material_price')
+    if not all(len(values) == len(rows) for values in (material_ids, names, units, quantities, prices)):
+        messages.error(request, 'Material review data is incomplete. Please review the rows again.')
+        return redirect('BOQ_planning', id=selected.pk)
+
+    validated = []
+    for index, source in enumerate(rows):
+        if index not in selected_indices:
+            continue
+        material_id = material_ids[index]
+        chosen = material.objects.filter(pk=material_id).first() if material_id else None
+        new_name = names[index].strip()[:40]
+        unit = units[index].strip()[:40]
+        if chosen is None:
+            if not new_name or not unit:
+                messages.error(request, f'Row {index + 1}: select a material or provide a new material name and unit.')
+                return redirect('BOQ_planning', id=selected.pk)
+        try:
+            quantity = float(quantities[index])
+            price = float(prices[index] or 0)
+            if quantity < 0 or price < 0:
+                raise ValueError
+        except ValueError:
+            messages.error(request, f'Row {index + 1}: material quantity and price must be valid non-negative numbers.')
+            return redirect('BOQ_planning', id=selected.pk)
+        validated.append((source, chosen, new_name, unit, quantity, price))
+    if not validated:
+        messages.error(request, 'Select at least one row for the material list.')
+        return redirect('BOQ_planning', id=selected.pk)
+
+    created = []
+    for source, chosen, new_name, unit, quantity, price in validated:
+        if chosen is None:
+            chosen = material.objects.filter(name__iexact=new_name).first()
+            if chosen is None:
+                chosen = material.objects.create(name=new_name, unit=unit)
+        created.append(material_required(
+            PROJECT=selected,
+            MATERIAL=chosen,
+            category=source['category'][:40],
+            quantity=f'{quantity:g}',
+            price=f'{price:g}',
+        ))
+    material_required.objects.bulk_create(created)
+    messages.success(request, f'{len(created)} reviewed material requirement(s) added to the project.')
+    return redirect('View_materials_required', id=selected.pk)
+
+
+def _posted_work_packages(request):
+    fields = ('package_title', 'package_scope', 'package_preparation', 'package_procedure',
+              'package_quality', 'package_safety', 'package_completion')
+    columns = [request.POST.getlist(field) for field in fields]
+    if not columns or any(len(column) != len(columns[0]) for column in columns):
+        return []
+    return [dict(zip((field.removeprefix('package_') for field in fields), values))
+            for values in zip(*columns)]
+
+
+@require_POST
+@legacy_role_required('Project Manager')
+@db_transaction.atomic
+def BOQ_save_work_order(request, id):
+    selected = _planning_project(request, id)
+    if selected is None:
+        return HttpResponse('You are not allocated to this project.', status=403)
+    packages = _posted_work_packages(request)
+    if not packages:
+        messages.error(request, 'No reviewed work-order packages were submitted.')
+        return redirect('BOQ_planning', id=selected.pk)
+    for package in packages:
+        title = package['title'].strip()
+        scope = package['scope'].strip()
+        if not title or not scope:
+            messages.error(request, 'Every work package requires a title and scope.')
+            return redirect('BOQ_planning', id=selected.pk)
+    created = 0
+    for package in packages:
+        title = package['title'].strip()
+        scope = package['scope'].strip()
+        work_name = scope.split(';', 1)[0].strip()[:40] or title[:40]
+        if not work.objects.filter(
+            PROJECT=selected, category=title[:40], workname=work_name
+        ).exists():
+            work.objects.create(PROJECT=selected, category=title[:40], workname=work_name)
+            created += 1
+    request.session[f'work_order_{selected.pk}'] = packages
+    request.session.modified = True
+    messages.success(request, f'Work order reviewed. {created} new scope item(s) added; the method statement is ready to download.')
+    return redirect('BOQ_planning', id=selected.pk)
+
+
+@require_GET
+@legacy_role_required('Project Manager')
+def BOQ_work_order_pdf(request, id):
+    selected = _planning_project(request, id)
+    if selected is None:
+        return HttpResponse('You are not allocated to this project.', status=403)
+    packages = request.session.get(f'work_order_{selected.pk}')
+    if not packages:
+        rows = request.session.get(_boq_session_key(selected.pk), {}).get('rows', [])
+        packages = build_work_packages(rows) if rows else []
+    if not packages:
+        messages.error(request, 'Import a BOQ before downloading the work order.')
+        return redirect('BOQ_planning', id=selected.pk)
+
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    output = BytesIO()
+    document = SimpleDocTemplate(output, pagesize=A4, rightMargin=18 * mm, leftMargin=18 * mm,
+                                 topMargin=16 * mm, bottomMargin=16 * mm)
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='DocumentTitle', parent=styles['Title'], fontName='Helvetica-Bold',
+                              fontSize=16, textColor=colors.HexColor('#012970'), alignment=TA_CENTER))
+    story = [Paragraph('WORK ORDER & METHOD STATEMENT', styles['DocumentTitle']), Spacer(1, 5 * mm)]
+    project_table = Table([
+        ['Project', selected.project_name], ['Project No.', selected.project_no],
+        ['Client', selected.client_name], ['Prepared from', 'Reviewed BOQ / measurement schedule'],
+    ], colWidths=[35 * mm, 125 * mm])
+    project_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'), ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9), ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d9e2f3')),
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f6f9ff')), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('PADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story.extend([project_table, Spacer(1, 7 * mm)])
+    labels = (('scope', 'Scope'), ('preparation', 'Preparation'), ('procedure', 'Method / Sequence'),
+              ('quality', 'Quality Control'), ('safety', 'Health, Safety & Environment'),
+              ('completion', 'Completion & Handover'))
+    for index, package in enumerate(packages, start=1):
+        if index > 1:
+            story.append(PageBreak())
+        story.append(Paragraph(f"{index}. {package['title']}", styles['Heading2']))
+        for key, label in labels:
+            story.append(Paragraph(label, styles['Heading4']))
+            story.append(Paragraph(package.get(key, '').replace('\n', '<br/>'), styles['BodyText']))
+            story.append(Spacer(1, 2 * mm))
+    def decorate_page(canvas, doc):
+        canvas.saveState()
+        canvas.setStrokeColor(colors.HexColor('#d9e2f3'))
+        canvas.line(18 * mm, 12 * mm, A4[0] - 18 * mm, 12 * mm)
+        canvas.setFont('Helvetica', 8)
+        canvas.setFillColor(colors.HexColor('#6c757d'))
+        canvas.drawString(18 * mm, 8 * mm, f'{selected.project_no} - Work Order & Method Statement')
+        canvas.drawRightString(A4[0] - 18 * mm, 8 * mm, f'Page {doc.page}')
+        canvas.restoreState()
+
+    document.build(story, onFirstPage=decorate_page, onLaterPages=decorate_page)
+    response = HttpResponse(output.getvalue(), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{selected.project_no}-work-order-method-statement.pdf"'
+    return response
+
+
+@require_GET
+@legacy_role_required('Project Manager')
+def BOQ_template(request):
+    template_path = settings.BASE_DIR / 'MyApp' / 'boq_templates' / 'WMS-BOQ-measurement-template.xlsx'
+    return FileResponse(
+        template_path.open('rb'),
+        as_attachment=True,
+        filename='WMS-BOQ-measurement-template.xlsx',
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
 
 def Change_password(request):
     return render(request,'Project Manager/Change Password.html')

@@ -73,20 +73,23 @@
         </form>
       </div>
       <div class="table-responsive">
-        <table class="table table-hover align-middle workflow-table">
-          <thead><tr><th>Title</th><th>Client</th><th>Assigned Estimator</th><th>Status</th><th>Updated</th><th>Action</th></tr></thead>
+        <table class="table table-hover align-middle workflow-table datatable">
+          <thead><tr><th>Client</th><th>QTN. No.</th><th>Date</th><th>Marketing Team</th><th>Internal Approval</th><th>Submittal Status</th><th>Remarks</th><th>Status</th><th>Action</th></tr></thead>
           <tbody>
             {% for item in enquiries %}
             <tr>
-              <td>{{ item.title }}</td>
               <td>{{ item.client_name }}</td>
-              <td>{{ item.assigned_to.name|default:'Not assigned' }}</td>
+              <td>{% if item.quotation_history %}{{ item.quotation_history.0.display_number }}{% else %}-{% endif %}</td>
+              <td>{% if item.quotation_history %}{{ item.quotation_history.0.issue_date|date:'d M Y' }}{% else %}{{ item.created_at|date:'d M Y' }}{% endif %}</td>
+              <td>{{ item.created_by.username }}</td>
+              <td>{% if item.quotation_history %}{{ item.quotation_history.0.get_status_display }}{% else %}Not submitted for approval{% endif %}</td>
+              <td>{% if item.quotation_history.0.status == 'submitted' or item.quotation_history.0.status == 'accepted' %}<span class="badge bg-success">Submitted</span>{% else %}<span class="badge bg-warning text-dark">Pending</span>{% endif %}</td>
+              <td class="text-truncate" style="max-width:220px" title="{{ item.description }}">{{ item.description|default:'-' }}</td>
               <td><span class="badge bg-primary">{{ item.get_status_display }}</span></td>
-              <td>{{ item.updated_at|date:'d M Y H:i' }}</td>
               <td><a class="btn btn-sm btn-outline-primary" href="{% url 'workflow_detail' item.id %}">View</a></td>
             </tr>
             {% empty %}
-            <tr><td colspan="6" class="text-center text-muted py-4">No enquiries are available for your role.</td></tr>
+            <tr><td colspan="9" class="text-center text-muted py-4">No enquiries are available for your role.</td></tr>
             {% endfor %}
           </tbody>
         </table>

@@ -102,7 +102,7 @@
         </a>
       </li>
       <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name != 'workflow_notifications' %}collapsed{% endif %}" href="{% url 'workflow_notifications' %}"><i class="bi bi-bell"></i><span>Deadline Alerts</span>{% if workflow_unread_count %}<span class="badge bg-primary ms-auto">{{ workflow_unread_count }}</span>{% endif %}</a></li>
-      {% if current_role == 'Marketing Executive' %}
+      {% if current_role == 'Marketing Executive' or current_role == 'Marketing Manager' %}
       <li class="nav-item">
         <a class="nav-link {% if request.resolver_match.url_name != 'workflow_add_enquiry' %}collapsed{% endif %}" href="{% url 'workflow_add_enquiry' %}">
           <i class="bi bi-folder-plus"></i><span>Add Enquiry</span>

@@ -27,6 +27,8 @@ coverage.xml
 htmlcov/
 *.log
 /tmp/
+/output/
+/outputs/
 
 # IDE and operating-system metadata.
 .idea/

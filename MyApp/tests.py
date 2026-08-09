@@ -1,4 +1,5 @@
 import tempfile
+from io import BytesIO
 from datetime import timedelta
 
 from django.db import IntegrityError, transaction
@@ -165,8 +166,10 @@ class WorkflowTests(TestCase):
             'material_cost': '100', 'labour_cost': '100', 'other_cost': '0',
         }
         self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), payload)
+        first = quotation.objects.get(ENQUIRY=record)
         payload['amount'] = '1250'
         payload['details'] = 'Revised scope'
+        payload['revision_of'] = str(first.pk)
         self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), payload)
         first, revision = quotation.objects.filter(ENQUIRY=record).order_by('version')
         self.assertRegex(first.quotation_number, r'^QTN/\d{4}/ETC/\d{2}/\d{2}$')
@@ -177,6 +180,7 @@ class WorkflowTests(TestCase):
             title='Next new enquiry', client_name='Client', created_by=self.executive[0],
             assigned_to=self.estimator[1], status='assigned',
         )
+        payload.pop('revision_of')
         self.client.post(reverse('workflow_add_quotation', args=(next_record.pk,)), payload)
         next_quote = quotation.objects.get(ENQUIRY=next_record)
         self.assertEqual(next_quote.sequence_number, first.sequence_number + 1)
@@ -205,6 +209,89 @@ class WorkflowTests(TestCase):
         pdf_bytes = b''.join(pdf.streaming_content)
         self.assertEqual(pdf.status_code, 200)
         self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+
+    def test_revision_requires_explicit_source_and_view_is_separate(self):
+        record = enquiry.objects.create(
+            title='Explicit revision', client_name='Client', created_by=self.executive[0],
+            assigned_to=self.estimator[1], status='assigned',
+        )
+        self.sign_in_as(*self.estimator)
+        payload = {
+            'amount': '1000', 'details': 'Initial scope',
+            'material_cost': '10', 'labour_cost': '10', 'other_cost': '0',
+        }
+        self.assertEqual(
+            self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), payload).status_code,
+            302,
+        )
+        first = quotation.objects.get(ENQUIRY=record)
+        detail = self.client.get(reverse('workflow_detail', args=(record.pk,)))
+        self.assertNotContains(detail, 'id="quotationForm"')
+        self.assertContains(detail, f'?revise={first.pk}#quotationForm')
+        self.assertEqual(
+            self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), payload).status_code,
+            400,
+        )
+        payload['revision_of'] = first.pk
+        self.assertEqual(
+            self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), payload).status_code,
+            302,
+        )
+        self.assertEqual(quotation.objects.filter(ENQUIRY=record).count(), 2)
+
+    def test_structured_rows_terms_view_comments_and_file_removal(self):
+        with tempfile.TemporaryDirectory() as media_root, self.settings(MEDIA_ROOT=media_root):
+            record = enquiry.objects.create(
+                title='Structured quotation', client_name='Client', created_by=self.executive[0],
+                assigned_to=self.estimator[1], status='assigned',
+            )
+            self.sign_in_as(*self.estimator)
+            response = self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), {
+                'row_type': ['section', 'subheading', 'item'],
+                'item_code': ['I', '', '1'],
+                'line_description': ['CIVIL WORKS', 'FLOORING', 'Supply **approved** tiles'],
+                'unit': ['', '', 'M2'], 'quantity': ['', '', '10'],
+                'unit_rate': ['', '', '25'],
+                'term_title': ['Scope of Work', 'Payment Terms'],
+                'term_body': ['Approved drawings', '50% advance'],
+                'file': SimpleUploadedFile('support.pdf', b'%PDF-1.4 quotation'),
+                'material_cost': '100', 'labour_cost': '50', 'other_cost': '0',
+            })
+            self.assertEqual(response.status_code, 302)
+            quote = quotation.objects.get(ENQUIRY=record)
+            self.assertEqual(quote.amount, 250)
+            view = self.client.get(reverse('workflow_view_quotation', args=(quote.pk,)))
+            self.assertContains(view, 'FLOORING')
+            self.assertContains(view, '<b>approved</b>', html=True)
+            self.assertContains(view, 'Sub-Total (QAR)')
+            self.assertEqual(self.client.post(
+                reverse('workflow_add_quotation_comment', args=(quote.pk,)),
+                {'comment': 'Please confirm the finish.'},
+            ).status_code, 302)
+            self.assertTrue(record.comments.filter(comment__contains='Please confirm').exists())
+            self.assertEqual(self.client.post(
+                reverse('workflow_remove_quotation_file', args=(quote.pk,))
+            ).status_code, 302)
+            quote.refresh_from_db()
+            self.assertFalse(quote.file)
+
+    def test_marketing_manager_can_add_enquiry_and_ajax_errors_do_not_redirect(self):
+        self.sign_in_as(*self.manager)
+        deadline = (timezone.now() + timedelta(days=10)).isoformat()
+        response = self.client.post(reverse('workflow_add_enquiry'), {
+            'title': 'Manager enquiry', 'client_name': 'Manager client',
+            'quotation_deadline': deadline,
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(enquiry.objects.filter(title='Manager enquiry').exists())
+        response = self.client.post(
+            reverse('workflow_add_enquiry'),
+            {'title': 'Keep entered value', 'client_name': ''},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()['ok'])
+        self.assertIn('client name', response.json()['error'])
 
     def test_deadline_notifications_are_related_and_deduplicated(self):
         record = enquiry.objects.create(
@@ -361,6 +448,9 @@ class BulkPlanningTests(TestCase):
         session.save()
         self.source = self.create_project('SRC-1', 'Source Project')
         self.target = self.create_project('DST-1', 'Target Project')
+        project_manager_allocation.objects.create(
+            PROJECT=self.target, STAFF=person, allocated_date='2026-07-01'
+        )
         self.cement = material.objects.create(name='Cement', unit='bag')
         self.paint = material.objects.create(name='Paint', unit='gallon')
 
@@ -450,6 +540,95 @@ class BulkPlanningTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(estimate.objects.filter(est_no='EST-001').count(), 2)
         self.assertTrue(estimate.objects.filter(PROJECT=self.target, est_no='EST-001').exists())
+
+    def test_structured_boq_import_generates_materials_work_order_and_pdf(self):
+        from openpyxl import Workbook
+
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append(('Category', 'Description', 'Unit', 'Quantity', 'Rate', 'Amount'))
+        sheet.append(('Painting', 'Paint finish coat', 'm2', 120, 4.5, 540))
+        sheet.append(('Electrical', 'Cable installation', 'm', 75, 8, 600))
+        content = BytesIO()
+        workbook.save(content)
+
+        response = self.client.post(reverse('BOQ_import', args=(self.target.pk,)), {
+            'source_type': 'boq',
+            'boq_file': SimpleUploadedFile(
+                'detailed-boq.xlsx', content.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ),
+        })
+        self.assertRedirects(response, reverse('BOQ_planning', args=(self.target.pk,)))
+        response = self.client.get(reverse('BOQ_planning', args=(self.target.pk,)))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context['boq_rows']), 2)
+        self.assertEqual(len(response.context['work_packages']), 2)
+
+        response = self.client.post(reverse('BOQ_save_materials', args=(self.target.pk,)), {
+            'include_row': ['0', '1'],
+            'material_id': [str(self.paint.pk), ''],
+            'new_material_name': ['', 'Electrical cable'],
+            'material_unit': ['gallon', 'm'],
+            'material_quantity': ['12', '78.75'],
+            'material_price': ['45', '8'],
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(material_required.objects.filter(PROJECT=self.target).count(), 2)
+        self.assertTrue(material.objects.filter(name='Electrical cable', unit='m').exists())
+
+        package_data = {
+            'package_title': ['Painting and coatings'],
+            'package_scope': ['Paint finish coat'],
+            'package_preparation': ['Review approved finishes and protect adjacent work.'],
+            'package_procedure': ['Prepare, prime and apply the specified coats.'],
+            'package_quality': ['Inspect coverage and finish.'],
+            'package_safety': ['Use PPE and maintain ventilation.'],
+            'package_completion': ['Protect, snag and hand over.'],
+        }
+        response = self.client.post(reverse('BOQ_save_work_order', args=(self.target.pk,)), package_data)
+        self.assertRedirects(response, reverse('BOQ_planning', args=(self.target.pk,)))
+        self.assertTrue(work.objects.filter(PROJECT=self.target, category='Painting and coatings').exists())
+        response = self.client.get(reverse('BOQ_work_order_pdf', args=(self.target.pk,)))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertTrue(response.content.startswith(b'%PDF'))
+
+    def test_boq_template_is_downloadable_and_unallocated_project_is_forbidden(self):
+        response = self.client.get(reverse('BOQ_template'))
+        self.assertEqual(response.status_code, 200)
+        self.assertGreater(len(b''.join(response.streaming_content)), 1000)
+        response = self.client.get(reverse('BOQ_planning', args=(self.source.pk,)))
+        self.assertEqual(response.status_code, 403)
+
+    def test_boq_generation_does_not_partially_save_invalid_review_rows(self):
+        session = self.client.session
+        session[f'boq_planning_{self.target.pk}'] = {'rows': [
+            {'category': 'Ceiling', 'description': 'New board', 'unit': 'sheet', 'quantity': '10', 'rate': '2', 'amount': '20'},
+            {'category': 'Electrical', 'description': 'Cable', 'unit': 'm', 'quantity': '20', 'rate': '3', 'amount': '60'},
+        ]}
+        session.save()
+        response = self.client.post(reverse('BOQ_save_materials', args=(self.target.pk,)), {
+            'include_row': ['0', '1'], 'material_id': ['', ''],
+            'new_material_name': ['New Board', 'Invalid Cable'],
+            'material_unit': ['sheet', ''], 'material_quantity': ['10', '20'],
+            'material_price': ['2', '3'],
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(material.objects.filter(name__in=('New Board', 'Invalid Cable')).exists())
+        self.assertFalse(material_required.objects.filter(PROJECT=self.target).exists())
+
+        response = self.client.post(reverse('BOQ_save_work_order', args=(self.target.pk,)), {
+            'package_title': ['Valid package', ''],
+            'package_scope': ['Valid work', 'Missing title'],
+            'package_preparation': ['Prepare', 'Prepare'],
+            'package_procedure': ['Execute', 'Execute'],
+            'package_quality': ['Inspect', 'Inspect'],
+            'package_safety': ['Use PPE', 'Use PPE'],
+            'package_completion': ['Handover', 'Handover'],
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(work.objects.filter(PROJECT=self.target).exists())
 
     def test_material_request_edit_uses_project_materials_and_valid_fields(self):
         material_required.objects.create(

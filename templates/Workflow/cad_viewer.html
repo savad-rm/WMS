@@ -33,6 +33,7 @@
       <h5 class="card-title mb-0 text-truncate" title="{{ cad_file_name }}">{{ cad_file_name }}</h5>
       <span class="text-muted cad-viewer-help"><i class="bi bi-mouse"></i> Wheel to zoom &middot; Middle-button drag to pan &middot; Use the right toolbar for layers and measurements</span>
     </div>
+    <div id="cad-viewer-notice" class="alert alert-warning py-2 mt-2 mb-0" role="alert" hidden></div>
   </div>
   <div class="cad-viewer-shell">
     <div id="cad-viewer" data-file-url="{{ cad_file_url }}" data-file-name="{{ cad_file_name }}"></div>
@@ -43,4 +44,4 @@
 </div>
 {% endblock %}
 
-{% block extra_scripts %}<script type="module" src="{% static 'cad_viewer/cad-viewer.js' %}?v=20260804-2"></script>{% endblock %}
+{% block extra_scripts %}<script type="module" src="{% static 'cad_viewer/cad-viewer.js' %}?v=20260809-5"></script>{% endblock %}

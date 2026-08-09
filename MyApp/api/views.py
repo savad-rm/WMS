@@ -487,8 +487,8 @@ class EnquiryListView(APIView):
         return Response({'results': [_enquiry_payload(item) for item in queryset]})
 
     def post(self, request):
-        if request.user.usertype not in ('Admin', 'Marketing Executive'):
-            raise PermissionDenied('Only a marketing executive can create an enquiry.')
+        if request.user.usertype not in ('Admin', 'Marketing Executive', 'Marketing Manager'):
+            raise PermissionDenied('Only the marketing team can create an enquiry.')
         title = str(request.data.get('title', '')).strip()
         client_name = str(request.data.get('client_name', '')).strip()
         if not title or not client_name:
@@ -565,7 +565,7 @@ def _enquiry_actions(account, record):
             actions.append('accountant_approve')
         if role == 'Project Manager' and hasattr(latest, 'costing') and not latest.costing.approved_at:
             actions.append('costing_approve')
-        if role == 'Document Controller' and latest.status == 'approved' and hasattr(latest, 'costing') and latest.costing.approved_at:
+        if role in ('Document Controller', 'Marketing Executive', 'Marketing Manager') and latest.status == 'approved' and hasattr(latest, 'costing') and latest.costing.approved_at:
             actions.append('submit')
         if role == 'Marketing Executive' and record.created_by_id == account.pk and latest.status == 'submitted':
             actions.append('award')
@@ -653,7 +653,7 @@ class EnquiryActionView(APIView):
                     cost.approved_by = person
                     cost.approved_at = timezone.now()
                     cost.save(update_fields=('approved_by', 'approved_at', 'updated_at'))
-                elif action == 'submit' and request.user.usertype == 'Document Controller' and latest.status == 'approved' and costing.objects.filter(QUOTATION=latest, approved_at__isnull=False).exists():
+                elif action == 'submit' and request.user.usertype in ('Document Controller', 'Marketing Executive', 'Marketing Manager') and latest.status == 'approved' and costing.objects.filter(QUOTATION=latest, approved_at__isnull=False).exists():
                     latest.status = 'submitted'
                     latest.save(update_fields=('status', 'updated_at'))
                     record.status = 'submitted'

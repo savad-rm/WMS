@@ -1,0 +1,106 @@
+{% extends "Project Manager/pmindex.html" %}
+{% block body %}
+<div class="pagetitle">
+  <h1>BOQ & Execution Planning</h1>
+  <nav><ol class="breadcrumb"><li class="breadcrumb-item">Projects</li><li class="breadcrumb-item active">{{ data.project_name }}</li></ol></nav>
+</div>
+
+{% if messages %}{% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">{{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>{% endfor %}{% endif %}
+
+<div class="card"><div class="card-body">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <h5 class="card-title mb-0">Import measurement data</h5>
+    <a href="{% url 'BOQ_template' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-excel"></i> Download measurement template</a>
+  </div>
+  <div class="alert alert-info mt-3 mb-3">
+    <strong>No AI is used.</strong> Excel/CSV BOQs and drawing measurement schedules are read using fixed columns and calculations. A purely graphical PDF/DWG cannot safely produce construction quantities unless its measurement schedule is supplied.
+  </div>
+  <form method="post" enctype="multipart/form-data" action="{% url 'BOQ_import' data.id %}" class="row g-3 align-items-end">{% csrf_token %}
+    <div class="col-md-4"><label class="form-label">What are you uploading?</label><select name="source_type" class="form-select"><option value="boq">Detailed BOQ</option><option value="drawing">Drawing measurement schedule</option></select></div>
+    <div class="col-md-6"><label class="form-label">Excel or CSV file</label><input type="file" name="boq_file" class="form-control" accept=".xlsx,.csv" required><div class="form-text">Maximum 10 MB and 500 measurable rows.</div></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100" type="submit"><i class="bi bi-upload"></i> Import & Review</button></div>
+  </form>
+</div></div>
+
+{% if boq_rows %}
+<div class="card"><div class="card-body">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <h5 class="card-title mb-0">Imported BOQ preview</h5>
+    <form method="post" action="{% url 'BOQ_clear' data.id %}" onsubmit="return confirm('Clear this unsaved planning draft?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Clear Draft</button></form>
+  </div>
+  <p class="text-muted small mt-2">Source: {{ draft.source_name }} · {{ boq_rows|length }} measurable rows. Values remain a draft until a save button below is selected.</p>
+  <div class="table-responsive"><table class="table table-sm table-striped align-middle">
+    <thead><tr><th>#</th><th>Category</th><th>Description</th><th>Unit</th><th class="text-end">Quantity</th><th class="text-end">Rate</th><th class="text-end">Amount</th></tr></thead>
+    <tbody>{% for row in boq_rows %}<tr><td>{{ forloop.counter }}</td><td>{{ row.category }}</td><td>{{ row.description }}</td><td>{{ row.unit }}</td><td class="text-end">{{ row.quantity }}</td><td class="text-end">{{ row.rate }}</td><td class="text-end">{{ row.amount }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div></div>
+
+<div class="card"><div class="card-body">
+  <h5 class="card-title">Prepare Material List</h5>
+  <p class="text-muted">The system suggests an existing material by name. Review every mapping and adjust the conversion factor and wastage before saving. BOQ work quantity is not automatically assumed to be the final purchase quantity.</p>
+  <form method="post" action="{% url 'BOQ_save_materials' data.id %}" id="materialReviewForm">{% csrf_token %}
+    <div class="table-responsive"><table class="table table-sm align-middle" style="min-width: 1350px">
+      <thead><tr><th>Use</th><th>BOQ item</th><th style="min-width:210px">Existing material</th><th style="min-width:170px">Or new material</th><th>Unit</th><th>BOQ Qty</th><th>Factor</th><th>Waste %</th><th>Material Qty</th><th>Price</th></tr></thead>
+      <tbody>{% for row in boq_rows %}<tr class="material-review-row">
+        <td><input type="checkbox" name="include_row" value="{{ forloop.counter0 }}" class="form-check-input include-material" {% if row.suggested_material_id %}checked{% endif %}></td>
+        <td><strong>{{ row.category }}</strong><br><span class="small">{{ row.description }}</span></td>
+        <td><select name="material_id" class="form-select form-select-sm material-select"><option value="">Create/use entered material</option>{% for item in materials %}<option value="{{ item.id }}" data-unit="{{ item.unit }}" {% if row.suggested_material_id == item.id %}selected{% endif %}>{{ item.name }} ({{ item.unit }})</option>{% endfor %}</select>{% if row.suggested_material_name %}<div class="form-text">Suggested: {{ row.suggested_material_name }}</div>{% endif %}</td>
+        <td><input name="new_material_name" maxlength="40" class="form-control form-control-sm" value="{% if not row.suggested_material_id %}{{ row.description|truncatechars:40 }}{% endif %}"></td>
+        <td><input name="material_unit" maxlength="40" class="form-control form-control-sm material-unit" value="{% if row.suggested_material_id %}{% for item in materials %}{% if item.id == row.suggested_material_id %}{{ item.unit }}{% endif %}{% endfor %}{% else %}{{ row.unit }}{% endif %}"></td>
+        <td><input class="form-control form-control-sm boq-quantity" value="{{ row.quantity }}" readonly></td>
+        <td><input type="number" min="0" step="0.0001" class="form-control form-control-sm conversion-factor" value="1"></td>
+        <td><input type="number" min="0" step="0.01" class="form-control form-control-sm waste-percent" value="0"></td>
+        <td><input type="number" min="0" step="0.0001" name="material_quantity" class="form-control form-control-sm material-quantity" value="{{ row.quantity }}" required></td>
+        <td><input type="number" min="0" step="0.01" name="material_price" class="form-control form-control-sm" value="{{ row.rate }}" required></td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+    <button class="btn btn-primary" type="submit"><i class="bi bi-box-seam"></i> Save Selected to Material List</button>
+  </form>
+</div></div>
+
+<div class="card"><div class="card-body">
+  <h5 class="card-title">Prepare Work Order & Method Statement</h5>
+  <p class="text-muted">One editable work package is generated per BOQ category using fixed construction rules. Review the scope, sequence, quality, and safety requirements before saving or downloading.</p>
+  <form method="post" action="{% url 'BOQ_save_work_order' data.id %}">{% csrf_token %}
+    <div class="accordion" id="workPackages">{% for package in work_packages %}<div class="accordion-item">
+      <h2 class="accordion-header"><button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#package{{ forloop.counter }}">{{ forloop.counter }}. {{ package.title }}</button></h2>
+      <div id="package{{ forloop.counter }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" data-bs-parent="#workPackages"><div class="accordion-body row g-3">
+        <div class="col-12"><label class="form-label fw-semibold">Package heading</label><input name="package_title" maxlength="100" class="form-control" value="{{ package.title }}" required></div>
+        <div class="col-12"><label class="form-label fw-semibold">Scope</label><textarea name="package_scope" class="form-control" rows="3" required>{{ package.scope }}</textarea></div>
+        <div class="col-md-6"><label class="form-label fw-semibold">Preparation</label><textarea name="package_preparation" class="form-control" rows="5" required>{{ package.preparation }}</textarea></div>
+        <div class="col-md-6"><label class="form-label fw-semibold">Method / sequence</label><textarea name="package_procedure" class="form-control" rows="5" required>{{ package.procedure }}</textarea></div>
+        <div class="col-md-6"><label class="form-label fw-semibold">Quality control</label><textarea name="package_quality" class="form-control" rows="5" required>{{ package.quality }}</textarea></div>
+        <div class="col-md-6"><label class="form-label fw-semibold">Health, safety & environment</label><textarea name="package_safety" class="form-control" rows="5" required>{{ package.safety }}</textarea></div>
+        <div class="col-12"><label class="form-label fw-semibold">Completion & handover</label><textarea name="package_completion" class="form-control" rows="3" required>{{ package.completion }}</textarea></div>
+      </div></div>
+    </div>{% endfor %}</div>
+    <div class="d-flex flex-wrap gap-2 mt-3"><button class="btn btn-primary" type="submit"><i class="bi bi-check2-square"></i> Save Reviewed Work Order</button><a class="btn btn-outline-primary" href="{% url 'BOQ_work_order_pdf' data.id %}"><i class="bi bi-file-earmark-pdf"></i> Download Current Draft PDF</a></div>
+  </form>
+</div></div>
+{% endif %}
+
+<script>
+(function () {
+  document.querySelectorAll('.material-review-row').forEach((row) => {
+    const boqQuantity = row.querySelector('.boq-quantity');
+    const factor = row.querySelector('.conversion-factor');
+    const waste = row.querySelector('.waste-percent');
+    const result = row.querySelector('.material-quantity');
+    const select = row.querySelector('.material-select');
+    const unit = row.querySelector('.material-unit');
+    const calculate = () => {
+      const quantity = Number(boqQuantity.value) || 0;
+      const multiplier = Number(factor.value) || 0;
+      const wastage = Number(waste.value) || 0;
+      result.value = (quantity * multiplier * (1 + wastage / 100)).toFixed(4).replace(/\.?0+$/, '');
+    };
+    factor.addEventListener('input', calculate);
+    waste.addEventListener('input', calculate);
+    select.addEventListener('change', () => {
+      const selected = select.selectedOptions[0];
+      if (selected && selected.dataset.unit) unit.value = selected.dataset.unit;
+    });
+  });
+})();
+</script>
+{% endblock %}

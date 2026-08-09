@@ -8,7 +8,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 from django.db import transaction
 from django.db.models import Max, Prefetch, Q
-from django.http import FileResponse, Http404, HttpResponseForbidden
+from django.http import FileResponse, Http404, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -22,6 +22,11 @@ from .models import (
 from .middleware import role_is_allowed
 from .deadline_notifications import ensure_quotation_deadline_notifications
 from .quotation_exports import build_quotation_excel, build_quotation_pdf
+from .quotation_document import (
+    DEFAULT_CLOSING_TEXT, DEFAULT_INTRODUCTION, NOTE_UNIT, SECTION_UNIT,
+    SUBHEADING_UNIT, default_terms, line_kind, pack_document, presentation_rows,
+    unpack_document,
+)
 from .quotation_numbers import assign_quotation_reference
 
 
@@ -33,35 +38,7 @@ WORKFLOW_ROLES = {
 UPLOAD_EXTENSIONS = ('xlsx', 'xls', 'jpg', 'jpeg', 'png', 'pdf', 'dwg', 'dxf', 'doc', 'docx')
 MAX_UPLOAD_SIZE = 20 * 1024 * 1024
 
-DEFAULT_PAYMENT_TERMS = (
-    '50% in Advance upon confirmation of the work\n'
-    '20% upon submittal of progressive invoice\n'
-    '20% upon submittal of progressive invoice\n'
-    '10% on completion of the project'
-)
-DEFAULT_MOBILIZATION = (
-    'Work shall commence within 3 days after receipt of the advance payment, '
-    'approved drawings, and site handover.'
-)
-DEFAULT_VARIATIONS = (
-    'Any changes to the approved design, materials, quantities, finishes, or scope '
-    'requested by the Client shall be subject to a separate variation order and may '
-    'affect the project cost and completion period.'
-)
-DEFAULT_CLIENT_RESPONSIBILITIES = (
-    'Provide unrestricted access to the work site.\n'
-    'Ensure availability of electricity and water during the construction period.\n'
-    'Obtain necessary landlord/building management approvals unless specifically included in our scope.\n'
-    'Provide timely approvals for drawings, materials, and samples.'
-)
-DEFAULT_MATERIAL_APPROVAL = (
-    'All materials and finishes shall be subject to Client approval. Equivalent '
-    'materials may be proposed if specified materials become unavailable.'
-)
-DEFAULT_CLOSING_TEXT = (
-    'We hope the above quote meets your requirement and we assure quality work '
-    'completed on time. If you have any further queries, please feel free to contact us.'
-)
+DEFAULT_TERM_MAP = {item['title']: item['body'] for item in default_terms()}
 
 
 def _current_login(request):
@@ -159,19 +136,57 @@ def _detail_record(enquiry_id):
 
 def _detail_context(request, record, extra=None):
     role = _workflow_role(request.workflow_account.usertype)
+    revision_source = None
+    revision_id = request.GET.get('revise', '').strip()
+    if role == 'Estimator' and revision_id:
+        revision_source = record.quotations.filter(pk=revision_id).first()
+    may_create_initial = role == 'Estimator' and not record.quotations.exists()
     context = {
         'enquiry': record,
         'estimators': staff.objects.filter(designation='Estimator').only('id', 'name'),
         'can_assign': role in ('Marketing Manager', 'Project Manager'),
-        'can_quote': role == 'Estimator',
+        'can_quote': may_create_initial or revision_source is not None,
+        'can_start_revision': role == 'Estimator',
+        'revision_source': revision_source,
         'can_manager_approve': role == 'Marketing Manager',
         'can_accountant_approve': role == 'Accountant',
         'can_approve_costing': role == 'Project Manager',
-        'can_submit': role == 'Document Controller',
+        'can_submit': role in ('Document Controller', 'Marketing Executive', 'Marketing Manager'),
         'can_award': role == 'Marketing Executive',
         'can_collect': role == 'Marketing Executive',
         'can_verify': role == 'Document Controller',
+        'default_introduction': DEFAULT_INTRODUCTION,
+        'default_closing_text': DEFAULT_CLOSING_TEXT,
     }
+    if revision_source and not (extra or {}).get('quote_form'):
+        document = unpack_document(revision_source.details, revision_source.validity_days)
+        context.update({
+            'quote_form': {
+                'subject': revision_source.subject,
+                'client_address': revision_source.client_address,
+                'introduction': revision_source.introduction,
+                'validity_days': revision_source.validity_days,
+                'project_duration': revision_source.project_duration,
+                'closing_text': revision_source.closing_text,
+                'signatory_name': revision_source.signatory_name,
+                'signatory_title': revision_source.signatory_title,
+                'signatory_phone': revision_source.signatory_phone,
+                'remarks': document.get('remarks', ''),
+            },
+            'quote_terms': document['terms'],
+            'quote_rows': [
+                {
+                    'row_type': line_kind(line), 'item_code': line.item_code,
+                    'description': line.description,
+                    'unit': '' if line_kind(line) != 'item' else line.unit,
+                    'quantity': '' if line_kind(line) != 'item' else line.quantity,
+                    'unit_rate': '' if line_kind(line) != 'item' else line.unit_rate,
+                }
+                for line in revision_source.lines.all()
+            ],
+        })
+    elif may_create_initial and not (extra or {}).get('quote_terms'):
+        context['quote_terms'] = default_terms()
     context.update(extra or {})
     return context
 
@@ -179,7 +194,9 @@ def _detail_context(request, record, extra=None):
 @role_required(*WORKFLOW_ROLES)
 def dashboard(request):
     role = _workflow_role(request.workflow_account.usertype)
-    records = enquiry.objects.select_related('created_by', 'assigned_to', 'PROJECT')
+    records = enquiry.objects.select_related('created_by', 'assigned_to', 'PROJECT').prefetch_related(
+        Prefetch('quotations', queryset=quotation.objects.order_by('-version'), to_attr='quotation_history')
+    )
     if role == 'Marketing Executive':
         records = records.filter(created_by=request.workflow_account)
     elif role == 'Estimator':
@@ -197,7 +214,7 @@ def dashboard(request):
     records = visible_records[:100]
     return _render(request, 'Workflow/dashboard.html', {
         'enquiries': records,
-        'can_add': role == 'Marketing Executive',
+        'can_add': role in ('Marketing Executive', 'Marketing Manager'),
         'query': query,
         'summary': {
             'open': visible_records.filter(status='open').count(),
@@ -244,39 +261,37 @@ def logout(request):
     return redirect('login')
 
 
-@role_required('Marketing Executive')
+@role_required('Marketing Executive', 'Marketing Manager')
 def add_enquiry(request):
     if request.method == 'POST':
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+        def enquiry_error(message):
+            if is_ajax:
+                return JsonResponse({'ok': False, 'error': message}, status=400)
+            messages.error(request, message)
+            return _render(request, 'Workflow/enquiry_form.html', {
+                'form_data': request.POST,
+            }, status=400)
+
         title = request.POST.get('title', '').strip()
         client_name = request.POST.get('client_name', '').strip()
         if not title or not client_name:
-            messages.error(request, 'Enquiry title and client name are required.')
-            return _render(request, 'Workflow/enquiry_form.html', {
-                'form_data': request.POST,
-            }, status=400)
+            return enquiry_error('Enquiry title and client name are required.')
         deadline_value = request.POST.get('quotation_deadline', '').strip()
         deadline = parse_datetime(deadline_value) if deadline_value else None
         if not deadline:
-            messages.error(request, 'Enter the quotation submission deadline.')
-            return _render(request, 'Workflow/enquiry_form.html', {
-                'form_data': request.POST,
-            }, status=400)
+            return enquiry_error('Enter the quotation submission deadline.')
         if timezone.is_naive(deadline):
             deadline = timezone.make_aware(deadline, timezone.get_current_timezone())
         if deadline <= timezone.now():
-            messages.error(request, 'The quotation deadline must be in the future.')
-            return _render(request, 'Workflow/enquiry_form.html', {
-                'form_data': request.POST,
-            }, status=400)
+            return enquiry_error('The quotation deadline must be in the future.')
         uploads = request.FILES.getlist('files')
         try:
             for upload in uploads:
                 _validate_upload(upload)
         except ValidationError as exc:
-            messages.error(request, exc.messages[0])
-            return _render(request, 'Workflow/enquiry_form.html', {
-                'form_data': request.POST,
-            }, status=400)
+            return enquiry_error(exc.messages[0])
         else:
             with transaction.atomic():
                 record = enquiry.objects.create(
@@ -292,6 +307,11 @@ def add_enquiry(request):
                     enquiry_attachment.objects.create(
                         ENQUIRY=record, file=upload, original_name=Path(upload.name).name
                     )
+            if is_ajax:
+                return JsonResponse({
+                    'ok': True,
+                    'redirect_url': reverse('workflow_detail', args=(record.pk,)),
+                })
             messages.success(request, 'Project enquiry added successfully.')
             return redirect('workflow_detail', enquiry_id=record.pk)
     return _render(request, 'Workflow/enquiry_form.html')
@@ -337,21 +357,38 @@ def add_quotation(request, enquiry_id):
         enquiry.objects.prefetch_related('quotations__lines'),
         pk=enquiry_id, assigned_to=request.workflow_staff,
     )
+    row_types = request.POST.getlist('row_type')
     item_codes = request.POST.getlist('item_code')
     descriptions = request.POST.getlist('line_description')
     units = request.POST.getlist('unit')
     quantities = request.POST.getlist('quantity')
     rates = request.POST.getlist('unit_rate')
+    if not row_types and descriptions:
+        row_types = ['item'] * len(descriptions)
     quote_rows = [
-        {'item_code': code, 'description': description, 'unit': unit,
+        {'row_type': row_type, 'item_code': code, 'description': description, 'unit': unit,
          'quantity': quantity, 'unit_rate': rate}
-        for code, description, unit, quantity, rate in zip(
-            item_codes, descriptions, units, quantities, rates
+        for row_type, code, description, unit, quantity, rate in zip(
+            row_types, item_codes, descriptions, units, quantities, rates
         )
     ]
+    term_titles = request.POST.getlist('term_title')
+    term_bodies = request.POST.getlist('term_body')
+    quote_terms = [
+        {'title': title.strip(), 'body': body.strip()}
+        for title, body in zip(term_titles, term_bodies) if title.strip() or body.strip()
+    ]
+    if not quote_terms:
+        quote_terms = default_terms()
+        quote_terms[0]['body'] = (
+            request.POST.get('details', '').strip()
+            or record.description
+            or quote_terms[0]['body']
+        )
     form_context = {
         'quote_form': request.POST,
         'quote_rows': quote_rows,
+        'quote_terms': quote_terms or default_terms(),
     }
 
     def quotation_error(message):
@@ -374,12 +411,28 @@ def add_quotation(request, enquiry_id):
     except ValidationError as exc:
         return quotation_error(exc.messages[0])
 
-    if not (len(item_codes) == len(descriptions) == len(units) == len(quantities) == len(rates)):
+    if not (
+        len(row_types) == len(item_codes) == len(descriptions)
+        == len(units) == len(quantities) == len(rates)
+    ):
         return quotation_error('Quotation line-item data is incomplete.')
     parsed_lines = []
     for position, row in enumerate(quote_rows, start=1):
         values = tuple(str(value).strip() for value in row.values())
         if not any(values):
+            continue
+        row_type = row['row_type'] if row['row_type'] in ('item', 'section', 'subheading', 'note') else 'item'
+        if row_type != 'item':
+            if not row['description'].strip():
+                return quotation_error(f'Enter a heading or note for row {position}.')
+            parsed_lines.append({
+                **row,
+                'unit': {
+                    'section': SECTION_UNIT, 'subheading': SUBHEADING_UNIT, 'note': NOTE_UNIT,
+                }[row_type],
+                'quantity': Decimal('0'), 'unit_rate': Decimal('0'),
+                'amount': Decimal('0'), 'position': position,
+            })
             continue
         if not row['description'].strip() or not row['quantity'] or not row['unit_rate']:
             return quotation_error(f'Complete the description, quantity and rate for line {position}.')
@@ -407,8 +460,8 @@ def add_quotation(request, enquiry_id):
                 'unit': 'lot', 'quantity': Decimal('1'), 'unit_rate': legacy_amount,
                 'amount': legacy_amount, 'position': 1,
             })
-    if not parsed_lines:
-        return quotation_error('Add at least one quotation line item.')
+    if not parsed_lines or not any(item.get('row_type', 'item') == 'item' for item in parsed_lines):
+        return quotation_error('Add at least one quotation item with quantity and rate.')
     try:
         validity_days = int(request.POST.get('validity_days') or 14)
     except ValueError:
@@ -416,6 +469,17 @@ def add_quotation(request, enquiry_id):
     if not 1 <= validity_days <= 365:
         return quotation_error('Quotation validity must be between 1 and 365 days.')
     amount = sum((item['amount'] for item in parsed_lines), Decimal('0'))
+    existing_snapshot = quotation.objects.filter(ENQUIRY=record)
+    revision_source_id = request.POST.get('revision_of', '').strip()
+    revision_source = existing_snapshot.filter(pk=revision_source_id).first() if revision_source_id else None
+    if revision_source_id and not revision_source:
+        return quotation_error('The selected quotation revision source is not valid for this enquiry.')
+    if existing_snapshot.exists() and not revision_source:
+        return quotation_error('Use the Create Revision button on an existing quotation to start a revision.')
+    if revision_source and revision_source.created_by_id != request.workflow_staff.id:
+        return quotation_error('You can revise only a quotation created by you.')
+    term_map = {term['title'].strip().lower(): term['body'] for term in quote_terms}
+    document_details = pack_document(quote_terms, request.POST.get('remarks', ''))
     with transaction.atomic():
         existing_quotes = quotation.objects.select_for_update().filter(ENQUIRY=record)
         version = (existing_quotes.aggregate(v=Max('version'))['v'] or 0) + 1
@@ -424,23 +488,22 @@ def add_quotation(request, enquiry_id):
         quote = quotation.objects.create(
             ENQUIRY=record, version=version, amount=amount,
             revision=revision,
-            details=request.POST.get('details', '').strip(),
+            details=document_details,
             subject=request.POST.get('subject', '').strip() or f'Quotation for {record.title}',
             client_address=request.POST.get('client_address', '').strip() or 'Doha-State of Qatar',
-            introduction=request.POST.get('introduction', '').strip(),
+            introduction=request.POST.get('introduction', '').strip() or DEFAULT_INTRODUCTION,
             validity_days=validity_days,
-            payment_terms=request.POST.get('payment_terms', '').strip() or DEFAULT_PAYMENT_TERMS,
-            mobilization=request.POST.get('mobilization', '').strip() or DEFAULT_MOBILIZATION,
-            variations=request.POST.get('variations', '').strip() or DEFAULT_VARIATIONS,
-            client_responsibilities=(
-                request.POST.get('client_responsibilities', '').strip()
-                or DEFAULT_CLIENT_RESPONSIBILITIES
+            payment_terms=term_map.get('payment terms', DEFAULT_TERM_MAP['Payment Terms']),
+            mobilization=term_map.get('mobilization', DEFAULT_TERM_MAP['Mobilization']),
+            variations=term_map.get('variations', DEFAULT_TERM_MAP['Variations']),
+            client_responsibilities=term_map.get(
+                'client responsibilities', DEFAULT_TERM_MAP['Client Responsibilities']
             ),
-            material_approval=(
-                request.POST.get('material_approval', '').strip()
-                or DEFAULT_MATERIAL_APPROVAL
+            material_approval=term_map.get('material approval', DEFAULT_TERM_MAP['Material Approval']),
+            project_duration=(
+                term_map.get('project duration')
+                or request.POST.get('project_duration', '').strip()
             ),
-            project_duration=request.POST.get('project_duration', '').strip(),
             closing_text=request.POST.get('closing_text', '').strip() or DEFAULT_CLOSING_TEXT,
             signatory_name=request.POST.get('signatory_name', '').strip() or request.workflow_staff.name,
             signatory_title=request.POST.get('signatory_title', '').strip() or request.workflow_staff.designation,
@@ -493,6 +556,61 @@ def download_quotation(request, quote_id, file_format):
     else:
         raise Http404('Unsupported quotation format.')
     return FileResponse(content, as_attachment=True, filename=filename, content_type=content_type)
+
+
+@role_required(*WORKFLOW_ROLES)
+def view_quotation(request, quote_id):
+    quote = get_object_or_404(
+        quotation.objects.select_related('ENQUIRY', 'created_by').prefetch_related('lines'),
+        pk=quote_id,
+    )
+    if not _can_access_enquiry(request, quote.ENQUIRY):
+        return HttpResponseForbidden('You do not have permission to view this quotation.')
+    return _render(request, 'Workflow/quotation_view.html', {
+        'quote': quote,
+        'enquiry': quote.ENQUIRY,
+        'document': unpack_document(quote.details, quote.validity_days),
+        'quotation_rows': presentation_rows(quote.lines.all()),
+        'quote_comments': quote.ENQUIRY.comments.filter(
+            comment__startswith=f'[{quote.display_number}]'
+        ).select_related('author'),
+        'can_comment_on_quote': request.workflow_account.usertype in (
+            'Marketing Executive', 'Marketing Manager', 'Estimator', 'Accountant',
+        ),
+        'can_remove_quote_file': (
+            _workflow_role(request.workflow_account.usertype) == 'Estimator'
+            and quote.created_by_id == getattr(request.workflow_staff, 'id', None)
+        ),
+    })
+
+
+@require_POST
+@role_required('Estimator')
+def remove_quotation_file(request, quote_id):
+    quote = get_object_or_404(quotation, pk=quote_id, created_by=request.workflow_staff)
+    if quote.file:
+        quote.file.delete(save=False)
+        quote.file = ''
+        quote.save(update_fields=('file', 'updated_at'))
+        messages.success(request, 'The attached quotation file was removed.')
+    return redirect('workflow_view_quotation', quote_id=quote.pk)
+
+
+@require_POST
+@role_required('Marketing Executive', 'Marketing Manager', 'Estimator', 'Accountant')
+def add_quotation_comment(request, quote_id):
+    quote = get_object_or_404(quotation.objects.select_related('ENQUIRY'), pk=quote_id)
+    if not _can_access_enquiry(request, quote.ENQUIRY):
+        return HttpResponseForbidden('You do not have permission to comment on this quotation.')
+    value = request.POST.get('comment', '').strip()
+    if value:
+        enquiry_comment.objects.create(
+            ENQUIRY=quote.ENQUIRY,
+            author=request.workflow_account,
+            comment=f'[{quote.display_number}] {value}',
+        )
+        messages.success(request, 'Quotation comment added for the approval team.')
+    return redirect('workflow_view_quotation', quote_id=quote.pk)
 
 
 @role_required(*WORKFLOW_ROLES)
@@ -558,13 +676,15 @@ def approve_costing(request, quote_id):
 
 
 @require_POST
-@role_required('Document Controller')
+@role_required('Document Controller', 'Marketing Executive', 'Marketing Manager')
 def submit_quotation(request, quote_id):
     with transaction.atomic():
         quote = get_object_or_404(
-            quotation.objects.select_for_update(), pk=quote_id, status='approved',
+            quotation.objects.select_for_update().select_related('ENQUIRY'), pk=quote_id, status='approved',
             costing__approved_at__isnull=False,
         )
+        if not _can_access_enquiry(request, quote.ENQUIRY):
+            return HttpResponseForbidden('You do not have permission to submit this quotation.')
         quote.status = 'submitted'
         quote.save(update_fields=('status', 'updated_at'))
         quote.ENQUIRY.status = 'submitted'

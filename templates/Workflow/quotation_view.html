@@ -1,0 +1,50 @@
+{% extends 'Workflow/base.html' %}
+{% load static workflow_filters %}
+{% block extra_head %}
+<style>
+  .quotation-paper { position: relative; max-width: 900px; min-height: 1120px; margin: 0 auto; padding: 150px 58px 88px; background: #fff url("{% static 'quotation/exalter-letterhead.jpeg' %}") center/100% 100% no-repeat; color: #000; font-family: Helvetica, Arial, sans-serif; font-size: 10pt; line-height: 1.25; box-shadow: 0 .25rem 1rem rgba(1,41,112,.12); }
+  .quotation-paper table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+  .quotation-paper th, .quotation-paper td { border: 1px solid #000; padding: 3px 4px; vertical-align: middle; }
+  .quotation-paper th { font-weight: 700; text-align: center; }
+  .quotation-paper .number { text-align: center; }
+  .quotation-paper .money { font-size: 11pt; text-align: right; white-space: nowrap; }
+  .quotation-paper .section-row, .quotation-paper .subtotal-row { font-weight: 700; }
+  .quotation-paper .subheading-row { font-weight: 700; text-align: center; }
+  .quotation-reference { width: 265px; margin-left: auto; text-align: right; }
+  .quotation-nameplate { margin-top: 18px; border: 1.5px solid #000; padding: 2px 32px; text-align: center; font-weight: 700; }
+  .quotation-client strong { font-size: 10pt; }
+  .quotation-subject { margin: 28px 0 8px; text-align: center; font-weight: 700; }
+  .quotation-term { margin-top: 12px; }
+  .quotation-term-title { font-weight: 700; text-decoration: underline; }
+  @media print { body, #main { background: #fff !important; } header, aside, footer, .pagetitle, .quotation-actions, .back-to-top { display: none !important; } #main { margin: 0 !important; padding: 0 !important; } .quotation-paper { box-shadow: none; max-width: none; } }
+</style>
+{% endblock %}
+{% block body %}
+<div class="pagetitle d-flex flex-wrap justify-content-between align-items-start gap-2"><div><h1>{{ quote.display_number }}</h1><nav><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'workflow_dashboard' %}">Enquiries</a></li><li class="breadcrumb-item"><a href="{% url 'workflow_detail' enquiry.id %}">{{ enquiry.title }}</a></li><li class="breadcrumb-item active">Quotation</li></ol></nav></div><div class="workflow-actions quotation-actions"><button class="btn btn-outline-primary" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print</button><a class="btn btn-outline-success" href="{% url 'workflow_download_quotation' quote.id 'xlsx' %}">Excel</a><a class="btn btn-outline-danger" href="{% url 'workflow_download_quotation' quote.id 'pdf' %}">PDF</a></div></div>
+
+<div class="quotation-paper">
+  <div class="d-flex justify-content-between align-items-start">
+    <div class="quotation-client"><strong>{{ enquiry.client_name|quotation_client_name }}</strong>{% if enquiry.client_phone %}<div>Tel: {{ enquiry.client_phone }}</div>{% endif %}{% if enquiry.client_email %}<div>Email: {{ enquiry.client_email }}</div>{% endif %}{% if quote.client_address %}<div>{{ quote.client_address|linebreaksbr }}</div>{% endif %}</div>
+    <div class="quotation-reference"><strong>{{ quote.display_number }}</strong><div><strong>{{ quote.issue_date|date:'d-M-y' }}</strong></div><div class="quotation-nameplate">QUOTATION</div></div>
+  </div>
+  <div class="quotation-subject">Subject : <u>{{ quote.subject }}</u></div>
+  <div><strong>Dear Sir,</strong></div><div class="ms-5 mb-2">{{ quote.introduction }}</div>
+  <table><thead><tr><th style="width:8%">ITEMS</th><th>DESCRIPTION</th><th style="width:10%">UNIT</th><th style="width:11%">QTY</th><th style="width:15%">RATE</th><th style="width:16%">AMOUNT</th></tr></thead><tbody>
+    {% for row in quotation_rows %}
+      {% if row.kind == 'section' %}<tr class="section-row"><td class="number">{{ row.line.item_code }}</td><td colspan="5">{{ row.line.description|quotation_rich_text }}</td></tr>
+      {% elif row.kind == 'subheading' %}<tr class="subheading-row"><td></td><td colspan="5">{{ row.line.description|quotation_rich_text }}</td></tr>
+      {% elif row.kind == 'note' %}<tr><td></td><td colspan="5">{{ row.line.description|quotation_rich_text }}</td></tr>
+      {% elif row.kind == 'subtotal' %}<tr class="subtotal-row"><td></td><td>{{ row.label }}</td><td colspan="3" class="text-end">Sub-Total (QAR)</td><td class="money">{{ row.amount|floatformat:2 }}</td></tr>
+      {% elif row.kind == 'section_total' %}<tr class="subtotal-row"><td class="number">{{ row.code }}</td><td>{{ row.label }}</td><td colspan="3" class="text-end">Sub-Total (QAR)</td><td class="money">{{ row.amount|floatformat:2 }}</td></tr>
+      {% else %}<tr><td class="number">{{ row.line.item_code }}</td><td>{{ row.line.description|quotation_rich_text }}</td><td class="number">{{ row.line.unit }}</td><td class="number">{{ row.line.quantity|floatformat:2 }}</td><td class="money">{{ row.line.unit_rate|floatformat:2 }}</td><td class="money">{{ row.line.amount|floatformat:2 }}</td></tr>{% endif %}
+    {% endfor %}
+    <tr class="subtotal-row"><td colspan="5">Grand Total (QAR)</td><td class="money">{{ quote.amount|floatformat:2 }}</td></tr>
+  </tbody></table>
+  <div class="mt-1 fw-bold text-decoration-underline">Specification/Clarification</div>
+  {% for term in document.terms %}<div class="quotation-term"><div class="quotation-term-title">{{ forloop.counter }}. {{ term.title }}</div><div>{{ term.body|linebreaksbr }}</div></div>{% endfor %}
+  <div class="mt-3">{{ quote.closing_text }}</div><div class="mt-3"><strong>With Best Regards,</strong><br><strong>Exalter Trading &amp; Contracting</strong></div>
+  <div class="mt-4"><strong>{{ quote.signatory_name }}</strong><br><strong>{{ quote.signatory_title }}</strong>{% if quote.signatory_phone %}<br><strong>Mobile {{ quote.signatory_phone }}</strong>{% endif %}</div>
+</div>
+
+<div class="card mt-4 quotation-actions"><div class="card-body"><h5 class="card-title">Quotation Discussion</h5><p class="text-muted small">Marketing Executive, Marketing Manager, Estimator and Accountant can use this thread to clarify the quotation before approval or submittal.</p>{% for item in quote_comments %}<div class="border-bottom py-2"><strong>{{ item.author.usertype }}</strong><div>{{ item.comment|linebreaksbr }}</div><small class="text-muted">{{ item.created_at|date:'d M Y H:i' }}</small></div>{% empty %}<p class="text-muted">No quotation comments.</p>{% endfor %}{% if can_comment_on_quote %}<form method="post" action="{% url 'workflow_add_quotation_comment' quote.id %}" class="mt-3">{% csrf_token %}<textarea class="form-control mb-2" name="comment" rows="3" required placeholder="Ask a doubt or add an approval remark"></textarea><button class="btn btn-sm btn-primary">Add Comment</button></form>{% endif %}{% if quote.file %}<hr><div class="d-flex flex-wrap justify-content-between align-items-center gap-2"><a href="{{ quote.file.url }}" target="_blank" rel="noopener">{{ quote.file.name }}</a>{% if can_remove_quote_file %}<form method="post" action="{% url 'workflow_remove_quotation_file' quote.id %}" onsubmit="return confirm('Remove this attached file?')">{% csrf_token %}<button class="btn btn-sm btn-outline-danger">Remove File</button></form>{% endif %}</div>{% endif %}</div></div>
+{% endblock %}

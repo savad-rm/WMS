@@ -21,7 +21,7 @@ export type Enquiry = {
   client_phone: string; status: string; assigned_to: string | null;
   created_at: string; updated_at: string; quotation_deadline: string; description?: string;
   comments?: {id: number; author: string; comment: string; created_at: string}[];
-  quotations?: {id: number; version: number; quotation_number: string; revision: number; amount: string; status: string; details: string}[];
+  quotations?: {id: number; version: number; quotation_number: string; revision: number; amount: string; status: string; details: string; submitted_at: string | null; client_remarks: string; client_status: string}[];
   attachments?: {id: number; name: string; url: string; is_cad: boolean}[];
   available_actions?: string[];
   estimators?: {id: number; name: string}[];

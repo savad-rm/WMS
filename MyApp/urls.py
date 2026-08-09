@@ -28,6 +28,7 @@ urlpatterns = [
     path('workflow/quotations/<int:quote_id>/accountant-approve/', workflow_views.accountant_approve, name='workflow_accountant_approve'),
     path('workflow/quotations/<int:quote_id>/approve-costing/', workflow_views.approve_costing, name='workflow_approve_costing'),
     path('workflow/quotations/<int:quote_id>/submit/', workflow_views.submit_quotation, name='workflow_submit_quotation'),
+    path('workflow/quotations/<int:quote_id>/client-response/', workflow_views.update_quotation_client_response, name='workflow_update_client_response'),
     path('workflow/quotations/<int:quote_id>/award/', workflow_views.award_project, name='workflow_award_project'),
     path('workflow/documents/<int:document_id>/verify/', workflow_views.verify_document, name='workflow_verify_document'),
     path('workflow/cad/<str:source>/<int:file_id>/', workflow_views.cad_viewer, name='workflow_cad_viewer'),

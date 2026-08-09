@@ -21,6 +21,7 @@ from .models import (
     schedule, staff, supervisor_allocation, work, work_progress, workflow_notification,
 )
 from .deadline_notifications import ensure_quotation_deadline_notifications
+from .quotation_document import default_terms, pack_document, quotation_tracking
 
 
 class WorkflowTests(TestCase):
@@ -109,6 +110,9 @@ class WorkflowTests(TestCase):
         self.client.post(reverse('workflow_submit_quotation', args=(quote.pk,)))
         quote.refresh_from_db()
         self.assertEqual(quote.status, 'submitted')
+        submitted_tracking = quotation_tracking(quote.details, quote.validity_days)
+        self.assertTrue(submitted_tracking['submitted_at'])
+        self.assertEqual(submitted_tracking['client_status'], 'under_review')
 
         self.sign_in_as(*self.executive)
         self.client.post(reverse('workflow_award_project', args=(quote.pk,)))
@@ -116,6 +120,64 @@ class WorkflowTests(TestCase):
         record.refresh_from_db()
         self.assertEqual(quote.status, 'accepted')
         self.assertEqual(record.status, 'awarded')
+        self.assertEqual(quotation_tracking(quote.details)['client_status'], 'approved')
+
+    def test_enquiry_history_and_quotation_register_remain_separate(self):
+        record = enquiry.objects.create(
+            title='Retail fit-out', client_name='History Client',
+            description='Original enquiry scope must remain unchanged.',
+            created_by=self.executive[0], assigned_to=self.estimator[1],
+            status='submitted', quotation_deadline=timezone.now() + timedelta(days=5),
+        )
+        quote = quotation.objects.create(
+            ENQUIRY=record, version=1, quotation_number='QTN/TEST/001',
+            amount='1000.00', details=pack_document(default_terms()),
+            status='submitted', created_by=self.estimator[1],
+            manager_approved_by=self.manager[1], manager_approved_at=timezone.now(),
+            accountant_approved_by=self.accountant[1], accountant_approved_at=timezone.now(),
+        )
+        self.sign_in_as(*self.executive)
+
+        dashboard = self.client.get(reverse('workflow_dashboard'))
+        self.assertContains(dashboard, 'Enquiry History')
+        self.assertContains(dashboard, 'Quotation Register')
+        self.assertContains(dashboard, 'Original enquiry scope must remain unchanged.')
+        self.assertContains(dashboard, 'QTN/TEST/001')
+        self.assertContains(dashboard, 'Quotation Prepared')
+
+        response = self.client.post(
+            reverse('workflow_update_client_response', args=(quote.pk,)),
+            {'client_status': 'rejected', 'client_remarks': 'Revise joinery scope and price.'},
+        )
+        self.assertRedirects(response, reverse('workflow_dashboard'), fetch_redirect_response=False)
+        quote.refresh_from_db()
+        record.refresh_from_db()
+        tracking = quotation_tracking(quote.details, quote.validity_days)
+        self.assertEqual(quote.status, 'rejected')
+        self.assertEqual(tracking['client_status'], 'rejected')
+        self.assertEqual(tracking['client_remarks'], 'Revise joinery scope and price.')
+        self.assertEqual(record.description, 'Original enquiry scope must remain unchanged.')
+        self.assertTrue(enquiry.objects.filter(pk=record.pk).exists())
+
+    def test_marketing_executive_cannot_edit_another_executives_client_response(self):
+        other_executive = self.create_user('Marketing Executive', 31)
+        record = enquiry.objects.create(
+            title='Other executive enquiry', client_name='Private Client',
+            created_by=other_executive[0], status='submitted',
+        )
+        quote = quotation.objects.create(
+            ENQUIRY=record, version=1, quotation_number='QTN/TEST/002',
+            amount='500.00', details=pack_document(default_terms()),
+            status='submitted', created_by=self.estimator[1],
+        )
+        self.sign_in_as(*self.executive)
+        response = self.client.post(
+            reverse('workflow_update_client_response', args=(quote.pk,)),
+            {'client_status': 'approved', 'client_remarks': 'Not authorized.'},
+        )
+        self.assertEqual(response.status_code, 403)
+        quote.refresh_from_db()
+        self.assertEqual(quotation_tracking(quote.details)['client_remarks'], '')
 
     def test_estimator_cannot_view_unassigned_enquiry(self):
         record = enquiry.objects.create(

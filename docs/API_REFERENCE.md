@@ -74,6 +74,14 @@ Site-update payloads:
 | `submit` | Document Controller | Quotation and costing approved |
 | `award` | Enquiry Marketing Executive | Submitted quotation |
 
+Detailed enquiry responses keep every quotation revision in `quotations`. Each quotation includes the existing identity, amount, status, details, and creation fields plus:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `submitted_at` | ISO datetime or `null` | First recorded client-submittal time |
+| `client_status` | string | `under_review`, `approved`, or `rejected` |
+| `client_remarks` | string | Client feedback maintained by authorised web users |
+
 ## Responses
 
 - `200` successful read/update

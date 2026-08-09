@@ -42,6 +42,7 @@ from MyApp.models import (
     worker_entry,
     workflow_notification,
 )
+from MyApp.quotation_document import quotation_tracking
 
 from .authentication import issue_token
 from MyApp.deadline_notifications import ensure_quotation_deadline_notifications
@@ -148,6 +149,23 @@ def _enquiry_allowed(account, record):
     return True
 
 
+def _quotation_payload(quote):
+    tracking = quotation_tracking(quote.details, quote.validity_days)
+    return {
+        'id': quote.pk,
+        'version': quote.version,
+        'quotation_number': quote.display_number,
+        'revision': quote.revision,
+        'amount': str(quote.amount),
+        'status': quote.status,
+        'details': quote.details,
+        'submitted_at': tracking['submitted_at'] or None,
+        'client_remarks': tracking['client_remarks'],
+        'client_status': tracking['client_status'],
+        'created_at': _iso(quote.created_at),
+    }
+
+
 def _enquiry_payload(record, detailed=False):
     payload = {
         'id': record.pk,
@@ -177,16 +195,7 @@ def _enquiry_payload(record, detailed=False):
                 'comment': item.comment,
                 'created_at': _iso(item.created_at),
             } for item in record.comments.select_related('author')],
-            'quotations': [{
-                'id': quote.pk,
-                'version': quote.version,
-                'quotation_number': quote.display_number,
-                'revision': quote.revision,
-                'amount': str(quote.amount),
-                'status': quote.status,
-                'details': quote.details,
-                'created_at': _iso(quote.created_at),
-            } for quote in record.quotations.all()],
+            'quotations': [_quotation_payload(quote) for quote in record.quotations.all()],
         })
     return payload
 

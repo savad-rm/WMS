@@ -35,7 +35,7 @@ def default_terms(validity_days=14):
     return terms
 
 
-def pack_document(terms, remarks=''):
+def pack_document(terms, remarks='', tracking=None):
     payload = {
         'terms': [
             {'title': str(term.get('title', '')).strip(), 'body': str(term.get('body', '')).strip()}
@@ -43,6 +43,12 @@ def pack_document(terms, remarks=''):
         ],
         'remarks': remarks.strip(),
     }
+    if tracking:
+        payload['tracking'] = {
+            'submitted_at': str(tracking.get('submitted_at', '')).strip(),
+            'client_remarks': str(tracking.get('client_remarks', '')).strip(),
+            'client_status': str(tracking.get('client_status', 'under_review')).strip(),
+        }
     return DOCUMENT_PREFIX + json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
 
 
@@ -51,13 +57,31 @@ def unpack_document(value, validity_days=14):
         try:
             payload = json.loads(value[len(DOCUMENT_PREFIX):])
             if isinstance(payload, dict) and isinstance(payload.get('terms'), list):
+                payload.setdefault('remarks', '')
+                payload.setdefault('tracking', {})
                 return payload
         except (TypeError, ValueError, json.JSONDecodeError):
             pass
     terms = default_terms(validity_days)
     if value:
         terms[0]['body'] = value
-    return {'terms': terms, 'remarks': ''}
+    return {'terms': terms, 'remarks': '', 'tracking': {}}
+
+
+def quotation_tracking(value, validity_days=14):
+    tracking = unpack_document(value, validity_days).get('tracking') or {}
+    return {
+        'submitted_at': str(tracking.get('submitted_at', '')).strip(),
+        'client_remarks': str(tracking.get('client_remarks', '')).strip(),
+        'client_status': str(tracking.get('client_status', 'under_review')).strip() or 'under_review',
+    }
+
+
+def update_quotation_tracking(value, validity_days=14, **updates):
+    document = unpack_document(value, validity_days)
+    tracking = quotation_tracking(value, validity_days)
+    tracking.update(updates)
+    return pack_document(document['terms'], document.get('remarks', ''), tracking)
 
 
 def line_kind(line):

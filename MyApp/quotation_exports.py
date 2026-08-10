@@ -1,5 +1,6 @@
 from copy import copy
 from io import BytesIO
+from math import ceil
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -24,9 +25,9 @@ from .quotation_document import (
 ASSET_DIR = Path(settings.BASE_DIR) / 'MyApp' / 'quotation_templates'
 EXCEL_TEMPLATE = ASSET_DIR / 'exalter_quotation_template.xlsx'
 DETAILED_EXCEL_TEMPLATE = ASSET_DIR / 'quotation_sample.xlsx'
-LETTERHEAD_IMAGE = ASSET_DIR / 'exalter_letterhead.jpeg'
+LETTERHEAD_IMAGE = ASSET_DIR / 'exalter_letterhead.png'
 
-def _number_words(value):
+def quotation_amount_words(value):
     ones = (
         'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight',
         'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen',
@@ -76,7 +77,8 @@ def _copy_row_style(sheet, source_row, target_row):
 
 
 def _quotation_lines(quote):
-    lines = list(quote.lines.all())
+    lines_source = quote.lines
+    lines = list(lines_source.all()) if hasattr(lines_source, 'all') else list(lines_source)
     if lines:
         return lines
     return [SimpleNamespace(
@@ -141,7 +143,6 @@ def build_quotation_excel(quote):
     money_font = Font(name='Helvetica', size=11)
     current_row = 19
     section_item_rows = []
-    subheading_item_rows = []
     section_total_rows = []
     all_item_rows = []
 
@@ -154,10 +155,14 @@ def build_quotation_excel(quote):
             line = entry['line']
             sheet.cell(current_row, 2, line.item_code if kind == 'section' else '')
             sheet.cell(current_row, 3, plain_rich_text(line.description))
-            sheet.merge_cells(start_row=current_row, start_column=3, end_row=current_row, end_column=7)
+            heading_end_column = 5 if kind in ('section', 'subheading') else 7
+            sheet.merge_cells(
+                start_row=current_row, start_column=3,
+                end_row=current_row, end_column=heading_end_column,
+            )
             sheet.cell(current_row, 3).font = bold_font if kind != 'note' else body_font
             sheet.cell(current_row, 3).alignment = Alignment(
-                horizontal='center' if kind == 'subheading' else 'left',
+                horizontal='center' if kind == 'section' else 'left',
                 vertical='center', wrap_text=True,
             )
         elif kind == 'item':
@@ -172,23 +177,18 @@ def build_quotation_excel(quote):
             sheet.cell(current_row, 7).font = money_font
             sheet.cell(current_row, 3).alignment = Alignment(wrap_text=True, vertical='center')
             section_item_rows.append(current_row)
-            subheading_item_rows.append(current_row)
             all_item_rows.append(current_row)
         else:
             sheet.cell(current_row, 2, entry.get('code', ''))
             sheet.cell(current_row, 3, entry['label'])
             sheet.merge_cells(start_row=current_row, start_column=4, end_row=current_row, end_column=6)
             sheet.cell(current_row, 4, 'Sub-Total (QAR)')
-            source_rows = subheading_item_rows if kind == 'subtotal' else section_item_rows
-            sheet.cell(current_row, 7, sum_formula(source_rows))
+            sheet.cell(current_row, 7, sum_formula(section_item_rows))
             sheet.cell(current_row, 7).number_format = '#,##0.00'
             for column in range(2, 8):
                 sheet.cell(current_row, column).font = bold_font if column != 7 else Font(name='Helvetica', size=11, bold=True)
-            if kind == 'subtotal':
-                subheading_item_rows = []
-            else:
-                section_item_rows = []
-                section_total_rows.append(current_row)
+            section_item_rows = []
+            section_total_rows.append(current_row)
         for column in range(2, 8):
             cell = sheet.cell(current_row, column)
             cell.border = grid
@@ -196,11 +196,18 @@ def build_quotation_excel(quote):
                 cell.font = body_font
             if column in (2, 4, 5):
                 cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-        sheet.row_dimensions[current_row].height = 32 if kind == 'item' else 22
+        if kind == 'item':
+            description_length = len(plain_rich_text(entry['line'].description))
+            sheet.row_dimensions[current_row].height = max(28, 14 * ceil(description_length / 48))
+        else:
+            sheet.row_dimensions[current_row].height = 22
         current_row += 1
 
     sheet.merge_cells(start_row=current_row, start_column=2, end_row=current_row, end_column=6)
-    sheet.cell(current_row, 2, f'Grand Total (QAR - {_number_words(quote.amount)} only)')
+    sheet.cell(
+        current_row, 2,
+        f'Grand Total (QAR - {quotation_amount_words(quote.amount).capitalize()} only)',
+    )
     sheet.cell(current_row, 7, sum_formula(section_total_rows or all_item_rows))
     for column in range(2, 8):
         sheet.cell(current_row, column).border = grid
@@ -237,7 +244,12 @@ def build_quotation_excel(quote):
     sheet.print_area = f'B9:G{current_row}'
     sheet.page_setup.fitToWidth = 1
     sheet.page_setup.fitToHeight = 0
+    sheet.page_setup.orientation = 'portrait'
+    sheet.page_setup.paperSize = sheet.PAPERSIZE_A4
     sheet.sheet_properties.pageSetUpPr.fitToPage = True
+    sheet.print_title_rows = '18:18'
+    sheet.oddFooter.center.text = ''
+    sheet.evenFooter.center.text = ''
 
     output = BytesIO()
     workbook.save(output)
@@ -268,6 +280,12 @@ def build_quotation_pdf(quote):
     normal = ParagraphStyle('QuotationBody', parent=styles['BodyText'], fontName='Helvetica', fontSize=10, leading=12)
     money = ParagraphStyle('QuotationMoney', parent=normal, fontSize=11, alignment=2)
     heading = ParagraphStyle('QuotationHeading', parent=normal, fontName='Helvetica-Bold', spaceBefore=7, spaceAfter=2)
+    section_heading = ParagraphStyle(
+        'QuotationSection', parent=normal, fontName='Helvetica-Bold', alignment=TA_CENTER,
+    )
+    subheading_heading = ParagraphStyle(
+        'QuotationSubheading', parent=normal, fontName='Helvetica-Bold', alignment=0,
+    )
     subject = ParagraphStyle('QuotationSubject', parent=normal, fontName='Helvetica-Bold', alignment=TA_CENTER, spaceBefore=10, spaceAfter=6)
 
     record = quote.ENQUIRY
@@ -302,22 +320,28 @@ def build_quotation_pdf(quote):
     ]]
     row_spans = []
     bold_rows = []
-    for entry in presentation_rows(_quotation_lines(quote)):
+    quotation_entries = presentation_rows(_quotation_lines(quote))
+    for entry in quotation_entries:
         kind = entry['kind']
         row_index = len(table_data)
         if kind in ('section', 'subheading', 'note'):
             line = entry['line']
+            line_style = (
+                section_heading if kind == 'section'
+                else subheading_heading if kind == 'subheading'
+                else normal
+            )
             table_data.append([
                 line.item_code if kind == 'section' else '',
-                Paragraph(rich_text_to_html(line.description), normal), '', '', '', '',
+                Paragraph(rich_text_to_html(line.description), line_style), '', '', '', '',
             ])
-            row_spans.append((row_index, 1, 5))
+            row_spans.append((row_index, 1, 3 if kind in ('section', 'subheading') else 5))
             if kind != 'note':
                 bold_rows.append(row_index)
         elif kind in ('subtotal', 'section_total'):
             table_data.append([
-                entry.get('code', ''), Paragraph(entry['label'], normal), '', '',
-                Paragraph('<b>Sub-Total (QAR)</b>', normal),
+                entry.get('code', ''), Paragraph(entry['label'], normal),
+                Paragraph('<b>Sub-Total (QAR)</b>', normal), '', '',
                 Paragraph(f'<b>{entry["amount"]:,.2f}</b>', money),
             ])
             row_spans.append((row_index, 2, 4))
@@ -331,10 +355,18 @@ def build_quotation_pdf(quote):
             ])
     grand_row = len(table_data)
     table_data.append([
-        Paragraph(f'<b>Grand Total (QAR - {_number_words(quote.amount)} only)</b>', normal),
+        Paragraph(
+            f'<b>Grand Total (QAR - {quotation_amount_words(quote.amount).capitalize()} only)</b>',
+            normal,
+        ),
         '', '', '', '', Paragraph(f'<b>{quote.amount:,.2f}</b>', money),
     ])
-    line_table = Table(table_data, colWidths=[14 * mm, 70 * mm, 15 * mm, 14 * mm, 20 * mm, 23 * mm], repeatRows=1)
+    line_table = Table(
+        table_data,
+        colWidths=[14 * mm, 70 * mm, 15 * mm, 14 * mm, 20 * mm, 23 * mm],
+        repeatRows=1,
+        splitByRow=1,
+    )
     table_style = [
         ('GRID', (0, 0), (-1, -1), .55, colors.black),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
@@ -350,6 +382,11 @@ def build_quotation_pdf(quote):
         table_style.append(('SPAN', (start_column, row_index), (end_column, row_index)))
     for row_index in bold_rows:
         table_style.append(('FONTNAME', (0, row_index), (-1, row_index), 'Helvetica-Bold'))
+    for row_index, entry in enumerate(quotation_entries, start=1):
+        if entry['kind'] == 'section':
+            table_style.append(('ALIGN', (1, row_index), (3, row_index), 'CENTER'))
+        elif entry['kind'] == 'subheading':
+            table_style.append(('ALIGN', (1, row_index), (3, row_index), 'LEFT'))
     line_table.setStyle(TableStyle(table_style))
     story.extend([line_table, Paragraph('<u><b>Specification/Clarification</b></u>', heading)])
 

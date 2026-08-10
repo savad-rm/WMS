@@ -67,7 +67,8 @@ Site-update payloads:
 | Action | Role | Payload/precondition |
 |---|---|---|
 | `assign` | Marketing Manager, Project Manager | `estimator_id` |
-| `quote` | Assigned Estimator | `amount`, `details`, three costing amounts, optional notes |
+| `quote` | Assigned Estimator | Save a draft using `amount`, `details`, three costing amounts, optional notes |
+| `submit_for_approval` | Draft owner Estimator | Lock the draft and start Marketing Manager review |
 | `manager_approve` | Marketing Manager | Manager-review quotation |
 | `accountant_approve` | Accountant | Accountant-review quotation |
 | `costing_approve` | Project Manager | Quotation has costing |

@@ -5,6 +5,19 @@
 - The first quotation for an enquiry receives the next chronological reference in the form `QTN/0001/ETC/MM/YY`.
 - A later quotation for the same enquiry is treated as an immutable revision and keeps the base reference with `-R1`, `-R2`, and so on.
 - Approved or submitted quotations are never overwritten. A revision creates a new database record and repeats the approval workflow.
+- New quotations and revisions start in `Draft`. The estimator can preview and edit that same record repeatedly without creating a revision.
+- Marketing Manager approval begins only after the estimator selects `Submit for Approval`. Once submitted, the draft is locked; later client or approval changes require the normal revision workflow.
+
+## Quotation entry and document layout
+
+- Item units are selected from `M2`, `Nos.`, `ITEM`, `LM`, `RM`, and `Sets`.
+- Pressing Enter from a quotation row field inserts the next item immediately below the current row. Completely blank next rows are ignored safely when saving.
+- Sections are centred across Description through Quantity and receive calculated section subtotals. Subheadings are left-aligned structural labels and do not create subtotals.
+- Grand totals include Qatari-riyal wording using the international thousand/million scale; `lakh` is never used.
+- Web preview uses the same generated A4 PDF as the download, including genuine page breaks, repeated table headings, letterhead, footer, and page numbers.
+- `Preview Without Saving` validates the current editor values and opens that same client-ready PDF in a separate tab. It does not create or update a quotation, so the editor remains open with all unsaved values intact.
+- An estimator can import content from a previous approved, submitted, accepted, or rejected quotation into a new quotation, draft edit, or revision editor. Line items, editable document text, terms and internal costing are copied into the form; the current enquiry/client, current estimator signatory, new quotation reference and approval state are deliberately retained.
+- Importing is an editor convenience only. It never changes the source quotation and never creates a database record until the estimator explicitly saves the current draft.
 
 ## Enquiry history and quotation register
 

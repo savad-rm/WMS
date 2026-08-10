@@ -3,6 +3,7 @@ import sqlite3
 import tarfile
 import tempfile
 from contextlib import closing
+from decimal import Decimal
 from io import BytesIO
 from datetime import timedelta
 from pathlib import Path
@@ -21,7 +22,10 @@ from .models import (
     schedule, staff, supervisor_allocation, work, work_progress, workflow_notification,
 )
 from .deadline_notifications import ensure_quotation_deadline_notifications
-from .quotation_document import default_terms, pack_document, quotation_tracking
+from .quotation_document import (
+    default_terms, pack_document, presentation_rows, quotation_tracking,
+)
+from .quotation_exports import quotation_amount_words
 
 
 class WorkflowTests(TestCase):
@@ -84,9 +88,13 @@ class WorkflowTests(TestCase):
         })
         self.assertEqual(response.status_code, 302)
         quote = quotation.objects.get()
-        self.assertEqual(quote.status, 'manager_review')
+        self.assertEqual(quote.status, 'draft')
         self.assertEqual(quote.lines.count(), 1)
         self.assertEqual(quote.costing.total, 8500)
+        response = self.client.post(reverse('workflow_submit_for_approval', args=(quote.pk,)))
+        self.assertEqual(response.status_code, 302)
+        quote.refresh_from_db()
+        self.assertEqual(quote.status, 'manager_review')
 
         self.sign_in_as(*self.manager)
         self.assertEqual(
@@ -211,17 +219,73 @@ class WorkflowTests(TestCase):
         )
         self.sign_in_as(*self.estimator)
         response = self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), {
-            'item_code': ['A-01', 'A-02'],
-            'line_description': ['Gypsum partition', 'Painting'],
-            'unit': ['m2', 'm2'],
-            'quantity': ['10', '5'],
-            'unit_rate': ['25.50', '12'],
+            'row_type': ['item', 'item', 'item'],
+            'item_code': ['A-01', 'A-02', '3'],
+            'line_description': ['Gypsum partition', 'Painting', ''],
+            'unit': ['M2', 'M2', ''],
+            'quantity': ['10', '5', ''],
+            'unit_rate': ['25.50', '12', ''],
             'material_cost': '150', 'labour_cost': '80', 'other_cost': '0',
         })
         self.assertEqual(response.status_code, 302)
         quote = quotation.objects.get(ENQUIRY=record)
         self.assertEqual(quote.amount, 315)
         self.assertEqual(list(quote.lines.values_list('amount', flat=True)), [255, 60])
+
+    def test_unsaved_quotation_preview_generates_pdf_without_creating_records(self):
+        record = enquiry.objects.create(
+            title='Preview test', client_name='Preview Client', created_by=self.executive[0],
+            assigned_to=self.estimator[1], status='assigned',
+        )
+        self.sign_in_as(*self.estimator)
+        response = self.client.post(reverse('workflow_preview_quotation', args=(record.pk,)), {
+            'row_type': ['section', 'item'],
+            'item_code': ['I', '1'],
+            'line_description': ['PRELIMINARIES', 'Site mobilization'],
+            'unit': ['', 'ITEM'],
+            'quantity': ['', '1'],
+            'unit_rate': ['', '2500'],
+            'subject': 'Unsaved quotation preview',
+            'validity_days': '14',
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertIn('inline', response['Content-Disposition'])
+        self.assertTrue(b''.join(response.streaming_content).startswith(b'%PDF'))
+        self.assertFalse(quotation.objects.filter(ENQUIRY=record).exists())
+
+    def test_previous_quotation_can_be_imported_into_editor_without_copying_identity(self):
+        source_record = enquiry.objects.create(
+            title='Previous project', client_name='Previous Client', created_by=self.executive[0],
+            assigned_to=self.estimator[1], status='assigned',
+        )
+        self.sign_in_as(*self.estimator)
+        self.client.post(reverse('workflow_add_quotation', args=(source_record.pk,)), {
+            'row_type': ['item'], 'item_code': ['A-01'],
+            'line_description': ['Imported gypsum partition'], 'unit': ['M2'],
+            'quantity': ['12'], 'unit_rate': ['80'], 'subject': 'Old client subject',
+            'client_address': 'Old client address', 'material_cost': '500',
+            'labour_cost': '200', 'other_cost': '50',
+        })
+        source_quote = quotation.objects.get(ENQUIRY=source_record)
+        source_quote.status = 'approved'
+        source_quote.save(update_fields=('status',))
+        target_record = enquiry.objects.create(
+            title='Current project', client_name='Current Client', created_by=self.executive[0],
+            assigned_to=self.estimator[1], status='assigned',
+        )
+
+        response = self.client.get(
+            reverse('workflow_detail', args=(target_record.pk,))
+            + f'?import_quote={source_quote.pk}'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Imported gypsum partition')
+        self.assertContains(response, 'Content imported from')
+        self.assertContains(response, 'Quotation for Current project')
+        self.assertNotContains(response, 'value="Old client subject"')
+        self.assertNotContains(response, 'Old client address')
+        self.assertFalse(quotation.objects.filter(ENQUIRY=target_record).exists())
 
     def test_quotation_revisions_keep_base_reference(self):
         record = enquiry.objects.create(
@@ -235,6 +299,7 @@ class WorkflowTests(TestCase):
         }
         self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), payload)
         first = quotation.objects.get(ENQUIRY=record)
+        self.client.post(reverse('workflow_submit_for_approval', args=(first.pk,)))
         payload['amount'] = '1250'
         payload['details'] = 'Revised scope'
         payload['revision_of'] = str(first.pk)
@@ -277,6 +342,19 @@ class WorkflowTests(TestCase):
         pdf_bytes = b''.join(pdf.streaming_content)
         self.assertEqual(pdf.status_code, 200)
         self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+        preview = self.client.get(
+            reverse('workflow_download_quotation', args=(quote.pk, 'pdf')) + '?preview=1'
+        )
+        self.assertEqual(preview.headers['X-Frame-Options'], 'SAMEORIGIN')
+        self.assertIn('inline', preview.headers['Content-Disposition'])
+
+    def test_quotation_amount_words_use_international_thousands(self):
+        words = quotation_amount_words(Decimal('236250.00'))
+        self.assertEqual(
+            words,
+            'two hundred and thirty-six thousand two hundred and fifty Qatari riyals',
+        )
+        self.assertNotIn('lakh', words.lower())
 
     def test_revision_requires_explicit_source_and_view_is_separate(self):
         record = enquiry.objects.create(
@@ -295,6 +373,10 @@ class WorkflowTests(TestCase):
         first = quotation.objects.get(ENQUIRY=record)
         detail = self.client.get(reverse('workflow_detail', args=(record.pk,)))
         self.assertNotContains(detail, 'id="quotationForm"')
+        self.assertContains(detail, f'?edit={first.pk}#quotationForm')
+        self.assertNotContains(detail, f'?revise={first.pk}#quotationForm')
+        self.client.post(reverse('workflow_submit_for_approval', args=(first.pk,)))
+        detail = self.client.get(reverse('workflow_detail', args=(record.pk,)))
         self.assertContains(detail, f'?revise={first.pk}#quotationForm')
         self.assertEqual(
             self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), payload).status_code,
@@ -329,9 +411,14 @@ class WorkflowTests(TestCase):
             quote = quotation.objects.get(ENQUIRY=record)
             self.assertEqual(quote.amount, 250)
             view = self.client.get(reverse('workflow_view_quotation', args=(quote.pk,)))
-            self.assertContains(view, 'FLOORING')
-            self.assertContains(view, '<b>approved</b>', html=True)
-            self.assertContains(view, 'Sub-Total (QAR)')
+            self.assertContains(view, 'Quotation PDF preview')
+            self.assertContains(view, '?preview=1')
+            rendered_rows = presentation_rows(quote.lines.all())
+            self.assertEqual(
+                [row['kind'] for row in rendered_rows],
+                ['section', 'subheading', 'item', 'section_total'],
+            )
+            self.assertEqual(rendered_rows[-1]['amount'], 250)
             self.assertEqual(self.client.post(
                 reverse('workflow_add_quotation_comment', args=(quote.pk,)),
                 {'comment': 'Please confirm the finish.'},
@@ -342,6 +429,57 @@ class WorkflowTests(TestCase):
             ).status_code, 302)
             quote.refresh_from_db()
             self.assertFalse(quote.file)
+
+    def test_estimator_can_edit_saved_draft_before_submitting_for_approval(self):
+        record = enquiry.objects.create(
+            title='Editable draft', client_name='Client', created_by=self.executive[0],
+            assigned_to=self.estimator[1], status='assigned',
+        )
+        self.sign_in_as(*self.estimator)
+        payload = {
+            'amount': '1000', 'details': 'Initial draft scope',
+            'material_cost': '100', 'labour_cost': '50', 'other_cost': '0',
+        }
+        self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), payload)
+        quote = quotation.objects.get(ENQUIRY=record)
+        edit_page = self.client.get(
+            f'{reverse("workflow_detail", args=(record.pk,))}?edit={quote.pk}'
+        )
+        self.assertContains(edit_page, f'Edit Draft {quote.display_number}')
+
+        invalid_payload = {
+            **payload, 'draft_id': str(quote.pk), 'amount': 'NaN',
+        }
+        invalid_response = self.client.post(
+            reverse('workflow_add_quotation', args=(record.pk,)), invalid_payload,
+        )
+        self.assertEqual(invalid_response.status_code, 400)
+        self.assertContains(
+            invalid_response, f'Edit Draft {quote.display_number}', status_code=400,
+        )
+        self.assertContains(invalid_response, 'id="quotationForm"', status_code=400)
+
+        payload.update({
+            'draft_id': str(quote.pk), 'amount': '1250',
+            'details': 'Corrected draft scope', 'material_cost': '120',
+        })
+        response = self.client.post(
+            reverse('workflow_add_quotation', args=(record.pk,)), payload,
+        )
+        self.assertRedirects(
+            response, reverse('workflow_view_quotation', args=(quote.pk,)),
+            fetch_redirect_response=False,
+        )
+        quote.refresh_from_db()
+        self.assertEqual(quotation.objects.filter(ENQUIRY=record).count(), 1)
+        self.assertEqual(quote.amount, 1250)
+        self.assertEqual(quote.status, 'draft')
+
+        self.client.post(reverse('workflow_submit_for_approval', args=(quote.pk,)))
+        quote.refresh_from_db()
+        record.refresh_from_db()
+        self.assertEqual(quote.status, 'manager_review')
+        self.assertEqual(record.status, 'quoted')
 
     def test_marketing_manager_can_add_enquiry_and_ajax_errors_do_not_redirect(self):
         self.sign_in_as(*self.manager)

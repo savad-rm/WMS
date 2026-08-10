@@ -571,7 +571,10 @@ def _enquiry_actions(account, record):
     if role in ('Marketing Manager', 'Project Manager'):
         actions.append('assign')
     if role == 'Estimator' and record.assigned_to_id == getattr(_person(account), 'pk', None):
-        actions.append('quote')
+        if latest and latest.status == 'draft' and latest.created_by_id == getattr(_person(account), 'pk', None):
+            actions.append('submit_for_approval')
+        else:
+            actions.append('quote')
     if latest:
         if role == 'Marketing Manager' and latest.status == 'manager_review':
             actions.append('manager_approve')
@@ -628,6 +631,7 @@ class EnquiryActionView(APIView):
                     ENQUIRY=record, version=version, revision=revision, amount=amount,
                     subject=str(request.data.get('subject', '')).strip() or f'Quotation for {record.title}',
                     details=str(request.data.get('details', '')).strip(), created_by=person,
+                    status='draft',
                 )
                 assign_quotation_reference(quote, first_quote)
                 quotation_line.objects.create(
@@ -642,13 +646,16 @@ class EnquiryActionView(APIView):
                     other_cost=_decimal(request.data, 'other_cost'),
                     notes=str(request.data.get('costing_notes', '')).strip(),
                 )
-                record.status = 'quoted'
-                record.save(update_fields=('status', 'updated_at'))
             else:
                 latest = quotation.objects.select_for_update().filter(ENQUIRY=record).order_by('-version').first()
                 if not latest:
                     raise ValidationError({'action': ['No quotation is available for this action.']})
-                if action == 'manager_approve' and request.user.usertype == 'Marketing Manager' and latest.status == 'manager_review':
+                if action == 'submit_for_approval' and request.user.usertype == 'Estimator' and latest.status == 'draft' and latest.created_by_id == getattr(person, 'pk', None):
+                    latest.status = 'manager_review'
+                    latest.save(update_fields=('status', 'updated_at'))
+                    record.status = 'quoted'
+                    record.save(update_fields=('status', 'updated_at'))
+                elif action == 'manager_approve' and request.user.usertype == 'Marketing Manager' and latest.status == 'manager_review':
                     latest.status = 'accountant_review'
                     latest.manager_approved_by = person
                     latest.manager_approved_at = timezone.now()

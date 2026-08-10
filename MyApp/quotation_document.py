@@ -104,19 +104,14 @@ def plain_rich_text(value):
 
 
 def presentation_rows(lines):
-    """Insert calculated subtotal rows without persisting derived values."""
+    """Insert section subtotals without persisting derived values.
+
+    Subheadings are descriptive breaks inside a section.  They deliberately do
+    not produce financial subtotal rows, matching the approved quotation sample.
+    """
     rows = []
     section = None
-    subheading = None
     section_total = 0
-    subheading_total = 0
-
-    def close_subheading():
-        nonlocal subheading, subheading_total
-        if subheading is not None:
-            rows.append({'kind': 'subtotal', 'label': subheading.description, 'amount': subheading_total})
-        subheading = None
-        subheading_total = 0
 
     def close_section():
         nonlocal section, section_total
@@ -131,19 +126,14 @@ def presentation_rows(lines):
     for line in lines:
         kind = line_kind(line)
         if kind == 'section':
-            close_subheading()
             close_section()
             section = line
             rows.append({'kind': kind, 'line': line})
         elif kind == 'subheading':
-            close_subheading()
-            subheading = line
             rows.append({'kind': kind, 'line': line})
         else:
             rows.append({'kind': kind, 'line': line})
             if kind == 'item':
                 section_total += line.amount
-                subheading_total += line.amount
-    close_subheading()
     close_section()
     return rows

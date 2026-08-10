@@ -2,48 +2,18 @@
 {% load static workflow_filters %}
 {% block extra_head %}
 <style>
-  .quotation-paper { position: relative; max-width: 900px; min-height: 1120px; margin: 0 auto; padding: 150px 58px 88px; background: #fff url("{% static 'quotation/exalter-letterhead.jpeg' %}") center/100% 100% no-repeat; color: #000; font-family: Helvetica, Arial, sans-serif; font-size: 10pt; line-height: 1.25; box-shadow: 0 .25rem 1rem rgba(1,41,112,.12); }
-  .quotation-paper table { width: 100%; border-collapse: collapse; font-size: 10pt; }
-  .quotation-paper th, .quotation-paper td { border: 1px solid #000; padding: 3px 4px; vertical-align: middle; }
-  .quotation-paper th { font-weight: 700; text-align: center; }
-  .quotation-paper .number { text-align: center; }
-  .quotation-paper .money { font-size: 11pt; text-align: right; white-space: nowrap; }
-  .quotation-paper .section-row, .quotation-paper .subtotal-row { font-weight: 700; }
-  .quotation-paper .subheading-row { font-weight: 700; text-align: center; }
-  .quotation-reference { width: 265px; margin-left: auto; text-align: right; }
-  .quotation-nameplate { margin-top: 18px; border: 1.5px solid #000; padding: 2px 32px; text-align: center; font-weight: 700; }
-  .quotation-client strong { font-size: 10pt; }
-  .quotation-subject { margin: 28px 0 8px; text-align: center; font-weight: 700; }
-  .quotation-term { margin-top: 12px; }
-  .quotation-term-title { font-weight: 700; text-decoration: underline; }
-  @media print { body, #main { background: #fff !important; } header, aside, footer, .pagetitle, .quotation-actions, .back-to-top { display: none !important; } #main { margin: 0 !important; padding: 0 !important; } .quotation-paper { box-shadow: none; max-width: none; } }
+  .quotation-preview-shell { padding: 12px; border: 1px solid #dce3ef; border-radius: .375rem; background: #e9edf5; box-shadow: 0 .25rem 1rem rgba(1,41,112,.10); }
+  .quotation-preview-frame { display: block; width: 100%; min-height: 78vh; height: 920px; border: 0; border-radius: .25rem; background: #fff; }
+  @media (max-width: 767.98px) { .quotation-preview-frame { height: 72vh; min-height: 620px; } }
 </style>
 {% endblock %}
 {% block body %}
-<div class="pagetitle d-flex flex-wrap justify-content-between align-items-start gap-2"><div><h1>{{ quote.display_number }}</h1><nav><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'workflow_dashboard' %}">Enquiries</a></li><li class="breadcrumb-item"><a href="{% url 'workflow_detail' enquiry.id %}">{{ enquiry.title }}</a></li><li class="breadcrumb-item active">Quotation</li></ol></nav></div><div class="workflow-actions quotation-actions"><button class="btn btn-outline-primary" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print</button><a class="btn btn-outline-success" href="{% url 'workflow_download_quotation' quote.id 'xlsx' %}">Excel</a><a class="btn btn-outline-danger" href="{% url 'workflow_download_quotation' quote.id 'pdf' %}">PDF</a></div></div>
+<div class="pagetitle d-flex flex-wrap justify-content-between align-items-start gap-2"><div><h1>{{ quote.display_number }}</h1><nav><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'workflow_dashboard' %}">Enquiries</a></li><li class="breadcrumb-item"><a href="{% url 'workflow_detail' enquiry.id %}">{{ enquiry.title }}</a></li><li class="breadcrumb-item active">Quotation</li></ol></nav></div><div class="workflow-actions quotation-actions">{% if can_edit_draft %}<a class="btn btn-primary" href="{% url 'workflow_detail' enquiry.id %}?edit={{ quote.id }}#quotationForm"><i class="bi bi-pencil-square"></i> Edit Draft</a><form method="post" action="{% url 'workflow_submit_for_approval' quote.id %}">{% csrf_token %}<button class="btn btn-success"><i class="bi bi-send-check"></i> Submit for Approval</button></form>{% endif %}<a class="btn btn-outline-primary" href="{% url 'workflow_download_quotation' quote.id 'pdf' %}?preview=1" target="_blank" rel="noopener"><i class="bi bi-printer"></i> Open / Print</a><a class="btn btn-outline-success" href="{% url 'workflow_download_quotation' quote.id 'xlsx' %}">Excel</a><a class="btn btn-outline-danger" href="{% url 'workflow_download_quotation' quote.id 'pdf' %}">PDF</a></div></div>
 
-<div class="quotation-paper">
-  <div class="d-flex justify-content-between align-items-start">
-    <div class="quotation-client"><strong>{{ enquiry.client_name|quotation_client_name }}</strong>{% if enquiry.client_phone %}<div>Tel: {{ enquiry.client_phone }}</div>{% endif %}{% if enquiry.client_email %}<div>Email: {{ enquiry.client_email }}</div>{% endif %}{% if quote.client_address %}<div>{{ quote.client_address|linebreaksbr }}</div>{% endif %}</div>
-    <div class="quotation-reference"><strong>{{ quote.display_number }}</strong><div><strong>{{ quote.issue_date|date:'d-M-y' }}</strong></div><div class="quotation-nameplate">QUOTATION</div></div>
-  </div>
-  <div class="quotation-subject">Subject : <u>{{ quote.subject }}</u></div>
-  <div><strong>Dear Sir,</strong></div><div class="ms-5 mb-2">{{ quote.introduction }}</div>
-  <table><thead><tr><th style="width:8%">ITEMS</th><th>DESCRIPTION</th><th style="width:10%">UNIT</th><th style="width:11%">QTY</th><th style="width:15%">RATE</th><th style="width:16%">AMOUNT</th></tr></thead><tbody>
-    {% for row in quotation_rows %}
-      {% if row.kind == 'section' %}<tr class="section-row"><td class="number">{{ row.line.item_code }}</td><td colspan="5">{{ row.line.description|quotation_rich_text }}</td></tr>
-      {% elif row.kind == 'subheading' %}<tr class="subheading-row"><td></td><td colspan="5">{{ row.line.description|quotation_rich_text }}</td></tr>
-      {% elif row.kind == 'note' %}<tr><td></td><td colspan="5">{{ row.line.description|quotation_rich_text }}</td></tr>
-      {% elif row.kind == 'subtotal' %}<tr class="subtotal-row"><td></td><td>{{ row.label }}</td><td colspan="3" class="text-end">Sub-Total (QAR)</td><td class="money">{{ row.amount|floatformat:2 }}</td></tr>
-      {% elif row.kind == 'section_total' %}<tr class="subtotal-row"><td class="number">{{ row.code }}</td><td>{{ row.label }}</td><td colspan="3" class="text-end">Sub-Total (QAR)</td><td class="money">{{ row.amount|floatformat:2 }}</td></tr>
-      {% else %}<tr><td class="number">{{ row.line.item_code }}</td><td>{{ row.line.description|quotation_rich_text }}</td><td class="number">{{ row.line.unit }}</td><td class="number">{{ row.line.quantity|floatformat:2 }}</td><td class="money">{{ row.line.unit_rate|floatformat:2 }}</td><td class="money">{{ row.line.amount|floatformat:2 }}</td></tr>{% endif %}
-    {% endfor %}
-    <tr class="subtotal-row"><td colspan="5">Grand Total (QAR)</td><td class="money">{{ quote.amount|floatformat:2 }}</td></tr>
-  </tbody></table>
-  <div class="mt-1 fw-bold text-decoration-underline">Specification/Clarification</div>
-  {% for term in document.terms %}<div class="quotation-term"><div class="quotation-term-title">{{ forloop.counter }}. {{ term.title }}</div><div>{{ term.body|linebreaksbr }}</div></div>{% endfor %}
-  <div class="mt-3">{{ quote.closing_text }}</div><div class="mt-3"><strong>With Best Regards,</strong><br><strong>Exalter Trading &amp; Contracting</strong></div>
-  <div class="mt-4"><strong>{{ quote.signatory_name }}</strong><br><strong>{{ quote.signatory_title }}</strong>{% if quote.signatory_phone %}<br><strong>Mobile {{ quote.signatory_phone }}</strong>{% endif %}</div>
+{% if can_edit_draft %}<div class="alert alert-info quotation-actions"><i class="bi bi-info-circle me-1"></i>This quotation is saved as a draft. Review every page below, use <strong>Edit Draft</strong> for corrections, and submit it only when it is ready for approval.</div>{% endif %}
+<div class="quotation-preview-shell">
+  <iframe class="quotation-preview-frame" title="Quotation PDF preview" src="{% url 'workflow_download_quotation' quote.id 'pdf' %}?preview=1#toolbar=0&navpanes=0&view=FitH"></iframe>
+  <noscript><a class="btn btn-primary" href="{% url 'workflow_download_quotation' quote.id 'pdf' %}?preview=1" target="_blank" rel="noopener">Open quotation preview</a></noscript>
 </div>
 
 <div class="card mt-4 quotation-actions"><div class="card-body"><h5 class="card-title">Client Response</h5>{% if quote.status == 'submitted' or quote.status == 'accepted' or quote.status == 'rejected' %}<div class="row g-3"><div class="col-md-3"><span class="text-muted small d-block">Submitted date</span><strong>{{ client_tracking.submitted_at_value|default:quote.updated_at|date:'d M Y' }}</strong></div>{% if can_manage_client_response %}<div class="col-md-9"><form method="post" action="{% url 'workflow_update_client_response' quote.id %}" class="row g-2">{% csrf_token %}<input type="hidden" name="return_to" value="quotation"><div class="col-md-8"><label class="form-label">Client remarks</label><textarea name="client_remarks" rows="3" maxlength="2000" class="form-control" placeholder="Revision request, scope change or other client feedback">{{ client_tracking.client_remarks }}</textarea></div><div class="col-md-4"><label class="form-label">Client status</label><select name="client_status" class="form-select mb-2">{% for value, label in client_response_statuses.items %}<option value="{{ value }}" {% if client_tracking.client_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select><button class="btn btn-primary w-100">Save Client Response</button></div></form></div>{% else %}<div class="col-md-6"><span class="text-muted small d-block">Client remarks</span>{{ client_tracking.client_remarks|default:'-'|linebreaksbr }}</div><div class="col-md-3"><span class="text-muted small d-block">Client status</span>{{ client_tracking.client_status_label }}</div>{% endif %}</div>{% else %}<p class="text-muted mb-0">Client feedback becomes available after this quotation is submitted.</p>{% endif %}</div></div>

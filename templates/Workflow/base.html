@@ -21,6 +21,18 @@
     .workflow-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
     .file-row + .file-row { margin-top: .75rem; }
     .quotation-entry-table thead th { background: #00a0dc; color: #fff; white-space: nowrap; }
+    .was-validated .form-control:valid, .form-control.is-valid,
+    .was-validated .form-control:invalid, .form-control.is-invalid {
+      background-image: none !important; padding-right: .75rem;
+    }
+    .was-validated .form-select:valid:not([multiple]):not([size]),
+    .was-validated .form-select:invalid:not([multiple]):not([size]),
+    .form-select.is-valid:not([multiple]):not([size]),
+    .form-select.is-invalid:not([multiple]):not([size]) {
+      padding-right: 2.25rem;
+      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") !important;
+      background-position: right .75rem center; background-size: 16px 12px;
+    }
   </style>
   {% block extra_head %}{% endblock %}
 </head>
@@ -55,11 +67,11 @@
             {% for notice in workflow_notifications %}
               <li><hr class="dropdown-divider"></li>
               <li class="notification-item">
-                <i class="bi bi-clock-history text-{% if notice.level == 'danger' %}danger{% elif notice.level == 'warning' %}warning{% else %}primary{% endif %}"></i>
+                <i class="bi {% if notice.event == 'quotation_comment' %}bi-chat-dots{% else %}bi-clock-history{% endif %} text-{% if notice.level == 'danger' %}danger{% elif notice.level == 'warning' %}warning{% else %}primary{% endif %}"></i>
                 <div><form method="post" action="{% url 'workflow_notification_read' notice.id %}">{% csrf_token %}<button type="submit" class="border-0 bg-transparent text-start p-0"><p class="mb-1">{{ notice.message }}</p><small>{{ notice.created_at|timesince }} ago</small></button></form></div>
               </li>
             {% empty %}
-              <li class="notification-item"><div><p class="mb-0 text-muted">No deadline alerts.</p></div></li>
+              <li class="notification-item"><div><p class="mb-0 text-muted">No alerts.</p></div></li>
             {% endfor %}
           </ul>
         </li>
@@ -101,7 +113,7 @@
           <i class="bi bi-briefcase"></i><span>Enquiries &amp; Quotations</span>
         </a>
       </li>
-      <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name != 'workflow_notifications' %}collapsed{% endif %}" href="{% url 'workflow_notifications' %}"><i class="bi bi-bell"></i><span>Deadline Alerts</span>{% if workflow_unread_count %}<span class="badge bg-primary ms-auto">{{ workflow_unread_count }}</span>{% endif %}</a></li>
+      <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name != 'workflow_notifications' %}collapsed{% endif %}" href="{% url 'workflow_notifications' %}"><i class="bi bi-bell"></i><span>Notifications</span>{% if workflow_unread_count %}<span class="badge bg-primary ms-auto">{{ workflow_unread_count }}</span>{% endif %}</a></li>
       {% if current_role == 'Marketing Executive' or current_role == 'Marketing Manager' %}
       <li class="nav-item">
         <a class="nav-link {% if request.resolver_match.url_name != 'workflow_add_enquiry' %}collapsed{% endif %}" href="{% url 'workflow_add_enquiry' %}">

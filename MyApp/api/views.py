@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, time
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -7,7 +7,7 @@ from django.core.files.storage import default_storage
 from django.db import transaction
 from django.db.models import Max, Q
 from django.utils import timezone
-from django.utils.dateparse import parse_datetime
+from django.utils.dateparse import parse_date, parse_datetime
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -507,7 +507,14 @@ class EnquiryListView(APIView):
         client_name = str(request.data.get('client_name', '')).strip()
         if not title or not client_name:
             raise ValidationError({'title': ['Title and client name are required.']})
-        deadline = parse_datetime(str(request.data.get('quotation_deadline', '')).strip())
+        deadline_value = str(request.data.get('quotation_deadline', '')).strip()
+        deadline = parse_datetime(deadline_value)
+        if not deadline:
+            deadline_date = parse_date(deadline_value)
+            if deadline_date:
+                deadline = timezone.make_aware(
+                    datetime.combine(deadline_date, time.max), timezone.get_current_timezone(),
+                )
         if not deadline:
             raise ValidationError({'quotation_deadline': ['A quotation submission deadline is required.']})
         if timezone.is_naive(deadline):

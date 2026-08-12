@@ -232,28 +232,6 @@ class WorkflowTests(TestCase):
         self.assertEqual(quote.amount, 315)
         self.assertEqual(list(quote.lines.values_list('amount', flat=True)), [255, 60])
 
-    def test_unsaved_quotation_preview_generates_pdf_without_creating_records(self):
-        record = enquiry.objects.create(
-            title='Preview test', client_name='Preview Client', created_by=self.executive[0],
-            assigned_to=self.estimator[1], status='assigned',
-        )
-        self.sign_in_as(*self.estimator)
-        response = self.client.post(reverse('workflow_preview_quotation', args=(record.pk,)), {
-            'row_type': ['section', 'item'],
-            'item_code': ['I', '1'],
-            'line_description': ['PRELIMINARIES', 'Site mobilization'],
-            'unit': ['', 'ITEM'],
-            'quantity': ['', '1'],
-            'unit_rate': ['', '2500'],
-            'subject': 'Unsaved quotation preview',
-            'validity_days': '14',
-        })
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response['Content-Type'], 'application/pdf')
-        self.assertIn('inline', response['Content-Disposition'])
-        self.assertTrue(b''.join(response.streaming_content).startswith(b'%PDF'))
-        self.assertFalse(quotation.objects.filter(ENQUIRY=record).exists())
-
     def test_previous_quotation_can_be_imported_into_editor_without_copying_identity(self):
         source_record = enquiry.objects.create(
             title='Previous project', client_name='Previous Client', created_by=self.executive[0],
@@ -352,9 +330,10 @@ class WorkflowTests(TestCase):
         words = quotation_amount_words(Decimal('236250.00'))
         self.assertEqual(
             words,
-            'two hundred and thirty-six thousand two hundred and fifty Qatari riyals',
+            'two hundred and thirty-six thousand two hundred and fifty',
         )
         self.assertNotIn('lakh', words.lower())
+        self.assertNotIn('riyals', words.lower())
 
     def test_revision_requires_explicit_source_and_view_is_separate(self):
         record = enquiry.objects.create(
@@ -410,6 +389,10 @@ class WorkflowTests(TestCase):
             self.assertEqual(response.status_code, 302)
             quote = quotation.objects.get(ENQUIRY=record)
             self.assertEqual(quote.amount, 250)
+            self.assertEqual(
+                list(quote.lines.values_list('item_code', flat=True)),
+                ['1', '1.1', '1'],
+            )
             view = self.client.get(reverse('workflow_view_quotation', args=(quote.pk,)))
             self.assertContains(view, 'Quotation PDF preview')
             self.assertContains(view, '?preview=1')
@@ -424,6 +407,26 @@ class WorkflowTests(TestCase):
                 {'comment': 'Please confirm the finish.'},
             ).status_code, 302)
             self.assertTrue(record.comments.filter(comment__contains='Please confirm').exists())
+            self.assertTrue(workflow_notification.objects.filter(
+                recipient=self.manager[0], event='quotation_comment', read_at__isnull=True,
+            ).exists())
+            self.sign_in_as(*self.manager)
+            discussion = self.client.get(
+                reverse('workflow_quotation_discussion', args=(quote.pk,))
+            )
+            self.assertContains(discussion, 'Please confirm the finish.')
+            self.assertFalse(workflow_notification.objects.filter(
+                recipient=self.manager[0], event='quotation_comment', read_at__isnull=True,
+            ).exists())
+            parent = record.comments.get(comment__contains='Please confirm')
+            self.client.post(reverse('workflow_add_quotation_comment', args=(quote.pk,)), {
+                'parent_id': parent.pk, 'comment': 'Confirmed for approval.',
+            })
+            discussion = self.client.get(
+                reverse('workflow_quotation_discussion', args=(quote.pk,))
+            )
+            self.assertContains(discussion, 'Confirmed for approval.')
+            self.sign_in_as(*self.estimator)
             self.assertEqual(self.client.post(
                 reverse('workflow_remove_quotation_file', args=(quote.pk,))
             ).status_code, 302)

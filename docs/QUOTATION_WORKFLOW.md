@@ -15,9 +15,15 @@
 - Sections are centred across Description through Quantity and receive calculated section subtotals. Subheadings are left-aligned structural labels and do not create subtotals.
 - Grand totals include Qatari-riyal wording using the international thousand/million scale; `lakh` is never used.
 - Web preview uses the same generated A4 PDF as the download, including genuine page breaks, repeated table headings, letterhead, footer, and page numbers.
-- `Preview Without Saving` validates the current editor values and opens that same client-ready PDF in a separate tab. It does not create or update a quotation, so the editor remains open with all unsaved values intact.
+- Preview is intentionally available only after saving a draft. The saved quotation view renders the client-ready PDF and keeps edit and submit-for-approval actions beside it.
 - An estimator can import content from a previous approved, submitted, accepted, or rejected quotation into a new quotation, draft edit, or revision editor. Line items, editable document text, terms and internal costing are copied into the form; the current enquiry/client, current estimator signatory, new quotation reference and approval state are deliberately retained.
 - Importing is an editor convenience only. It never changes the source quotation and never creates a database record until the estimator explicitly saves the current draft.
+
+## Quotation discussions and approvals
+
+- Every quotation has a separate discussion page for Marketing Executives, Marketing Managers, Estimators and Accountants. Messages can receive contextual replies without appearing in the enquiry's general comment history.
+- New quotation messages create per-user alerts and numeric unread badges in the enquiry and quotation lists. Opening that quotation's discussion marks only its alerts as read.
+- Marketing Manager, Accountant, costing approval and client-submittal actions are performed from the saved quotation view after reviewing the generated document; they are not exposed on the enquiry view.
 
 ## Enquiry history and quotation register
 
@@ -29,7 +35,7 @@
 
 ## Deadline notifications
 
-Creating an enquiry requires a quotation submission deadline. Deduplicated notifications are generated at these stages:
+Creating an enquiry requires a quotation submission date. The selected date is treated as the end of that local business day, and deduplicated notifications are generated at these stages:
 
 - Within seven days.
 - Within three days.

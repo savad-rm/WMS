@@ -1,4 +1,16 @@
 {% extends 'Workflow/base.html' %}
+{% block extra_head %}
+<style>
+  .quotation-editor-wrap { max-height: 68vh; overflow: auto; }
+  .quotation-entry-table { min-width: 1180px; table-layout: fixed; }
+  .quotation-entry-table thead { position: sticky; top: 0; z-index: 4; }
+  .quotation-entry-table th { text-align: center; vertical-align: middle; }
+  .quotation-entry-table .description-column { width: 42%; }
+  .quotation-entry-table .line-description { min-height: 76px; resize: vertical; overflow-y: hidden; }
+  .quotation-entry-table .quotation-row.table-light .line-description { min-height: 42px; }
+  .quotation-entry-table .quotation-row[data-kind="subheading"] .line-description { min-height: 38px; }
+</style>
+{% endblock %}
 {% block body %}
 <div class="pagetitle d-flex flex-wrap justify-content-between align-items-start gap-2">
   <div>
@@ -9,14 +21,15 @@
 </div>
 
 <div class="row">
-  <div class="col-lg-8">
+  <div class="{% if can_quote %}col-12{% else %}col-lg-8{% endif %}">
     <div class="card"><div class="card-body">
       <h5 class="card-title">Enquiry Details</h5>
       <dl class="row mb-0">
         <dt class="col-sm-4">Client</dt><dd class="col-sm-8">{{ enquiry.client_name }}</dd>
         <dt class="col-sm-4">Contact</dt><dd class="col-sm-8">{{ enquiry.client_email|default:'-' }}{% if enquiry.client_phone %} &middot; {{ enquiry.client_phone }}{% endif %}</dd>
         <dt class="col-sm-4">Assigned estimator</dt><dd class="col-sm-8">{{ enquiry.assigned_to.name|default:'Not assigned' }}</dd>
-        <dt class="col-sm-4">Quotation deadline</dt><dd class="col-sm-8"><strong class="text-danger">{{ enquiry.quotation_deadline|date:'d M Y, h:i A'|default:'Not set' }}</strong></dd>
+        <dt class="col-sm-4">Marketing Executive</dt><dd class="col-sm-8">{{ marketing_executive_name }}</dd>
+        <dt class="col-sm-4">Quotation deadline</dt><dd class="col-sm-8"><strong class="text-danger">{{ enquiry.quotation_deadline|date:'d M Y'|default:'Not set' }}</strong></dd>
         <dt class="col-sm-4">Scope / remarks</dt><dd class="col-sm-8">{{ enquiry.description|linebreaksbr|default:'-' }}</dd>
       </dl>
     </div></div>
@@ -34,7 +47,7 @@
     {% if can_quote %}
     <div class="card"><div class="card-body">
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <div><h5 class="card-title mb-0">{% if editing_quote %}Edit Draft {{ editing_quote.display_number }}{% elif revision_source %}Create Revision of {{ revision_source.display_number }}{% else %}Create Quotation Draft{% endif %}</h5><small class="text-muted">Save and preview your work first. Approval starts only when you explicitly submit the completed draft.</small></div>
+        <div><h5 class="card-title mb-0">{% if editing_quote %}Edit Draft {{ editing_quote.display_number }}{% elif revision_source %}Create Revision of {{ revision_source.display_number }}{% else %}Create Quotation Draft{% endif %}</h5><small class="text-muted">Save the draft first, then review its complete PDF from the quotation view before submitting it for approval.</small></div>
         <div class="btn-group"><button class="btn btn-sm btn-outline-primary add-quotation-row" data-kind="item" type="button">Add Item</button><button class="btn btn-sm btn-outline-primary add-quotation-row" data-kind="subheading" type="button">Add Subheading</button><button class="btn btn-sm btn-outline-primary add-quotation-row" data-kind="section" type="button">Add Section</button></div>
       </div>
       {% if importable_quotations %}
@@ -49,17 +62,17 @@
         <div class="form-text">This copies editable content, line items, terms and internal costing only. The current client, enquiry, quotation number and approval workflow remain unchanged.</div>
       </form>
       {% endif %}
-      {% if imported_quote %}<div class="alert alert-info py-2"><i class="bi bi-info-circle me-1"></i>Content imported from <strong>{{ imported_quote.display_number }}</strong>. Review and edit it before previewing or saving; no quotation has been created yet.</div>{% endif %}
+      {% if imported_quote %}<div class="alert alert-info py-2"><i class="bi bi-info-circle me-1"></i>Content imported from <strong>{{ imported_quote.display_number }}</strong>. Review and edit it before saving; no quotation has been created yet.</div>{% endif %}
       <form method="post" enctype="multipart/form-data" action="{% url 'workflow_add_quotation' enquiry.id %}" class="row g-3 needs-validation" id="quotationForm" novalidate>{% csrf_token %}
         {% if revision_source %}<input type="hidden" name="revision_of" value="{{ revision_source.id }}">{% endif %}
         {% if editing_quote %}<input type="hidden" name="draft_id" value="{{ editing_quote.id }}">{% endif %}
-        <div class="col-12"><div class="table-responsive border rounded"><table class="table table-bordered align-middle mb-0 quotation-entry-table">
-          <thead><tr><th style="width:12%">Row type</th><th style="width:9%">Item</th><th>Description <button class="btn btn-xs btn-light ms-1" id="boldDescription" type="button" title="Wrap selected description text in bold"><strong>B</strong></button></th><th style="width:10%">Unit</th><th style="width:10%">Qty</th><th style="width:13%">Rate</th><th style="width:13%">Amount</th><th style="width:48px"></th></tr></thead>
+        <div class="col-12"><div class="table-responsive border rounded quotation-editor-wrap"><table class="table table-bordered align-middle mb-0 quotation-entry-table">
+          <thead><tr><th style="width:11%">Row type</th><th style="width:8%">Item</th><th class="description-column">Description <button class="btn btn-xs btn-light ms-1" id="boldDescription" type="button" title="Wrap selected description text in bold"><strong>B</strong></button></th><th style="width:9%">Unit</th><th style="width:8%">Qty</th><th style="width:11%">Rate</th><th style="width:11%">Amount</th><th style="width:48px"></th></tr></thead>
           <tbody id="quotationRows">
           {% for row in quote_rows %}
-            <tr class="quotation-row"><td><select name="row_type" class="form-select form-select-sm row-type"><option value="item" {% if row.row_type == 'item' %}selected{% endif %}>Item</option><option value="subheading" {% if row.row_type == 'subheading' %}selected{% endif %}>Subheading</option><option value="section" {% if row.row_type == 'section' %}selected{% endif %}>Section</option><option value="note" {% if row.row_type == 'note' %}selected{% endif %}>Note</option></select></td><td><input name="item_code" value="{{ row.item_code }}" class="form-control form-control-sm item-code"></td><td><textarea name="line_description" class="form-control form-control-sm line-description" rows="2" maxlength="255">{{ row.description }}</textarea></td><td><select name="unit" class="form-select form-select-sm line-unit"><option value="">Select</option>{% if row.unit and row.unit not in quotation_units %}<option value="{{ row.unit }}" selected>{{ row.unit }}</option>{% endif %}{% for unit in quotation_units %}<option value="{{ unit }}" {% if row.unit == unit %}selected{% endif %}>{{ unit }}</option>{% endfor %}</select></td><td><input type="text" inputmode="decimal" name="quantity" value="{{ row.quantity }}" class="form-control form-control-sm line-quantity"></td><td><input type="text" inputmode="decimal" name="unit_rate" value="{{ row.unit_rate }}" class="form-control form-control-sm line-rate"></td><td class="text-end line-amount">0.00</td><td><button class="btn btn-sm btn-outline-danger remove-quotation-row" type="button" aria-label="Remove row"><i class="bi bi-trash"></i></button></td></tr>
+            <tr class="quotation-row" data-kind="{{ row.row_type }}"><td><select name="row_type" class="form-select form-select-sm row-type"><option value="item" {% if row.row_type == 'item' %}selected{% endif %}>Item</option><option value="subheading" {% if row.row_type == 'subheading' %}selected{% endif %}>Subheading</option><option value="section" {% if row.row_type == 'section' %}selected{% endif %}>Section</option><option value="note" {% if row.row_type == 'note' %}selected{% endif %}>Note</option></select></td><td><input name="item_code" value="{{ row.item_code }}" class="form-control form-control-sm item-code"></td><td><textarea name="line_description" class="form-control form-control-sm line-description" rows="3" maxlength="255">{{ row.description }}</textarea></td><td><select name="unit" class="form-select form-select-sm line-unit"><option value="">Select</option>{% if row.unit and row.unit not in quotation_units %}<option value="{{ row.unit }}" selected>{{ row.unit }}</option>{% endif %}{% for unit in quotation_units %}<option value="{{ unit }}" {% if row.unit == unit %}selected{% endif %}>{{ unit }}</option>{% endfor %}</select></td><td><input type="text" inputmode="decimal" name="quantity" value="{{ row.quantity }}" class="form-control form-control-sm line-quantity"></td><td><input type="text" inputmode="decimal" name="unit_rate" value="{{ row.unit_rate }}" class="form-control form-control-sm line-rate"></td><td class="text-center line-amount">0.00</td><td><button class="btn btn-sm btn-outline-danger remove-quotation-row" type="button" aria-label="Remove row"><i class="bi bi-trash"></i></button></td></tr>
           {% empty %}
-            <tr class="quotation-row"><td><select name="row_type" class="form-select form-select-sm row-type"><option value="item">Item</option><option value="subheading">Subheading</option><option value="section" selected>Section</option><option value="note">Note</option></select></td><td><input name="item_code" value="I" class="form-control form-control-sm item-code"></td><td><textarea name="line_description" class="form-control form-control-sm line-description" rows="2" maxlength="255">GENERAL PRELIMINARIES</textarea></td><td><select name="unit" class="form-select form-select-sm line-unit"><option value="">Select</option>{% for unit in quotation_units %}<option value="{{ unit }}">{{ unit }}</option>{% endfor %}</select></td><td><input type="text" inputmode="decimal" name="quantity" class="form-control form-control-sm line-quantity"></td><td><input type="text" inputmode="decimal" name="unit_rate" class="form-control form-control-sm line-rate"></td><td class="text-end line-amount">0.00</td><td><button class="btn btn-sm btn-outline-danger remove-quotation-row" type="button"><i class="bi bi-trash"></i></button></td></tr>
+            <tr class="quotation-row" data-kind="section"><td><select name="row_type" class="form-select form-select-sm row-type"><option value="item">Item</option><option value="subheading">Subheading</option><option value="section" selected>Section</option><option value="note">Note</option></select></td><td><input name="item_code" value="1" class="form-control form-control-sm item-code" readonly></td><td><textarea name="line_description" class="form-control form-control-sm line-description" rows="2" maxlength="255">GENERAL PRELIMINARIES</textarea></td><td><select name="unit" class="form-select form-select-sm line-unit"><option value="">Select</option>{% for unit in quotation_units %}<option value="{{ unit }}">{{ unit }}</option>{% endfor %}</select></td><td><input type="text" inputmode="decimal" name="quantity" class="form-control form-control-sm line-quantity"></td><td><input type="text" inputmode="decimal" name="unit_rate" class="form-control form-control-sm line-rate"></td><td class="text-center line-amount">0.00</td><td><button class="btn btn-sm btn-outline-danger remove-quotation-row" type="button"><i class="bi bi-trash"></i></button></td></tr>
           {% endfor %}
           </tbody><tfoot><tr><th colspan="6" class="text-end">Quotation Total</th><th class="text-end" id="quotationTotal">0.00</th><th></th></tr></tfoot>
         </table></div><div class="form-text">Press Enter from a row field to insert the next item directly below it. Only sections receive an automatic subtotal; subheadings are descriptive labels. Select text in a description and press <strong>B</strong> to make it bold.</div></div>
@@ -73,7 +86,7 @@
         <div class="col-md-4"><label class="form-label">Signatory Name</label><input name="signatory_name" value="{{ quote_form.signatory_name|default:current_staff.name }}" class="form-control"></div><div class="col-md-4"><label class="form-label">Signatory Title</label><input name="signatory_title" value="{{ quote_form.signatory_title|default:current_staff.designation }}" class="form-control"></div><div class="col-md-4"><label class="form-label">Signatory Mobile</label><input name="signatory_phone" value="{{ quote_form.signatory_phone|default:current_staff.phone }}" class="form-control"></div>
         <div class="col-12"><label class="form-label">Supporting quotation file (optional)</label><input type="file" name="file" class="form-control" accept=".xlsx,.xls,.pdf,.doc,.docx"></div>
         <div class="col-12"><hr><h6 class="text-primary fw-bold">Internal Costing</h6><div class="form-text">These figures are used only for internal approval and are not shown to the client.</div></div><div class="col-md-4"><label class="form-label">Material cost</label><input type="number" min="0" step="0.01" name="material_cost" value="{{ quote_form.material_cost|default:'' }}" class="form-control"></div><div class="col-md-4"><label class="form-label">Labour cost</label><input type="number" min="0" step="0.01" name="labour_cost" value="{{ quote_form.labour_cost|default:'' }}" class="form-control"></div><div class="col-md-4"><label class="form-label">Other cost</label><input type="number" min="0" step="0.01" name="other_cost" value="{{ quote_form.other_cost|default:'' }}" class="form-control"></div><div class="col-12"><label class="form-label">Costing notes / remarks</label><textarea name="costing_notes" class="form-control">{{ quote_form.costing_notes|default:'' }}</textarea></div>
-        <div class="col-12 d-flex flex-wrap gap-2"><button class="btn btn-outline-primary" type="submit" formaction="{% url 'workflow_preview_quotation' enquiry.id %}" formtarget="_blank" id="previewQuotation"><i class="bi bi-eye"></i> Preview Without Saving</button><button class="btn btn-primary" type="submit" id="saveQuotation"><i class="bi bi-save"></i> {% if editing_quote %}Save Draft Changes{% else %}Save Draft{% endif %}</button>{% if revision_source or editing_quote %}<a class="btn btn-outline-secondary" href="{% if editing_quote %}{% url 'workflow_view_quotation' editing_quote.id %}{% else %}{% url 'workflow_detail' enquiry.id %}{% endif %}">Cancel</a>{% endif %}</div>
+        <div class="col-12 d-flex flex-wrap gap-2"><button class="btn btn-primary" type="submit" id="saveQuotation"><i class="bi bi-save"></i> {% if editing_quote %}Save Draft Changes{% else %}Save Draft{% endif %}</button>{% if revision_source or editing_quote %}<a class="btn btn-outline-secondary" href="{% if editing_quote %}{% url 'workflow_view_quotation' editing_quote.id %}{% else %}{% url 'workflow_detail' enquiry.id %}{% endif %}">Cancel</a>{% endif %}</div>
       </form>
     </div></div>
     {% endif %}
@@ -84,23 +97,17 @@
       <div class="border rounded p-3 mb-3">
         <div class="d-flex flex-wrap justify-content-between gap-2"><div><strong>{{ quote.display_number }}</strong>{% if quote.revision %}<span class="badge bg-secondary ms-2">Revision R{{ quote.revision }}</span>{% endif %}<div class="small text-muted">Issued {{ quote.issue_date|date:'d M Y' }} &middot; QAR {{ quote.amount }}</div></div><span class="badge bg-info text-dark align-self-start">{{ quote.get_status_display }}</span></div>
         <p class="mt-2"><strong>{{ quote.subject }}</strong></p>
-        <div class="workflow-actions mb-2"><a class="btn btn-sm btn-primary" href="{% url 'workflow_view_quotation' quote.id %}"><i class="bi bi-eye"></i> View Quotation</a><a class="btn btn-sm btn-outline-success" href="{% url 'workflow_download_quotation' quote.id 'xlsx' %}"><i class="bi bi-file-earmark-excel"></i> Download Excel</a><a class="btn btn-sm btn-outline-danger" href="{% url 'workflow_download_quotation' quote.id 'pdf' %}"><i class="bi bi-file-earmark-pdf"></i> Download PDF</a>{% if can_start_revision %}{% if quote.status == 'draft' %}{% if quote.created_by_id == current_staff.id %}<a class="btn btn-sm btn-outline-primary" href="{% url 'workflow_detail' enquiry.id %}?edit={{ quote.id }}#quotationForm"><i class="bi bi-pencil-square"></i> Edit Draft</a><form method="post" action="{% url 'workflow_submit_for_approval' quote.id %}" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-primary"><i class="bi bi-send-check"></i> Submit for Approval</button></form>{% endif %}{% else %}<a class="btn btn-sm btn-outline-primary" href="{% url 'workflow_detail' enquiry.id %}?revise={{ quote.id }}#quotationForm"><i class="bi bi-files"></i> Create Revision</a>{% endif %}{% endif %}</div>
+        <div class="workflow-actions mb-2"><a class="btn btn-sm btn-primary" href="{% url 'workflow_view_quotation' quote.id %}"><i class="bi bi-eye"></i> View Quotation</a><a class="btn btn-sm btn-outline-secondary position-relative" href="{% url 'workflow_quotation_discussion' quote.id %}"><i class="bi bi-chat-dots"></i> Discussion</a><a class="btn btn-sm btn-outline-success" href="{% url 'workflow_download_quotation' quote.id 'xlsx' %}"><i class="bi bi-file-earmark-excel"></i> Download Excel</a><a class="btn btn-sm btn-outline-danger" href="{% url 'workflow_download_quotation' quote.id 'pdf' %}"><i class="bi bi-file-earmark-pdf"></i> Download PDF</a>{% if can_start_revision %}{% if quote.status == 'draft' %}{% if quote.created_by_id == current_staff.id %}<a class="btn btn-sm btn-outline-primary" href="{% url 'workflow_detail' enquiry.id %}?edit={{ quote.id }}#quotationForm"><i class="bi bi-pencil-square"></i> Edit Draft</a>{% endif %}{% else %}<a class="btn btn-sm btn-outline-primary" href="{% url 'workflow_detail' enquiry.id %}?revise={{ quote.id }}#quotationForm"><i class="bi bi-files"></i> Create Revision</a>{% endif %}{% endif %}</div>
         {% if quote.file %}<a href="{{ quote.file.url }}" target="_blank" rel="noopener">View quotation file</a>{% endif %}
         <div class="small text-muted mt-2">Costing: Material {{ quote.costing.material_cost }}, Labour {{ quote.costing.labour_cost }}, Other {{ quote.costing.other_cost }} &mdash; Total {{ quote.costing.total }}</div>
         <div class="mt-2">{% if quote.costing.approved_at %}<span class="badge bg-success">Costing approved</span>{% else %}<span class="badge bg-warning text-dark">Costing approval pending</span>{% endif %}</div>
-        <div class="workflow-actions mt-3">
-          {% if can_manager_approve and quote.status == 'manager_review' %}<form method="post" action="{% url 'workflow_manager_approve' quote.id %}">{% csrf_token %}<button class="btn btn-sm btn-primary">Manager Approve (1st)</button></form>{% endif %}
-          {% if can_accountant_approve and quote.status == 'accountant_review' %}<form method="post" action="{% url 'workflow_accountant_approve' quote.id %}">{% csrf_token %}<button class="btn btn-sm btn-primary">Accountant Approve (2nd)</button></form>{% endif %}
-          {% if can_approve_costing and not quote.costing.approved_at %}<form method="post" action="{% url 'workflow_approve_costing' quote.id %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary">Approve Costing</button></form>{% endif %}
-          {% if can_submit and quote.status == 'approved' and quote.costing.approved_at %}<form method="post" action="{% url 'workflow_submit_quotation' quote.id %}">{% csrf_token %}<button class="btn btn-sm btn-primary">Submit to Client</button></form>{% endif %}
-          {% if can_award and quote.status == 'submitted' %}<form method="post" action="{% url 'workflow_award_project' quote.id %}">{% csrf_token %}<button class="btn btn-sm btn-success">Record Client Acceptance</button></form>{% endif %}
-        </div>
+        <div class="small text-muted mt-3"><i class="bi bi-shield-check"></i> Review and approval actions are available from the quotation view.</div>
       </div>
       {% empty %}<p class="text-muted">No quotations added.</p>{% endfor %}
     </div></div>
   </div>
 
-  <div class="col-lg-4">
+  <div class="{% if can_quote %}col-12{% else %}col-lg-4{% endif %}">
     <div class="card"><div class="card-body">
       <h5 class="card-title">Enquiry Files</h5>
       {% for item in enquiry.attachments.all %}<div class="d-flex align-items-center justify-content-between gap-2 border-top py-2"><span class="text-truncate" title="{{ item.original_name }}">{{ item.original_name }}</span><span class="d-flex gap-1 flex-shrink-0">{% if item.is_cad %}<a class="btn btn-sm btn-primary" href="{% url 'workflow_cad_viewer' 'enquiry' item.id %}"><i class="bi bi-bounding-box"></i> View CAD</a><a class="btn btn-sm btn-outline-primary" href="{% url 'workflow_cad_file' 'enquiry' item.id %}" target="_blank" rel="noopener"><i class="bi bi-download"></i></a>{% else %}<a class="btn btn-sm btn-outline-primary" href="{{ item.file.url }}" target="_blank" rel="noopener"><i class="bi bi-download"></i></a>{% endif %}</span></div>{% empty %}<p class="text-muted">No files.</p>{% endfor %}
@@ -114,7 +121,7 @@
 
     <div class="card"><div class="card-body">
       <h5 class="card-title">Comments and Remarks</h5>
-      {% for item in enquiry.comments.all %}<div class="border-bottom py-2"><strong>{{ item.author.usertype }}</strong><div>{{ item.comment|linebreaksbr }}</div><small class="text-muted">{{ item.created_at|date:'d M Y H:i' }}</small></div>{% empty %}<p class="text-muted">No comments.</p>{% endfor %}
+      {% for item in enquiry_comments %}<div class="border-bottom py-2"><strong>{{ item.author.usertype }}</strong><div>{{ item.comment|linebreaksbr }}</div><small class="text-muted">{{ item.created_at|date:'d M Y H:i' }}</small></div>{% empty %}<p class="text-muted">No enquiry comments.</p>{% endfor %}
       <form method="post" action="{% url 'workflow_add_comment' enquiry.id %}" class="mt-3">{% csrf_token %}<textarea name="comment" class="form-control mb-2" rows="3" required></textarea><button class="btn btn-sm btn-primary">Add Comment</button></form>
     </div></div>
   </div>
@@ -129,7 +136,9 @@
   let activeDescription = null;
   let quotationChanged = false;
   function applyRowType(row) {
-    const isItem = row.querySelector('.row-type').value === 'item';
+    const kind = row.querySelector('.row-type').value;
+    const isItem = kind === 'item';
+    row.dataset.kind = kind;
     const hasItemData = ['.line-description', '.line-unit', '.line-quantity', '.line-rate']
       .some(selector => row.querySelector(selector).value.trim());
     row.classList.toggle('table-light', !isItem);
@@ -141,28 +150,40 @@
     });
     row.querySelector('.line-description').required = !isItem || hasItemData;
     row.querySelector('.item-code').placeholder = isItem ? 'Auto' : 'I / A1';
+    row.querySelector('.item-code').readOnly = kind === 'section' || kind === 'subheading';
+  }
+  function autoSizeDescription(input) {
+    input.style.height = 'auto';
+    input.style.height = `${Math.max(input.closest('tr').dataset.kind === 'subheading' ? 38 : 48, input.scrollHeight)}px`;
   }
   function updateTotals() {
     let total = 0, sectionTotal = 0;
-    let sectionRow = null, itemNumber = 0;
-    function showSubtotal(row, value) { if (row) row.querySelector('.line-amount').textContent = `Subtotal ${value.toFixed(2)}`; }
+    let sectionRow = null, sectionNumber = 0, subheadingNumber = 0, itemNumber = 0;
+    function showSubtotal(row, value) { if (row) row.querySelector('.line-amount').innerHTML = `<strong>Subtotal ${value.toFixed(2)}</strong>`; }
     rows.querySelectorAll('.quotation-row').forEach(row => {
       applyRowType(row);
       const kind = row.querySelector('.row-type').value;
+      const code = row.querySelector('.item-code');
       if (kind === 'section') {
         showSubtotal(sectionRow, sectionTotal);
-        sectionRow = row; sectionTotal = 0; itemNumber = 0;
+        sectionNumber += 1; subheadingNumber = 0; itemNumber = 0;
+        code.value = sectionNumber;
+        sectionRow = row; sectionTotal = 0;
       } else if (kind === 'subheading') {
+        if (!sectionNumber) sectionNumber = 1;
+        subheadingNumber += 1; itemNumber = 0;
+        code.value = `${sectionNumber}.${subheadingNumber}`;
         row.querySelector('.line-amount').textContent = '';
       } else if (kind === 'item') {
         const amount = (parseFloat(row.querySelector('.line-quantity').value) || 0) * (parseFloat(row.querySelector('.line-rate').value) || 0);
         itemNumber += 1;
-        if (!row.querySelector('.item-code').value.trim()) row.querySelector('.item-code').value = itemNumber;
+        if (!code.value.trim()) code.value = itemNumber;
         row.querySelector('.line-amount').textContent = amount.toFixed(2);
         total += amount; sectionTotal += amount;
       } else {
         row.querySelector('.line-amount').textContent = '';
       }
+      autoSizeDescription(row.querySelector('.line-description'));
     });
     showSubtotal(sectionRow, sectionTotal);
     document.getElementById('quotationTotal').textContent = total.toFixed(2);
@@ -179,6 +200,7 @@
   }
   document.querySelectorAll('.add-quotation-row').forEach(button => button.addEventListener('click', () => addRow(button.dataset.kind)));
   rows.addEventListener('input', updateTotals);
+  rows.addEventListener('input', event => { if (event.target.classList.contains('line-description')) autoSizeDescription(event.target); });
   rows.addEventListener('focusin', event => { if (event.target.classList.contains('line-description')) activeDescription = event.target; });
   rows.addEventListener('change', event => { if (event.target.classList.contains('row-type')) updateTotals(); });
   rows.addEventListener('click', event => {

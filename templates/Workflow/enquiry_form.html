@@ -17,7 +17,7 @@
       <div class="col-md-6"><label class="form-label">Client phone</label><input class="form-control" type="tel" name="client_phone" value="{{ form_data.client_phone|default:'' }}" maxlength="40"></div>
       <div class="col-md-6">
         <label class="form-label">Quotation submission deadline</label>
-        <input class="form-control" type="datetime-local" name="quotation_deadline" value="{{ form_data.quotation_deadline|default:'' }}" required>
+        <input class="form-control" type="date" name="quotation_deadline" value="{{ form_data.quotation_deadline|default:'' }}" required>
         <div class="form-text">The estimator and related workflow users will be alerted as this deadline approaches.</div>
       </div>
       <div class="col-12"><label class="form-label">Scope / remarks</label><textarea class="form-control" name="description" rows="4">{{ form_data.description|default:'' }}</textarea></div>
@@ -50,7 +50,7 @@
   const deadline = document.querySelector('[name="quotation_deadline"]');
   if (deadline) {
     const localNow = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
-    deadline.min = localNow.toISOString().slice(0, 16);
+    deadline.min = localNow.toISOString().slice(0, 10);
   }
   function updateSummary() {
     const files = Array.from(rows.querySelectorAll('.file-input')).flatMap(input => Array.from(input.files));

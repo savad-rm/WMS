@@ -54,7 +54,7 @@ def ensure_quotation_deadline_notifications(now=None):
             if not stage:
                 continue
             stage_name, level, timing = stage
-            deadline_label = timezone.localtime(record.quotation_deadline).strftime('%d %b %Y, %I:%M %p')
+            deadline_label = timezone.localtime(record.quotation_deadline).strftime('%d %b %Y')
             message = (
                 f'Quotation for "{record.title}" {timing}. '
                 f'Submission deadline: {deadline_label}.'

@@ -1,0 +1,20 @@
+{% extends 'Workflow/base.html' %}
+{% block extra_head %}<style>
+  .discussion-shell { max-width: 980px; margin: 0 auto; }
+  .discussion-message { border-left: 4px solid #00a0dc; background: #fff; }
+  .discussion-reply { margin-left: 2.5rem; border-left: 3px solid #adb5bd; background: #f8f9fa; }
+  @media (max-width: 575.98px) { .discussion-reply { margin-left: 1rem; } }
+</style>{% endblock %}
+{% block body %}
+<div class="discussion-shell">
+  <div class="pagetitle d-flex flex-wrap justify-content-between align-items-start gap-2"><div><h1>Quotation Discussion</h1><nav><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'workflow_dashboard' %}">Quotations</a></li><li class="breadcrumb-item"><a href="{% url 'workflow_view_quotation' quote.id %}">{{ quote.display_number }}</a></li><li class="breadcrumb-item active">Discussion</li></ol></nav></div><a class="btn btn-outline-primary" href="{% url 'workflow_view_quotation' quote.id %}"><i class="bi bi-arrow-left"></i> Back to Quotation</a></div>
+  <div class="card"><div class="card-body"><h5 class="card-title mb-1">{{ quote.display_number }}</h5><p class="mb-0"><strong>{{ enquiry.client_name }}</strong> - {{ quote.subject }}</p><small class="text-muted">Marketing Executive, Marketing Manager, Estimator and Accountant discussion. Opening this page marks your quotation discussion alerts as read.</small></div></div>
+  <div class="card"><div class="card-body"><h5 class="card-title">Messages</h5>
+    {% for item in discussion_threads %}<div class="discussion-message rounded shadow-sm p-3 mb-3" id="message-{{ item.id }}"><div class="d-flex flex-wrap justify-content-between gap-2"><strong>{{ item.author.usertype }}{% if item.author_id == current_account.id %} <span class="badge bg-light text-primary">You</span>{% endif %}</strong><small class="text-muted">{{ item.created_at|date:'d M Y, H:i' }}</small></div><div class="mt-2">{{ item.display_comment|linebreaksbr }}</div><button class="btn btn-sm btn-link px-0 mt-1 reply-toggle" type="button" data-target="reply-{{ item.id }}"><i class="bi bi-reply"></i> Reply</button><form method="post" action="{% url 'workflow_add_quotation_comment' quote.id %}" class="reply-form d-none mt-2" id="reply-{{ item.id }}">{% csrf_token %}<input type="hidden" name="parent_id" value="{{ item.id }}"><textarea name="comment" class="form-control mb-2" rows="2" maxlength="4000" required placeholder="Write a reply to this message"></textarea><button class="btn btn-sm btn-primary">Send Reply</button></form>
+      {% for reply in item.replies %}<div class="discussion-reply rounded p-3 mt-3"><div class="d-flex flex-wrap justify-content-between gap-2"><strong>{{ reply.author.usertype }}{% if reply.author_id == current_account.id %} <span class="badge bg-light text-primary">You</span>{% endif %}</strong><small class="text-muted">{{ reply.created_at|date:'d M Y, H:i' }}</small></div><div class="mt-2">{{ reply.display_comment|linebreaksbr }}</div></div>{% endfor %}
+    </div>{% empty %}<div class="text-center text-muted py-4"><i class="bi bi-chat-square-text fs-2 d-block mb-2"></i>No messages yet. Start the quotation discussion below.</div>{% endfor %}
+  </div></div>
+  <div class="card"><div class="card-body"><h5 class="card-title">New Message</h5><form method="post" action="{% url 'workflow_add_quotation_comment' quote.id %}">{% csrf_token %}<textarea name="comment" class="form-control mb-3" rows="4" maxlength="4000" required placeholder="Ask a question, clarify a scope item, or leave an approval remark"></textarea><button class="btn btn-primary"><i class="bi bi-send"></i> Send Message</button></form></div></div>
+</div>
+<script>document.querySelectorAll('.reply-toggle').forEach(button => button.addEventListener('click', () => { const form = document.getElementById(button.dataset.target); form.classList.toggle('d-none'); if (!form.classList.contains('d-none')) form.querySelector('textarea').focus(); }));</script>
+{% endblock %}

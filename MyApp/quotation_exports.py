@@ -1,4 +1,5 @@
 from copy import copy
+from html import escape
 from io import BytesIO
 from math import ceil
 from pathlib import Path
@@ -119,6 +120,10 @@ def build_quotation_excel(quote):
             workbook.remove(extra_sheet)
     enquiry = quote.ENQUIRY
     document = unpack_document(quote.details, quote.validity_days)
+    client = document.get('client') or {}
+    client_name = client.get('name') or enquiry.client_name
+    client_phone = client.get('phone') or enquiry.client_phone
+    client_email = client.get('email') or enquiry.client_email
     rows = presentation_rows(_quotation_lines(quote))
 
     for merged in list(sheet.merged_cells.ranges):
@@ -126,10 +131,10 @@ def build_quotation_excel(quote):
             sheet.unmerge_cells(str(merged))
     sheet.delete_rows(19, sheet.max_row - 18)
 
-    sheet['B9'] = _client_nameplate(enquiry.client_name)
+    sheet['B9'] = _client_nameplate(client_name)
     sheet['B9'].font = Font(name='Helvetica', size=10, bold=True)
-    sheet['B10'] = f'Phone: {enquiry.client_phone}' if enquiry.client_phone else 'Phone:'
-    sheet['B11'] = f'Email: {enquiry.client_email}' if enquiry.client_email else 'Email:'
+    sheet['B10'] = f'Phone: {client_phone}' if client_phone else 'Phone:'
+    sheet['B11'] = f'Email: {client_email}' if client_email else 'Email:'
     sheet['B12'] = quote.client_address or 'Doha - State of Qatar'
     sheet['B12'].alignment = Alignment(wrap_text=True, vertical='top')
     sheet['F9'] = quote.display_number
@@ -316,13 +321,18 @@ def build_quotation_pdf(quote):
     subject = ParagraphStyle('QuotationSubject', parent=normal, fontName='Helvetica-Bold', alignment=TA_CENTER, spaceBefore=10, spaceAfter=6)
 
     record = quote.ENQUIRY
-    client_lines = [f'<b>{_client_nameplate(record.client_name)}</b>']
-    if record.client_phone:
-        client_lines.append(f'Phone: {record.client_phone}')
-    if record.client_email:
-        client_lines.append(f'Email: {record.client_email}')
+    document = unpack_document(quote.details, quote.validity_days)
+    client = document.get('client') or {}
+    client_name = client.get('name') or record.client_name
+    client_phone = client.get('phone') or record.client_phone
+    client_email = client.get('email') or record.client_email
+    client_lines = [f'<b>{escape(_client_nameplate(client_name))}</b>']
+    if client_phone:
+        client_lines.append(f'Phone: {escape(client_phone)}')
+    if client_email:
+        client_lines.append(f'Email: {escape(client_email)}')
     if quote.client_address:
-        client_lines.append(quote.client_address.replace('\n', '<br/>'))
+        client_lines.append(escape(quote.client_address).replace('\n', '<br/>'))
     reference = Table([
         [Paragraph(f'<b>{quote.display_number}</b>', ParagraphStyle('Ref', parent=normal, alignment=2))],
         [Paragraph(f'<b>{quote.issue_date:%d-%b-%y}</b>', ParagraphStyle('Date', parent=normal, alignment=TA_CENTER))],
@@ -430,7 +440,6 @@ def build_quotation_pdf(quote):
     line_table.setStyle(TableStyle(table_style))
     story.extend([line_table, Paragraph('<u><b>Specification/Clarification</b></u>', heading)])
 
-    document = unpack_document(quote.details, quote.validity_days)
     for index, term in enumerate(document['terms'], start=1):
         story.append(Paragraph(f'<u>{index}. {term["title"]}</u>', heading))
         for line in term['body'].splitlines() or ['']:

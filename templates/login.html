@@ -9,7 +9,7 @@ License URL: http://creativecommons.org/licenses/by/3.0/
 <html>
 {% load static %}
 <head>
-<title>Login</title>
+<title>WORKSPHERE Login</title>
 
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -26,7 +26,7 @@ License URL: http://creativecommons.org/licenses/by/3.0/
     </script>
 
 	<!-- Custom Theme files -->
-	<link href="/static/login/css/style.css" rel="stylesheet" type="text/css" media="all" />
+	<link href="/static/login/css/style.css?v=20260813-1" rel="stylesheet" type="text/css" media="all" />
 	<link href="/static/login/css/font-awesome.min.css"  rel="stylesheet" type="text/css" media="all" />
 	<!-- //Custom Theme files -->
 	<!-- web font -->
@@ -51,7 +51,7 @@ License URL: http://creativecommons.org/licenses/by/3.0/
                     {% csrf_token %}
 					<div class="icon1">
 						<span class="fa fa-user"></span>
-						<input type="text" name="username" value="{{ username|default:'' }}" placeholder="Username" autocomplete="username" autocapitalize="none" required=""/>
+						<input type="text" name="username" value="{{ username|default:'' }}" placeholder="Username" autocomplete="username" autocapitalize="none" spellcheck="false" aria-label="Username" required/>
 					</div>
 					<div class="icon1">
 						<span class="fa fa-lock"></span>

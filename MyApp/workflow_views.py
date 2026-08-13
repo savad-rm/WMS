@@ -329,6 +329,18 @@ def _detail_context(request, record, extra=None):
                 'client_address': (
                     'Doha - State of Qatar' if imported_quote else form_source.client_address
                 ),
+                'client_name': (
+                    record.client_name if imported_quote
+                    else document.get('client', {}).get('name') or record.client_name
+                ),
+                'client_phone': (
+                    record.client_phone if imported_quote
+                    else document.get('client', {}).get('phone') or record.client_phone
+                ),
+                'client_email': (
+                    record.client_email if imported_quote
+                    else document.get('client', {}).get('email') or record.client_email
+                ),
                 'introduction': form_source.introduction,
                 'validity_days': form_source.validity_days,
                 'project_duration': form_source.project_duration,
@@ -355,7 +367,7 @@ def _detail_context(request, record, extra=None):
                     'description': line.description,
                     'unit': '' if line_kind(line) != 'item' else line.unit,
                     'quantity': '' if line_kind(line) != 'item' else line.quantity,
-                'unit_rate': '' if line_kind(line) != 'item' else line.unit_rate,
+                    'unit_rate': '' if line_kind(line) != 'item' else line.unit_rate,
                     'amount': line.amount if line_kind(line) != 'item' and line.amount else '',
                 }
                 for line in form_source.lines.all()
@@ -818,7 +830,23 @@ def add_quotation(request, enquiry_id):
     if revision_source and revision_source.created_by_id != request.workflow_staff.id:
         return quotation_error('You can revise only a quotation created by you.')
     term_map = {term['title'].strip().lower(): term['body'] for term in quote_terms}
-    document_details = pack_document(quote_terms, request.POST.get('remarks', ''))
+    client_name = request.POST.get('quotation_client_name', '').strip() or record.client_name
+    client_phone = request.POST.get('quotation_client_phone', '').strip()
+    client_email = request.POST.get('quotation_client_email', '').strip().lower()
+    if len(client_name) > 255:
+        return quotation_error('Client name cannot exceed 255 characters.')
+    if len(client_phone) > 30:
+        return quotation_error('Client phone cannot exceed 30 characters.')
+    if len(client_email) > 254 or (client_email and not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', client_email)):
+        return quotation_error('Enter a valid client email address.')
+    document_details = pack_document(
+        quote_terms, request.POST.get('remarks', ''),
+        client_details={
+            'name': client_name,
+            'phone': client_phone,
+            'email': client_email,
+        },
+    )
     quote_values = {
         'amount': amount,
         'issue_date': issue_date,

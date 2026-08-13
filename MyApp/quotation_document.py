@@ -35,7 +35,7 @@ def default_terms(validity_days=14):
     return terms
 
 
-def pack_document(terms, remarks='', tracking=None):
+def pack_document(terms, remarks='', tracking=None, client_details=None):
     payload = {
         'terms': [
             {'title': str(term.get('title', '')).strip(), 'body': str(term.get('body', '')).strip()}
@@ -49,6 +49,12 @@ def pack_document(terms, remarks='', tracking=None):
             'client_remarks': str(tracking.get('client_remarks', '')).strip(),
             'client_status': str(tracking.get('client_status', 'under_review')).strip(),
         }
+    if client_details:
+        payload['client'] = {
+            'name': str(client_details.get('name', '')).strip(),
+            'phone': str(client_details.get('phone', '')).strip(),
+            'email': str(client_details.get('email', '')).strip(),
+        }
     return DOCUMENT_PREFIX + json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
 
 
@@ -59,13 +65,14 @@ def unpack_document(value, validity_days=14):
             if isinstance(payload, dict) and isinstance(payload.get('terms'), list):
                 payload.setdefault('remarks', '')
                 payload.setdefault('tracking', {})
+                payload.setdefault('client', {})
                 return payload
         except (TypeError, ValueError, json.JSONDecodeError):
             pass
     terms = default_terms(validity_days)
     if value:
         terms[0]['body'] = value
-    return {'terms': terms, 'remarks': '', 'tracking': {}}
+    return {'terms': terms, 'remarks': '', 'tracking': {}, 'client': {}}
 
 
 def quotation_tracking(value, validity_days=14):
@@ -81,7 +88,10 @@ def update_quotation_tracking(value, validity_days=14, **updates):
     document = unpack_document(value, validity_days)
     tracking = quotation_tracking(value, validity_days)
     tracking.update(updates)
-    return pack_document(document['terms'], document.get('remarks', ''), tracking)
+    return pack_document(
+        document['terms'], document.get('remarks', ''), tracking,
+        client_details=document.get('client'),
+    )
 
 
 def line_kind(line):

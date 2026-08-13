@@ -42,7 +42,7 @@ from MyApp.models import (
     worker_entry,
     workflow_notification,
 )
-from MyApp.quotation_document import quotation_tracking
+from MyApp.quotation_document import quotation_tracking, unpack_document
 
 from .authentication import issue_token
 from MyApp.deadline_notifications import ensure_quotation_deadline_notifications
@@ -151,6 +151,8 @@ def _enquiry_allowed(account, record):
 
 def _quotation_payload(quote):
     tracking = quotation_tracking(quote.details, quote.validity_days)
+    document = unpack_document(quote.details, quote.validity_days)
+    client = document.get('client') or {}
     return {
         'id': quote.pk,
         'version': quote.version,
@@ -162,6 +164,12 @@ def _quotation_payload(quote):
         'submitted_at': tracking['submitted_at'] or None,
         'client_remarks': tracking['client_remarks'],
         'client_status': tracking['client_status'],
+        'client': {
+            'name': client.get('name') or quote.ENQUIRY.client_name,
+            'phone': client.get('phone') or quote.ENQUIRY.client_phone,
+            'email': client.get('email') or quote.ENQUIRY.client_email,
+            'address': quote.client_address,
+        },
         'created_at': _iso(quote.created_at),
     }
 

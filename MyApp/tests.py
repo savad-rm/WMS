@@ -23,7 +23,7 @@ from .models import (
 )
 from .deadline_notifications import ensure_quotation_deadline_notifications
 from .quotation_document import (
-    default_terms, pack_document, presentation_rows, quotation_tracking,
+    default_terms, pack_document, presentation_rows, quotation_tracking, unpack_document,
 )
 from .quotation_exports import quotation_amount_words
 
@@ -447,6 +447,9 @@ class WorkflowTests(TestCase):
             'line_amount': ['', '3500.00'],
             'issue_date': '2026-08-01',
             'client_address': 'Building 7\nWest Bay\nDoha - Qatar',
+            'quotation_client_name': 'Edited Client Trading W.L.L.',
+            'quotation_client_phone': '+974 4444 3333',
+            'quotation_client_email': 'quotes@edited-client.example',
             'material_cost': '1200', 'labour_cost': '800', 'other_cost': '0',
         })
         self.assertEqual(response.status_code, 302)
@@ -454,8 +457,20 @@ class WorkflowTests(TestCase):
         self.assertEqual(quote.amount, Decimal('3500.00'))
         self.assertEqual(str(quote.issue_date), '2026-08-01')
         self.assertIn('West Bay', quote.client_address)
+        saved_document = unpack_document(quote.details, quote.validity_days)
+        self.assertEqual(saved_document['client'], {
+            'name': 'Edited Client Trading W.L.L.',
+            'phone': '+974 4444 3333',
+            'email': 'quotes@edited-client.example',
+        })
         self.assertEqual(list(quote.lines.values_list('item_code', flat=True)), ['I', 'I.1'])
         self.assertEqual(quote.lines.get(item_code='I.1').amount, Decimal('3500.00'))
+        edit_page = self.client.get(
+            reverse('workflow_detail', args=(record.pk,)) + f'?edit={quote.pk}'
+        )
+        self.assertContains(edit_page, 'value="Edited Client Trading W.L.L."')
+        self.assertContains(edit_page, 'value="+974 4444 3333"')
+        self.assertContains(edit_page, 'value="quotes@edited-client.example"')
         self.assertEqual(
             [row['kind'] for row in presentation_rows(quote.lines.all())],
             ['section', 'subheading', 'section_total'],

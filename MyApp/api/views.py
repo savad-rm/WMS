@@ -456,7 +456,12 @@ class NotificationListView(APIView):
             'date': _iso(item.created_at),
             'message': item.message,
             'status': item.status,
-            'type': 'Quotation deadline',
+            'type': {
+                'enquiry_comment': 'Enquiry discussion',
+                'quotation_comment': 'Quotation discussion',
+                'quotation_deadline': 'Quotation deadline',
+            }.get(item.event, 'Workflow alert'),
+            'event': item.event,
             'project_id': None,
             'project_name': item.ENQUIRY.title if item.ENQUIRY else 'Enquiry workflow',
             'enquiry_id': item.ENQUIRY_id,
@@ -475,6 +480,9 @@ class NotificationReadView(APIView):
             item_id = int(raw_id)
         except (AttributeError, TypeError, ValueError):
             source, item_id = 'project', notification_id
+        if source not in ('project', 'workflow') or not str(item_id).isdigit():
+            raise ValidationError({'notification_id': ['Use project:<id> or workflow:<id>.']})
+        item_id = int(item_id)
         if source == 'workflow':
             updated = workflow_notification.objects.filter(
                 pk=item_id, recipient=request.user,
@@ -564,9 +572,34 @@ class EnquiryCommentView(APIView):
         value = str(request.data.get('comment', '')).strip()
         if not value:
             raise ValidationError({'comment': ['A comment is required.']})
-        item = enquiry_comment.objects.create(ENQUIRY=record, author=request.user, comment=value)
+        parent_id = str(request.data.get('parent_id', '')).strip()
+        parent_prefix = ''
+        if parent_id:
+            if not parent_id.isdigit() or not record.comments.filter(pk=int(parent_id)).exists():
+                raise ValidationError({'parent_id': ['The message being replied to is unavailable.']})
+            parent_prefix = f'[REPLY:{parent_id}] '
+        item = enquiry_comment.objects.create(
+            ENQUIRY=record, author=request.user,
+            comment=f'[ENQ:{record.pk}] {parent_prefix}{value}',
+        )
+        recipient_ids = {record.created_by_id}
+        if record.assigned_to_id and record.assigned_to.LOGIN_id:
+            recipient_ids.add(record.assigned_to.LOGIN_id)
+        recipient_ids.update(login.objects.filter(
+            usertype__in=('Marketing Manager', 'Accountant'),
+        ).values_list('id', flat=True))
+        for recipient_id in recipient_ids - {request.user.pk}:
+            workflow_notification.objects.get_or_create(
+                dedupe_key=f'enquiry-comment:{item.pk}:{recipient_id}',
+                defaults={
+                    'recipient_id': recipient_id, 'ENQUIRY': record,
+                    'event': 'enquiry_comment', 'level': 'info',
+                    'message': f'New discussion message on enquiry {record.title}.',
+                    'link': f'/WMS/workflow/enquiries/{record.pk}/discussion/',
+                },
+            )
         return Response({
-            'id': item.pk, 'comment': item.comment,
+            'id': item.pk, 'comment': value, 'parent_id': int(parent_id) if parent_id else None,
             'author': request.user.usertype, 'created_at': _iso(item.created_at),
         }, status=status.HTTP_201_CREATED)
 
@@ -601,6 +634,8 @@ def _decimal(data, key):
         value = Decimal(str(data.get(key, '0')))
     except (InvalidOperation, TypeError):
         raise ValidationError({key: ['Enter a valid amount.']}) from None
+    if not value.is_finite():
+        raise ValidationError({key: ['Enter a finite amount.']})
     if value < 0:
         raise ValidationError({key: ['Amount cannot be negative.']})
     return value

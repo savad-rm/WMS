@@ -53,6 +53,7 @@ QUOTATION_UNITS = ('M2', 'Nos.', 'ITEM', 'LM', 'RM', 'Sets')
 QUOTATION_COMMENT_ROLES = (
     'Marketing Executive', 'Marketing Manager', 'Estimator', 'Accountant',
 )
+ENQUIRY_COMMENT_ROLES = QUOTATION_COMMENT_ROLES
 
 
 def _current_login(request):
@@ -178,6 +179,57 @@ def _quotation_discussion_recipient_ids(quote):
     return recipient_ids
 
 
+def _enquiry_discussion_url(record):
+    return reverse('workflow_enquiry_discussion', args=(record.pk,))
+
+
+def _enquiry_comment_prefix(record):
+    return f'[ENQ:{record.pk}] '
+
+
+def _enquiry_comment_threads(record):
+    prefix = _enquiry_comment_prefix(record)
+    comments = list(record.comments.filter(
+        Q(comment__startswith=prefix)
+        | (~Q(comment__startswith='[QID:') & ~Q(comment__startswith='[QTN/'))
+    ).select_related('author').order_by('created_at', 'id'))
+    roots, by_id = [], {}
+    for item in comments:
+        value = item.comment[len(prefix):] if item.comment.startswith(prefix) else item.comment
+        reply_match = re.match(r'^\[REPLY:(\d+)\]\s*(.*)$', value, re.DOTALL)
+        item.display_comment = reply_match.group(2) if reply_match else value
+        item.replies = []
+        parent_id = int(reply_match.group(1)) if reply_match else None
+        if parent_id in by_id:
+            by_id[parent_id].replies.append(item)
+        else:
+            roots.append(item)
+        by_id[item.pk] = item
+    return roots
+
+
+def _enquiry_discussion_recipient_ids(record):
+    recipient_ids = {record.created_by_id}
+    if record.assigned_to_id and record.assigned_to.LOGIN_id:
+        recipient_ids.add(record.assigned_to.LOGIN_id)
+    recipient_ids.update(login.objects.filter(
+        usertype__in=('Marketing Manager', 'Accountant'),
+    ).values_list('id', flat=True))
+    return recipient_ids
+
+
+def _roman_number(number):
+    values = ((1000, 'M'), (900, 'CM'), (500, 'D'), (400, 'CD'), (100, 'C'),
+              (90, 'XC'), (50, 'L'), (40, 'XL'), (10, 'X'), (9, 'IX'),
+              (5, 'V'), (4, 'IV'), (1, 'I'))
+    result = []
+    for value, symbol in values:
+        while number >= value:
+            result.append(symbol)
+            number -= value
+    return ''.join(result)
+
+
 def _detail_record(enquiry_id):
     return get_object_or_404(
         enquiry.objects.select_related('created_by', 'assigned_to', 'PROJECT').prefetch_related(
@@ -238,6 +290,10 @@ def _detail_context(request, record, extra=None):
         'enquiry': record,
         'marketing_executive_name': marketing_executive_name,
         'enquiry_comments': enquiry_comments,
+        'enquiry_unread_comment_count': workflow_notification.objects.filter(
+            recipient=request.workflow_account, event='enquiry_comment',
+            link=_enquiry_discussion_url(record), read_at__isnull=True,
+        ).count(),
         'estimators': staff.objects.filter(designation='Estimator').only('id', 'name'),
         'can_assign': role in ('Marketing Manager', 'Project Manager'),
         'can_quote': can_quote,
@@ -256,12 +312,17 @@ def _detail_context(request, record, extra=None):
         'default_introduction': DEFAULT_INTRODUCTION,
         'default_closing_text': DEFAULT_CLOSING_TEXT,
         'quotation_units': QUOTATION_UNITS,
+        'quotation_issue_date': timezone.localdate().isoformat(),
     }
     if form_source and not (extra or {}).get('quote_form'):
         document = unpack_document(form_source.details, form_source.validity_days)
         quote_costing = getattr(form_source, 'costing', None)
         context.update({
             'quote_form': {
+                'issue_date': (
+                    timezone.localdate().isoformat() if imported_quote
+                    else form_source.issue_date.isoformat()
+                ),
                 'subject': (
                     f'Quotation for {record.title}' if imported_quote else form_source.subject
                 ),
@@ -294,7 +355,8 @@ def _detail_context(request, record, extra=None):
                     'description': line.description,
                     'unit': '' if line_kind(line) != 'item' else line.unit,
                     'quantity': '' if line_kind(line) != 'item' else line.quantity,
-                    'unit_rate': '' if line_kind(line) != 'item' else line.unit_rate,
+                'unit_rate': '' if line_kind(line) != 'item' else line.unit_rate,
+                    'amount': line.amount if line_kind(line) != 'item' and line.amount else '',
                 }
                 for line in form_source.lines.all()
             ],
@@ -363,11 +425,15 @@ def dashboard(request):
         LOGIN_id__in=creator_ids
     ).values_list('LOGIN_id', 'name'))
     unread_notices = workflow_notification.objects.filter(
-        recipient=request.workflow_account, event='quotation_comment', read_at__isnull=True,
+        recipient=request.workflow_account, read_at__isnull=True,
         ENQUIRY__in=accessible_records,
     )
-    unread_by_enquiry = dict(unread_notices.values_list('ENQUIRY_id').annotate(total=Count('id')))
-    unread_by_link = dict(unread_notices.values_list('link').annotate(total=Count('id')))
+    unread_by_enquiry = dict(unread_notices.filter(
+        event='enquiry_comment',
+    ).values_list('ENQUIRY_id').annotate(total=Count('id')))
+    unread_by_link = dict(unread_notices.filter(
+        event='quotation_comment',
+    ).values_list('link').annotate(total=Count('id')))
     for item in enquiry_records:
         item.marketing_executive_name = marketing_names.get(
             item.created_by_id, item.created_by.username,
@@ -514,10 +580,52 @@ def add_comment(request, enquiry_id):
     if not _can_access_enquiry(request, record):
         return HttpResponseForbidden('You do not have permission to comment on this enquiry.')
     value = request.POST.get('comment', '').strip()
-    if value:
-        enquiry_comment.objects.create(ENQUIRY=record, author=request.workflow_account, comment=value)
-        messages.success(request, 'Comment added.')
-    return redirect('workflow_detail', enquiry_id=enquiry_id)
+    if not value:
+        messages.error(request, 'Enter a message before sending.')
+        return redirect('workflow_enquiry_discussion', enquiry_id=record.pk)
+    parent_id = request.POST.get('parent_id', '').strip()
+    parent_prefix = ''
+    if parent_id:
+        valid_parent_ids = {item.pk for item in record.comments.filter(
+            Q(comment__startswith=_enquiry_comment_prefix(record))
+            | (~Q(comment__startswith='[QID:') & ~Q(comment__startswith='[QTN/'))
+        )}
+        if not parent_id.isdigit() or int(parent_id) not in valid_parent_ids:
+            messages.error(request, 'The message you are replying to is no longer available.')
+            return redirect('workflow_enquiry_discussion', enquiry_id=record.pk)
+        parent_prefix = f'[REPLY:{parent_id}] '
+    item = enquiry_comment.objects.create(
+        ENQUIRY=record, author=request.workflow_account,
+        comment=f'{_enquiry_comment_prefix(record)}{parent_prefix}{value}',
+    )
+    discussion_url = _enquiry_discussion_url(record)
+    for recipient_id in _enquiry_discussion_recipient_ids(record) - {request.workflow_account.id}:
+        workflow_notification.objects.get_or_create(
+            dedupe_key=f'enquiry-comment:{item.pk}:{recipient_id}',
+            defaults={
+                'recipient_id': recipient_id, 'ENQUIRY': record,
+                'event': 'enquiry_comment', 'level': 'info',
+                'message': f'New discussion message on enquiry {record.title}.',
+                'link': discussion_url,
+            },
+        )
+    messages.success(request, 'Message added to the enquiry discussion.')
+    return redirect('workflow_enquiry_discussion', enquiry_id=record.pk)
+
+
+@role_required(*ENQUIRY_COMMENT_ROLES)
+def enquiry_discussion(request, enquiry_id):
+    record = _detail_record(enquiry_id)
+    if not _can_access_enquiry(request, record):
+        return HttpResponseForbidden('You do not have permission to view this discussion.')
+    workflow_notification.objects.filter(
+        recipient=request.workflow_account, event='enquiry_comment',
+        link=_enquiry_discussion_url(record), read_at__isnull=True,
+    ).update(read_at=timezone.now())
+    return _render(request, 'Workflow/enquiry_discussion.html', {
+        'enquiry': record,
+        'discussion_threads': _enquiry_comment_threads(record),
+    })
 
 
 @require_POST
@@ -554,13 +662,16 @@ def add_quotation(request, enquiry_id):
     units = request.POST.getlist('unit')
     quantities = request.POST.getlist('quantity')
     rates = request.POST.getlist('unit_rate')
+    direct_amounts = request.POST.getlist('line_amount')
     if not row_types and descriptions:
         row_types = ['item'] * len(descriptions)
+    if not direct_amounts:
+        direct_amounts = [''] * len(descriptions)
     quote_rows = [
         {'row_type': row_type, 'item_code': code, 'description': description, 'unit': unit,
-         'quantity': quantity, 'unit_rate': rate}
-        for row_type, code, description, unit, quantity, rate in zip(
-            row_types, item_codes, descriptions, units, quantities, rates
+         'quantity': quantity, 'unit_rate': rate, 'amount': direct_amount}
+        for row_type, code, description, unit, quantity, rate, direct_amount in zip(
+            row_types, item_codes, descriptions, units, quantities, rates, direct_amounts
         )
     ]
     term_titles = request.POST.getlist('term_title')
@@ -609,14 +720,14 @@ def add_quotation(request, enquiry_id):
 
     if not (
         len(row_types) == len(item_codes) == len(descriptions)
-        == len(units) == len(quantities) == len(rates)
+        == len(units) == len(quantities) == len(rates) == len(direct_amounts)
     ):
         return quotation_error('Quotation line-item data is incomplete.')
     parsed_lines = []
     for position, row in enumerate(quote_rows, start=1):
         values = tuple(
             str(row[field]).strip()
-            for field in ('description', 'unit', 'quantity', 'unit_rate')
+            for field in ('description', 'unit', 'quantity', 'unit_rate', 'amount')
         )
         if not any(values):
             continue
@@ -624,13 +735,19 @@ def add_quotation(request, enquiry_id):
         if row_type != 'item':
             if not row['description'].strip():
                 return quotation_error(f'Enter a heading or note for row {position}.')
+            try:
+                direct_amount = Decimal(str(row['amount']).strip() or '0')
+            except InvalidOperation:
+                return quotation_error(f'Total amount on row {position} must be a valid number.')
+            if not direct_amount.is_finite() or direct_amount < 0:
+                return quotation_error(f'Total amount on row {position} cannot be negative.')
             parsed_lines.append({
                 **row,
                 'unit': {
                     'section': SECTION_UNIT, 'subheading': SUBHEADING_UNIT, 'note': NOTE_UNIT,
                 }[row_type],
                 'quantity': Decimal('0'), 'unit_rate': Decimal('0'),
-                'amount': Decimal('0'), 'position': position,
+                'amount': direct_amount, 'position': position,
             })
             continue
         if not row['description'].strip() or not row['quantity'] or not row['unit_rate']:
@@ -659,8 +776,8 @@ def add_quotation(request, enquiry_id):
                 'unit': 'lot', 'quantity': Decimal('1'), 'unit_rate': legacy_amount,
                 'amount': legacy_amount, 'position': 1,
             })
-    if not parsed_lines or not any(item.get('row_type', 'item') == 'item' for item in parsed_lines):
-        return quotation_error('Add at least one quotation item with quantity and rate.')
+    if not parsed_lines or not any(item['amount'] > 0 for item in parsed_lines):
+        return quotation_error('Add at least one priced item or enter a total on a section/subheading.')
     section_number = 0
     subheading_number = 0
     item_number = 0
@@ -670,13 +787,13 @@ def add_quotation(request, enquiry_id):
             section_number += 1
             subheading_number = 0
             item_number = 0
-            line['item_code'] = str(section_number)
+            line['item_code'] = _roman_number(section_number)
         elif row_type == 'subheading':
             if section_number == 0:
                 section_number = 1
             subheading_number += 1
             item_number = 0
-            line['item_code'] = f'{section_number}.{subheading_number}'
+            line['item_code'] = f'{_roman_number(section_number)}.{subheading_number}'
         elif row_type == 'item':
             item_number += 1
             if not line['item_code'].strip():
@@ -687,6 +804,10 @@ def add_quotation(request, enquiry_id):
         return quotation_error('Quotation validity must be a whole number of days.')
     if not 1 <= validity_days <= 365:
         return quotation_error('Quotation validity must be between 1 and 365 days.')
+    issue_date_value = request.POST.get('issue_date', '').strip()
+    issue_date = parse_date(issue_date_value) if issue_date_value else timezone.localdate()
+    if not issue_date:
+        return quotation_error('Enter a valid quotation date.')
     amount = sum((item['amount'] for item in parsed_lines), Decimal('0'))
     if revision_source_id and not revision_source:
         return quotation_error('The selected quotation revision source is not valid for this enquiry.')
@@ -700,6 +821,7 @@ def add_quotation(request, enquiry_id):
     document_details = pack_document(quote_terms, request.POST.get('remarks', ''))
     quote_values = {
         'amount': amount,
+        'issue_date': issue_date,
         'details': document_details,
         'subject': request.POST.get('subject', '').strip() or f'Quotation for {record.title}',
         'client_address': request.POST.get('client_address', '').strip() or 'Doha-State of Qatar',
@@ -856,6 +978,8 @@ def view_quotation(request, quote_id):
             role in ('Document Controller', 'Marketing Executive', 'Marketing Manager')
             and quote.status == 'approved' and getattr(quote.costing, 'approved_at', None)
         ),
+        'can_submit_role': role in ('Document Controller', 'Marketing Executive', 'Marketing Manager'),
+        'costing_approved': bool(getattr(quote.costing, 'approved_at', None)),
         'can_award': (
             role == 'Marketing Executive' and quote.status == 'submitted'
             and quote.ENQUIRY.created_by_id == request.workflow_account.id
@@ -952,8 +1076,8 @@ def submit_quotation_for_approval(request, quote_id):
             created_by=request.workflow_staff,
             ENQUIRY__assigned_to=request.workflow_staff,
         )
-        if not quote.lines.filter(quantity__gt=0).exists():
-            messages.error(request, 'Add at least one priced item before submitting for approval.')
+        if not quote.lines.filter(amount__gt=0).exists():
+            messages.error(request, 'Add at least one priced item or heading total before submitting for approval.')
             return redirect('workflow_view_quotation', quote_id=quote.pk)
         quote.status = 'manager_review'
         quote.save(update_fields=('status', 'updated_at'))

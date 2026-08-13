@@ -391,7 +391,7 @@ class WorkflowTests(TestCase):
             self.assertEqual(quote.amount, 250)
             self.assertEqual(
                 list(quote.lines.values_list('item_code', flat=True)),
-                ['1', '1.1', '1'],
+                ['I', 'I.1', '1'],
             )
             view = self.client.get(reverse('workflow_view_quotation', args=(quote.pk,)))
             self.assertContains(view, 'Quotation PDF preview')
@@ -432,6 +432,60 @@ class WorkflowTests(TestCase):
             ).status_code, 302)
             quote.refresh_from_db()
             self.assertFalse(quote.file)
+
+    def test_heading_total_date_address_and_enquiry_discussion(self):
+        record = enquiry.objects.create(
+            title='Direct total quotation', client_name='Client',
+            created_by=self.executive[0], assigned_to=self.estimator[1], status='assigned',
+        )
+        self.sign_in_as(*self.estimator)
+        response = self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), {
+            'row_type': ['section', 'subheading'],
+            'item_code': ['', ''],
+            'line_description': ['JOINERY', 'Reception counter lump sum'],
+            'unit': ['', ''], 'quantity': ['', ''], 'unit_rate': ['', ''],
+            'line_amount': ['', '3500.00'],
+            'issue_date': '2026-08-01',
+            'client_address': 'Building 7\nWest Bay\nDoha - Qatar',
+            'material_cost': '1200', 'labour_cost': '800', 'other_cost': '0',
+        })
+        self.assertEqual(response.status_code, 302)
+        quote = quotation.objects.get(ENQUIRY=record)
+        self.assertEqual(quote.amount, Decimal('3500.00'))
+        self.assertEqual(str(quote.issue_date), '2026-08-01')
+        self.assertIn('West Bay', quote.client_address)
+        self.assertEqual(list(quote.lines.values_list('item_code', flat=True)), ['I', 'I.1'])
+        self.assertEqual(quote.lines.get(item_code='I.1').amount, Decimal('3500.00'))
+        self.assertEqual(
+            [row['kind'] for row in presentation_rows(quote.lines.all())],
+            ['section', 'subheading', 'section_total'],
+        )
+
+        self.sign_in_as(*self.executive)
+        self.client.post(reverse('workflow_add_comment', args=(record.pk,)), {
+            'comment': 'Please confirm the site measurement.',
+        })
+        self.assertTrue(workflow_notification.objects.filter(
+            recipient=self.manager[0], event='enquiry_comment', read_at__isnull=True,
+        ).exists())
+        self.sign_in_as(*self.manager)
+        discussion = self.client.get(reverse('workflow_enquiry_discussion', args=(record.pk,)))
+        self.assertContains(discussion, 'Please confirm the site measurement.')
+        self.assertFalse(workflow_notification.objects.filter(
+            recipient=self.manager[0], event='enquiry_comment', read_at__isnull=True,
+        ).exists())
+
+    def test_invalid_legacy_gets_do_not_raise_debug_exceptions(self):
+        self.assertRedirects(
+            self.client.get(reverse('login_post')), reverse('login'),
+            fetch_redirect_response=False,
+        )
+        self.assertRedirects(
+            self.client.get('/WMS/'), reverse('login'), fetch_redirect_response=False,
+        )
+        admin = self.create_user('Admin', 7)
+        self.sign_in_as(*admin)
+        self.assertEqual(self.client.get('/WMS/Edit_staff/index.html').status_code, 404)
 
     def test_estimator_can_edit_saved_draft_before_submitting_for_approval(self):
         record = enquiry.objects.create(

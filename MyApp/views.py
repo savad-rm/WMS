@@ -125,6 +125,20 @@ def loginn(request):
     return render(request, 'login.html')
 
 
+def wms_home(request):
+    """Resolve the legacy application root without exposing a debug 404."""
+    if request.session.get('lid'):
+        if request.session.get('role') in WORKFLOW_LOGIN_ROLES:
+            return redirect('workflow_dashboard')
+        return redirect({
+            'Admin': 'Admin_home',
+            'Operation Manager': 'Admin_home',
+            'Project Manager': 'PMHome',
+            'Project Engineer': 'PMHome',
+        }.get(request.session.get('role'), 'login'))
+    return redirect('login')
+
+
 def _password_matches(account, raw_password):
     return bool(account and (check_password(raw_password, account.password) or account.password == raw_password))
 
@@ -149,9 +163,19 @@ def _change_session_password(request, failure_url):
     messages.success(request, 'Password changed successfully. Sign in with your new password.')
     return redirect('login')
 
+WORKFLOW_LOGIN_ROLES = {
+    'Marketing Executive', 'Marketing Manager', 'Estimator', 'Document Controller',
+}
+
+
 def login_post(request):
-    name=request.POST['username'].strip().lower()
-    password=request.POST['password']
+    if request.method != 'POST':
+        return redirect('login')
+    name = request.POST.get('username', '').strip().lower()
+    password = request.POST.get('password', '')
+    if not name or not password:
+        messages.error(request, 'Enter both username and password.')
+        return render(request, 'login.html', {'username': name}, status=400)
     d=login.objects.filter(username__iexact=name).first()
     if not _password_matches(d, password):
         messages.error(request, 'Invalid username or password.')
@@ -178,7 +202,7 @@ def login_post(request):
         return render(request,"Accountant/acindex.html")
     if d.usertype=="Purchaser" and s:
         return render(request,"Purchaser/pcindex.html")
-    if d.usertype in ('Marketing Executive', 'Marketing Manager', 'Estimator', 'Document Controller') and s:
+    if d.usertype in WORKFLOW_LOGIN_ROLES and s:
         return redirect('workflow_dashboard')
     request.session.flush()
     messages.error(request, 'The user profile is incomplete. Contact the administrator.')
@@ -411,7 +435,7 @@ def Delete_project(request,id):
 
 @legacy_role_required('Admin')
 def Edit_staff(request,id):
-    res=staff.objects.get(pk=id)
+    res=get_object_or_404(staff, pk=id)
     return render(request,'Admin/Edit Staff.html',{'data':res, 'designations': STAFF_DESIGNATIONS})
 
 @require_POST

@@ -112,25 +112,29 @@ def presentation_rows(lines):
     rows = []
     section = None
     section_total = 0
+    section_has_direct_total = False
 
     def close_section():
-        nonlocal section, section_total
-        if section is not None:
+        nonlocal section, section_total, section_has_direct_total
+        if section is not None and section_total and not section_has_direct_total:
             rows.append({
                 'kind': 'section_total', 'code': section.item_code,
                 'label': section.description, 'amount': section_total,
             })
         section = None
         section_total = 0
+        section_has_direct_total = False
 
     for line in lines:
         kind = line_kind(line)
         if kind == 'section':
             close_section()
             section = line
+            section_has_direct_total = line.amount > 0
             rows.append({'kind': kind, 'line': line})
         elif kind == 'subheading':
             rows.append({'kind': kind, 'line': line})
+            section_total += line.amount
         else:
             rows.append({'kind': kind, 'line': line})
             if kind == 'item':

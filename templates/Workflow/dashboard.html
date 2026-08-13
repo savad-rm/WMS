@@ -67,7 +67,7 @@
           <a class="btn btn-primary" href="{% url 'workflow_add_enquiry' %}"><i class="bi bi-plus-lg"></i> Add Enquiry</a>
           {% endif %}
         </div>
-        <form class="d-flex flex-wrap gap-2" method="get">
+        <form class="workflow-filter-form" method="get">
           <input class="form-control" type="search" name="q" value="{{ query }}" placeholder="Search enquiries" aria-label="Search enquiries">
           <input type="hidden" name="quotation_sort" value="{{ quotation_sort }}">
           <select class="form-select" name="enquiry_sort" aria-label="Sort enquiries">
@@ -82,7 +82,7 @@
         </form>
       </div>
       <div class="table-responsive">
-        <table class="table table-hover align-middle workflow-table datatable">
+        <table class="table table-hover align-middle workflow-table">
           <thead><tr><th>Date</th><th>Client Name</th><th>Type</th><th>Marketing Executive</th><th>Assigned</th><th>Deadline</th><th>Scope / Remarks</th><th>Status</th><th>Action</th></tr></thead>
           <tbody>
             {% for item in enquiries %}
@@ -111,7 +111,7 @@
       <h5 class="card-title">Quotation Register</h5>
       <div class="dataTable-top d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <p class="text-muted small mb-0">Client remarks record revision requests, scope changes and other feedback after submittal.</p>
-        <form class="d-flex flex-wrap gap-2" method="get">
+        <form class="workflow-filter-form" method="get">
           <input class="form-control" type="search" name="q" value="{{ query }}" placeholder="Search quotations" aria-label="Search quotations">
           <input type="hidden" name="enquiry_sort" value="{{ enquiry_sort }}">
           <select class="form-select" name="quotation_sort" aria-label="Sort quotations">

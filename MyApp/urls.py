@@ -5,6 +5,8 @@ from . import views, workflow_views
 
 urlpatterns = [
 
+    path('', views.wms_home, name='wms_home'),
+
     path('api/v1/', include('MyApp.api.urls')),
 
     # Enquiry, quotation, costing and project-document workflow
@@ -15,6 +17,7 @@ urlpatterns = [
     path('workflow/enquiries/add/', workflow_views.add_enquiry, name='workflow_add_enquiry'),
     path('workflow/enquiries/<int:enquiry_id>/', workflow_views.detail, name='workflow_detail'),
     path('workflow/enquiries/<int:enquiry_id>/comments/', workflow_views.add_comment, name='workflow_add_comment'),
+    path('workflow/enquiries/<int:enquiry_id>/discussion/', workflow_views.enquiry_discussion, name='workflow_enquiry_discussion'),
     path('workflow/enquiries/<int:enquiry_id>/assign/', workflow_views.assign_estimator, name='workflow_assign'),
     path('workflow/enquiries/<int:enquiry_id>/quotation/', workflow_views.add_quotation, name='workflow_add_quotation'),
     path('workflow/quotations/<int:quote_id>/download/<str:file_format>/', workflow_views.download_quotation, name='workflow_download_quotation'),
@@ -54,7 +57,7 @@ urlpatterns = [
     path('Edit_project/<str:id>', views.Edit_project, name="Edit_project"),
     path('Edit_project_post/',views.Edit_project_post,name="Edit_project_post"),
     path('Delete_project/<str:id>', views.Delete_project, name="Delete_project"),
-    path('Edit_staff/<str:id>', views.Edit_staff, name="Edit_staff"),
+    path('Edit_staff/<int:id>', views.Edit_staff, name="Edit_staff"),
     path('Edit_staff_post/', views.Edit_staff_post, name="Edit_staff_post"),
     path('Delete_staff/<str:id>/<str:lid>', views.Delete_staff, name="Delete_staff"),
     path('Delete_chata/<str:id>/<str:pid>', views.Delete_chata, name="Delete_chata"),

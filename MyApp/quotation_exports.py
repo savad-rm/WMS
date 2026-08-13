@@ -7,13 +7,14 @@ from types import SimpleNamespace
 from django.conf import settings
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Border, Font, Side
+from openpyxl.drawing.image import Image as ExcelImage
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import (
-    Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
+    Image, KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
 )
 
 from .quotation_document import (
@@ -26,6 +27,8 @@ ASSET_DIR = Path(settings.BASE_DIR) / 'MyApp' / 'quotation_templates'
 EXCEL_TEMPLATE = ASSET_DIR / 'exalter_quotation_template.xlsx'
 DETAILED_EXCEL_TEMPLATE = ASSET_DIR / 'quotation_sample.xlsx'
 LETTERHEAD_IMAGE = ASSET_DIR / 'exalter_letterhead.png'
+SIGNATURE_IMAGE = ASSET_DIR / 'exalter_signature.png'
+STAMP_IMAGE = ASSET_DIR / 'exalter_stamp.png'
 
 def quotation_amount_words(value):
     ones = (
@@ -158,7 +161,7 @@ def build_quotation_excel(quote):
                 line.item_code if kind in ('section', 'subheading') else '',
             )
             sheet.cell(current_row, 3, plain_rich_text(line.description))
-            heading_end_column = 6 if kind == 'section' else (5 if kind == 'subheading' else 7)
+            heading_end_column = 6 if kind in ('section', 'subheading') else 7
             sheet.merge_cells(
                 start_row=current_row, start_column=3,
                 end_row=current_row, end_column=heading_end_column,
@@ -168,6 +171,11 @@ def build_quotation_excel(quote):
                 horizontal='center' if kind == 'section' else 'left',
                 vertical='center', wrap_text=True,
             )
+            if kind in ('section', 'subheading') and line.amount:
+                sheet.cell(current_row, 7, float(line.amount))
+                sheet.cell(current_row, 7).number_format = '#,##0.00'
+                sheet.cell(current_row, 7).font = money_font
+                section_item_rows.append(current_row)
         elif kind == 'item':
             line = entry['line']
             values = (line.item_code, plain_rich_text(line.description), line.unit, float(line.quantity), float(line.unit_rate))
@@ -179,7 +187,7 @@ def build_quotation_excel(quote):
             sheet.cell(current_row, 6).font = money_font
             sheet.cell(current_row, 7).font = money_font
             sheet.cell(current_row, 3).alignment = Alignment(
-                horizontal='center', wrap_text=True, vertical='center',
+                horizontal='left', wrap_text=True, vertical='center',
             )
             section_item_rows.append(current_row)
             all_item_rows.append(current_row)
@@ -188,7 +196,7 @@ def build_quotation_excel(quote):
             sheet.cell(current_row, 3, entry['label'])
             sheet.merge_cells(start_row=current_row, start_column=4, end_row=current_row, end_column=6)
             sheet.cell(current_row, 4, 'Sub-Total (QAR)')
-            sheet.cell(current_row, 7, sum_formula(section_item_rows))
+            sheet.cell(current_row, 7, float(entry['amount']))
             sheet.cell(current_row, 7).number_format = '#,##0.00'
             for column in range(2, 8):
                 sheet.cell(current_row, column).font = bold_font if column != 7 else Font(name='Helvetica', size=11, bold=True)
@@ -213,7 +221,7 @@ def build_quotation_excel(quote):
         current_row, 2,
         f'Grand Total (QAR - {quotation_amount_words(quote.amount).capitalize()} only)',
     )
-    sheet.cell(current_row, 7, sum_formula(section_total_rows or all_item_rows))
+    sheet.cell(current_row, 7, float(quote.amount))
     for column in range(2, 8):
         sheet.cell(current_row, column).border = grid
         sheet.cell(current_row, column).font = bold_font if column != 7 else Font(name='Helvetica', size=11, bold=True)
@@ -246,6 +254,14 @@ def build_quotation_excel(quote):
         sheet.cell(current_row, 2).font = bold_font if bold else body_font
         sheet.cell(current_row, 2).alignment = Alignment(wrap_text=True)
         current_row += 1
+    if SIGNATURE_IMAGE.exists() and STAMP_IMAGE.exists():
+        signature = ExcelImage(str(SIGNATURE_IMAGE))
+        signature.width, signature.height = 120, 36
+        stamp = ExcelImage(str(STAMP_IMAGE))
+        stamp.width, stamp.height = 82, 82
+        sheet.add_image(signature, f'C{max(19, current_row - 4)}')
+        sheet.add_image(stamp, f'E{max(19, current_row - 5)}')
+        current_row += 2
     sheet.print_area = f'B9:G{current_row}'
     sheet['F10'].alignment = Alignment(horizontal='center', vertical='center')
     for column in range(2, 8):
@@ -344,11 +360,12 @@ def build_quotation_pdf(quote):
             )
             table_data.append([
                 line.item_code if kind in ('section', 'subheading') else '',
-                Paragraph(rich_text_to_html(line.description), line_style), '', '', '', '',
+                Paragraph(rich_text_to_html(line.description), line_style), '', '', '',
+                Paragraph(f'{line.amount:,.2f}', money) if line.amount else '',
             ])
             row_spans.append((
                 row_index, 1,
-                4 if kind == 'section' else (3 if kind == 'subheading' else 5),
+                4 if kind in ('section', 'subheading') else 5,
             ))
             if kind != 'note':
                 bold_rows.append(row_index)
@@ -363,7 +380,7 @@ def build_quotation_pdf(quote):
         else:
             line = entry['line']
             table_data.append([
-                line.item_code, Paragraph(rich_text_to_html(line.description), centered), line.unit,
+                line.item_code, Paragraph(rich_text_to_html(line.description), normal), line.unit,
                 f'{line.quantity:,.2f}', Paragraph(f'{line.unit_rate:,.2f}', money),
                 Paragraph(f'{line.amount:,.2f}', money),
             ])
@@ -385,7 +402,8 @@ def build_quotation_pdf(quote):
         ('GRID', (0, 0), (-1, -1), .55, colors.black),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('ALIGN', (0, 0), (0, -1), 'CENTER'),
-        ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+        ('ALIGN', (1, 0), (-1, 0), 'CENTER'),
+        ('ALIGN', (2, 1), (-1, -1), 'CENTER'),
         ('SPAN', (0, grand_row), (4, grand_row)),
         ('ALIGN', (0, grand_row), (4, grand_row), 'CENTER'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
@@ -405,7 +423,7 @@ def build_quotation_pdf(quote):
             ])
         elif entry['kind'] == 'subheading':
             table_style.extend([
-                ('ALIGN', (1, row_index), (3, row_index), 'LEFT'),
+                ('ALIGN', (1, row_index), (4, row_index), 'LEFT'),
                 ('TOPPADDING', (0, row_index), (-1, row_index), 1),
                 ('BOTTOMPADDING', (0, row_index), (-1, row_index), 1),
             ])
@@ -419,13 +437,27 @@ def build_quotation_pdf(quote):
             if line.strip():
                 story.append(Paragraph(line.strip(), normal))
 
-    story.extend([
-        Spacer(1, 4 * mm), Paragraph(quote.closing_text, normal), Spacer(1, 4 * mm),
+    signatory = [
         Paragraph('<b>With Best Regards,</b>', normal),
-        Paragraph('<b>Exalter Trading &amp; Contracting</b>', normal), Spacer(1, 6 * mm),
+        Paragraph('<b>Exalter Trading &amp; Contracting</b>', normal),
+    ]
+    if SIGNATURE_IMAGE.exists():
+        signatory.append(Image(str(SIGNATURE_IMAGE), width=34 * mm, height=10 * mm))
+    signatory.extend([
         Paragraph(f'<b>{quote.signatory_name}</b>', normal),
         Paragraph(f'<b>{quote.signatory_title}</b>', normal),
         Paragraph(f'<b>Mobile {quote.signatory_phone}</b>', normal),
+    ])
+    approval_visual = Image(str(STAMP_IMAGE), width=27 * mm, height=27 * mm) if STAMP_IMAGE.exists() else ''
+    signature_table = Table([[signatory, approval_visual]], colWidths=[112 * mm, 40 * mm])
+    signature_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
+        ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0), ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    story.extend([
+        Spacer(1, 4 * mm), Paragraph(quote.closing_text, normal), Spacer(1, 4 * mm),
+        KeepTogether(signature_table),
     ])
     doc.build(story, onFirstPage=draw_letterhead, onLaterPages=draw_letterhead)
     output.seek(0)

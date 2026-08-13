@@ -9,6 +9,8 @@
   .quotation-entry-table .line-description { min-height: 76px; resize: vertical; overflow-y: hidden; }
   .quotation-entry-table .quotation-row.table-light .line-description { min-height: 42px; }
   .quotation-entry-table .quotation-row[data-kind="subheading"] .line-description { min-height: 38px; }
+  .quotation-entry-table .direct-line-amount { min-width: 95px; text-align: right; }
+  .autosave-status { min-height: 24px; }
 </style>
 {% endblock %}
 {% block body %}
@@ -70,15 +72,15 @@
           <thead><tr><th style="width:11%">Row type</th><th style="width:8%">Item</th><th class="description-column">Description <button class="btn btn-xs btn-light ms-1" id="boldDescription" type="button" title="Wrap selected description text in bold"><strong>B</strong></button></th><th style="width:9%">Unit</th><th style="width:8%">Qty</th><th style="width:11%">Rate</th><th style="width:11%">Amount</th><th style="width:48px"></th></tr></thead>
           <tbody id="quotationRows">
           {% for row in quote_rows %}
-            <tr class="quotation-row" data-kind="{{ row.row_type }}"><td><select name="row_type" class="form-select form-select-sm row-type"><option value="item" {% if row.row_type == 'item' %}selected{% endif %}>Item</option><option value="subheading" {% if row.row_type == 'subheading' %}selected{% endif %}>Subheading</option><option value="section" {% if row.row_type == 'section' %}selected{% endif %}>Section</option><option value="note" {% if row.row_type == 'note' %}selected{% endif %}>Note</option></select></td><td><input name="item_code" value="{{ row.item_code }}" class="form-control form-control-sm item-code"></td><td><textarea name="line_description" class="form-control form-control-sm line-description" rows="3" maxlength="255">{{ row.description }}</textarea></td><td><select name="unit" class="form-select form-select-sm line-unit"><option value="">Select</option>{% if row.unit and row.unit not in quotation_units %}<option value="{{ row.unit }}" selected>{{ row.unit }}</option>{% endif %}{% for unit in quotation_units %}<option value="{{ unit }}" {% if row.unit == unit %}selected{% endif %}>{{ unit }}</option>{% endfor %}</select></td><td><input type="text" inputmode="decimal" name="quantity" value="{{ row.quantity }}" class="form-control form-control-sm line-quantity"></td><td><input type="text" inputmode="decimal" name="unit_rate" value="{{ row.unit_rate }}" class="form-control form-control-sm line-rate"></td><td class="text-center line-amount">0.00</td><td><button class="btn btn-sm btn-outline-danger remove-quotation-row" type="button" aria-label="Remove row"><i class="bi bi-trash"></i></button></td></tr>
+            <tr class="quotation-row" data-kind="{{ row.row_type }}"><td><select name="row_type" class="form-select form-select-sm row-type"><option value="item" {% if row.row_type == 'item' %}selected{% endif %}>Item</option><option value="subheading" {% if row.row_type == 'subheading' %}selected{% endif %}>Subheading</option><option value="section" {% if row.row_type == 'section' %}selected{% endif %}>Section</option><option value="note" {% if row.row_type == 'note' %}selected{% endif %}>Note</option></select></td><td><input name="item_code" value="{{ row.item_code }}" class="form-control form-control-sm item-code"></td><td><textarea name="line_description" class="form-control form-control-sm line-description" rows="3" maxlength="255">{{ row.description }}</textarea></td><td><select name="unit" class="form-select form-select-sm line-unit"><option value="">Select</option>{% if row.unit and row.unit not in quotation_units %}<option value="{{ row.unit }}" selected>{{ row.unit }}</option>{% endif %}{% for unit in quotation_units %}<option value="{{ unit }}" {% if row.unit == unit %}selected{% endif %}>{{ unit }}</option>{% endfor %}</select></td><td><input type="text" inputmode="decimal" name="quantity" value="{{ row.quantity }}" class="form-control form-control-sm line-quantity"></td><td><input type="text" inputmode="decimal" name="unit_rate" value="{{ row.unit_rate }}" class="form-control form-control-sm line-rate"></td><td class="text-center line-amount"><input type="text" inputmode="decimal" name="line_amount" value="{{ row.amount }}" class="form-control form-control-sm direct-line-amount" aria-label="Direct row total"><span class="calculated-line-amount"></span></td><td><button class="btn btn-sm btn-outline-danger remove-quotation-row" type="button" aria-label="Remove row"><i class="bi bi-trash"></i></button></td></tr>
           {% empty %}
-            <tr class="quotation-row" data-kind="section"><td><select name="row_type" class="form-select form-select-sm row-type"><option value="item">Item</option><option value="subheading">Subheading</option><option value="section" selected>Section</option><option value="note">Note</option></select></td><td><input name="item_code" value="1" class="form-control form-control-sm item-code" readonly></td><td><textarea name="line_description" class="form-control form-control-sm line-description" rows="2" maxlength="255">GENERAL PRELIMINARIES</textarea></td><td><select name="unit" class="form-select form-select-sm line-unit"><option value="">Select</option>{% for unit in quotation_units %}<option value="{{ unit }}">{{ unit }}</option>{% endfor %}</select></td><td><input type="text" inputmode="decimal" name="quantity" class="form-control form-control-sm line-quantity"></td><td><input type="text" inputmode="decimal" name="unit_rate" class="form-control form-control-sm line-rate"></td><td class="text-center line-amount">0.00</td><td><button class="btn btn-sm btn-outline-danger remove-quotation-row" type="button"><i class="bi bi-trash"></i></button></td></tr>
+            <tr class="quotation-row" data-kind="section"><td><select name="row_type" class="form-select form-select-sm row-type"><option value="item">Item</option><option value="subheading">Subheading</option><option value="section" selected>Section</option><option value="note">Note</option></select></td><td><input name="item_code" value="I" class="form-control form-control-sm item-code" readonly></td><td><textarea name="line_description" class="form-control form-control-sm line-description" rows="2" maxlength="255">GENERAL PRELIMINARIES</textarea></td><td><select name="unit" class="form-select form-select-sm line-unit"><option value="">Select</option>{% for unit in quotation_units %}<option value="{{ unit }}">{{ unit }}</option>{% endfor %}</select></td><td><input type="text" inputmode="decimal" name="quantity" class="form-control form-control-sm line-quantity"></td><td><input type="text" inputmode="decimal" name="unit_rate" class="form-control form-control-sm line-rate"></td><td class="text-center line-amount"><input type="text" inputmode="decimal" name="line_amount" class="form-control form-control-sm direct-line-amount" aria-label="Direct row total"><span class="calculated-line-amount"></span></td><td><button class="btn btn-sm btn-outline-danger remove-quotation-row" type="button"><i class="bi bi-trash"></i></button></td></tr>
           {% endfor %}
           </tbody><tfoot><tr><th colspan="6" class="text-end">Quotation Total</th><th class="text-end" id="quotationTotal">0.00</th><th></th></tr></tfoot>
-        </table></div><div class="form-text">Press Enter from a row field to insert the next item directly below it. Only sections receive an automatic subtotal; subheadings are descriptive labels. Select text in a description and press <strong>B</strong> to make it bold.</div></div>
+        </table></div><div class="form-text">Press Enter from a row field to insert the next item directly below it. For work priced as one lump sum, enter the total directly on its section or subheading and leave item rows out. Select text in a description and press <strong>B</strong> to make it bold.</div></div>
         <div class="col-12"><hr><h6 class="text-primary fw-bold">Client and Quotation Details</h6></div>
-        <div class="col-md-6"><div class="border rounded p-3 h-100"><div class="fw-bold fs-6">{{ enquiry.client_name }}</div><div>Phone: {{ enquiry.client_phone|default:'-' }}</div><div>Email: {{ enquiry.client_email|default:'-' }}</div><label class="form-label mt-2">Address</label><textarea name="client_address" class="form-control" rows="4" placeholder="Building / street&#10;Area&#10;Doha - Qatar">{{ quote_form.client_address|default:'Doha - State of Qatar' }}</textarea></div></div>
-        <div class="col-md-6"><label class="form-label">Subject</label><input name="subject" value="{{ quote_form.subject|default:'' }}" class="form-control" placeholder="Quotation for {{ enquiry.title }}" required><label class="form-label mt-3">Introduction</label><textarea name="introduction" class="form-control" rows="4">{{ quote_form.introduction|default:default_introduction }}</textarea></div>
+        <div class="col-md-6"><div class="border rounded p-3 h-100"><div class="fw-bold fs-6">{{ enquiry.client_name }}</div><div>Phone: {{ enquiry.client_phone|default:'-' }}</div><div>Email: {{ enquiry.client_email|default:'-' }}</div><label class="form-label mt-2" for="clientAddress">Quotation address <span class="text-muted fw-normal">(editable)</span></label><textarea id="clientAddress" name="client_address" class="form-control bg-white" rows="4" maxlength="1000" autocomplete="street-address" placeholder="Building / street&#10;Area&#10;Doha - Qatar">{{ quote_form.client_address|default:'Doha - State of Qatar' }}</textarea><div class="form-text">This address is saved on this quotation and printed in PDF/Excel; it does not overwrite the enquiry contact.</div></div></div>
+        <div class="col-md-6"><label class="form-label" for="quotationIssueDate">Quotation date</label><input id="quotationIssueDate" type="date" name="issue_date" value="{% firstof quote_form.issue_date quotation_issue_date %}" class="form-control" required><label class="form-label mt-3">Subject</label><input name="subject" value="{{ quote_form.subject|default:'' }}" class="form-control" placeholder="Quotation for {{ enquiry.title }}" required><label class="form-label mt-3">Introduction</label><textarea name="introduction" class="form-control" rows="4">{{ quote_form.introduction|default:default_introduction }}</textarea></div>
         <div class="col-12"><div class="d-flex justify-content-between align-items-center"><h6 class="text-primary fw-bold mb-0">Specification / Clarification Terms</h6><button class="btn btn-sm btn-outline-primary" id="addQuotationTerm" type="button"><i class="bi bi-plus-lg"></i> Add Term</button></div><div id="quotationTerms" class="mt-2">
           {% for term in quote_terms %}<div class="quotation-term border rounded p-2 mb-2"><div class="d-flex gap-2"><span class="term-number fw-bold pt-2"></span><div class="flex-grow-1"><input name="term_title" value="{{ term.title }}" class="form-control form-control-sm fw-bold mb-2" placeholder="Term heading" required><textarea name="term_body" class="form-control form-control-sm" rows="3" required>{{ term.body }}</textarea></div><div class="d-flex flex-column gap-1"><button class="btn btn-sm btn-outline-secondary move-term-up" type="button" title="Move up"><i class="bi bi-arrow-up"></i></button><button class="btn btn-sm btn-outline-secondary move-term-down" type="button" title="Move down"><i class="bi bi-arrow-down"></i></button><button class="btn btn-sm btn-outline-danger remove-quotation-term" type="button" title="Remove"><i class="bi bi-trash"></i></button></div></div></div>{% endfor %}
         </div></div>
@@ -86,7 +88,7 @@
         <div class="col-md-4"><label class="form-label">Signatory Name</label><input name="signatory_name" value="{{ quote_form.signatory_name|default:current_staff.name }}" class="form-control"></div><div class="col-md-4"><label class="form-label">Signatory Title</label><input name="signatory_title" value="{{ quote_form.signatory_title|default:current_staff.designation }}" class="form-control"></div><div class="col-md-4"><label class="form-label">Signatory Mobile</label><input name="signatory_phone" value="{{ quote_form.signatory_phone|default:current_staff.phone }}" class="form-control"></div>
         <div class="col-12"><label class="form-label">Supporting quotation file (optional)</label><input type="file" name="file" class="form-control" accept=".xlsx,.xls,.pdf,.doc,.docx"></div>
         <div class="col-12"><hr><h6 class="text-primary fw-bold">Internal Costing</h6><div class="form-text">These figures are used only for internal approval and are not shown to the client.</div></div><div class="col-md-4"><label class="form-label">Material cost</label><input type="number" min="0" step="0.01" name="material_cost" value="{{ quote_form.material_cost|default:'' }}" class="form-control"></div><div class="col-md-4"><label class="form-label">Labour cost</label><input type="number" min="0" step="0.01" name="labour_cost" value="{{ quote_form.labour_cost|default:'' }}" class="form-control"></div><div class="col-md-4"><label class="form-label">Other cost</label><input type="number" min="0" step="0.01" name="other_cost" value="{{ quote_form.other_cost|default:'' }}" class="form-control"></div><div class="col-12"><label class="form-label">Costing notes / remarks</label><textarea name="costing_notes" class="form-control">{{ quote_form.costing_notes|default:'' }}</textarea></div>
-        <div class="col-12 d-flex flex-wrap gap-2"><button class="btn btn-primary" type="submit" id="saveQuotation"><i class="bi bi-save"></i> {% if editing_quote %}Save Draft Changes{% else %}Save Draft{% endif %}</button>{% if revision_source or editing_quote %}<a class="btn btn-outline-secondary" href="{% if editing_quote %}{% url 'workflow_view_quotation' editing_quote.id %}{% else %}{% url 'workflow_detail' enquiry.id %}{% endif %}">Cancel</a>{% endif %}</div>
+        <div class="col-12"><div class="autosave-status small text-muted" id="quotationAutosaveStatus" role="status"><i class="bi bi-cloud-check"></i> Changes are automatically backed up in this browser.</div><div class="d-flex flex-wrap gap-2 mt-1"><button class="btn btn-primary" type="submit" id="saveQuotation"><i class="bi bi-save"></i> {% if editing_quote %}Save Draft Changes{% else %}Save Draft{% endif %}</button>{% if revision_source or editing_quote %}<a class="btn btn-outline-secondary" href="{% if editing_quote %}{% url 'workflow_view_quotation' editing_quote.id %}{% else %}{% url 'workflow_detail' enquiry.id %}{% endif %}">Cancel</a>{% endif %}</div></div>
       </form>
     </div></div>
     {% endif %}
@@ -119,11 +121,7 @@
       {% for doc in enquiry.project_documents.all %}<div class="border-top py-2"><div class="d-flex align-items-center justify-content-between gap-2"><span>{{ doc.get_document_type_display }}</span><span class="d-flex gap-1">{% if doc.is_cad %}<a class="btn btn-sm btn-primary" href="{% url 'workflow_cad_viewer' 'document' doc.id %}"><i class="bi bi-bounding-box"></i> View CAD</a><a class="btn btn-sm btn-outline-primary" href="{% url 'workflow_cad_file' 'document' doc.id %}" target="_blank" rel="noopener"><i class="bi bi-download"></i></a>{% else %}<a class="btn btn-sm btn-outline-primary" href="{{ doc.file.url }}" target="_blank" rel="noopener"><i class="bi bi-download"></i></a>{% endif %}</span></div>{% if doc.verified_at %}<span class="badge bg-success">Verified</span>{% elif can_verify %}<form method="post" action="{% url 'workflow_verify_document' doc.id %}" class="mt-1">{% csrf_token %}<button class="btn btn-sm btn-outline-primary">Verify</button></form>{% else %}<span class="badge bg-warning text-dark">Pending verification</span>{% endif %}</div>{% empty %}<p class="text-muted">No documents collected.</p>{% endfor %}
     </div></div>
 
-    <div class="card"><div class="card-body">
-      <h5 class="card-title">Comments and Remarks</h5>
-      {% for item in enquiry_comments %}<div class="border-bottom py-2"><strong>{{ item.author.usertype }}</strong><div>{{ item.comment|linebreaksbr }}</div><small class="text-muted">{{ item.created_at|date:'d M Y H:i' }}</small></div>{% empty %}<p class="text-muted">No enquiry comments.</p>{% endfor %}
-      <form method="post" action="{% url 'workflow_add_comment' enquiry.id %}" class="mt-3">{% csrf_token %}<textarea name="comment" class="form-control mb-2" rows="3" required></textarea><button class="btn btn-sm btn-primary">Add Comment</button></form>
-    </div></div>
+    <div class="card"><div class="card-body"><h5 class="card-title">Enquiry Discussion</h5><p class="text-muted">Open the shared discussion to ask questions and reply to a specific message. New messages are shown in notifications.</p><a class="btn btn-primary position-relative" href="{% url 'workflow_enquiry_discussion' enquiry.id %}"><i class="bi bi-chat-dots"></i> Open Enquiry Discussion{% if enquiry_unread_comment_count %}<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{ enquiry_unread_comment_count }}</span>{% endif %}</a></div></div>
   </div>
 </div>
 
@@ -132,9 +130,19 @@
 (function () {
   const rows = document.getElementById('quotationRows');
   const template = rows.querySelector('.quotation-row').cloneNode(true);
-  const fields = ['item_code', 'line_description', 'unit', 'quantity', 'unit_rate'];
+  const fields = ['item_code', 'line_description', 'unit', 'quantity', 'unit_rate', 'line_amount'];
+  const quotationForm = document.getElementById('quotationForm');
+  const autosaveStatus = document.getElementById('quotationAutosaveStatus');
+  const autosaveKey = `wms:quotation-draft:{{ enquiry.id }}:${location.search || 'new'}`;
   let activeDescription = null;
   let quotationChanged = false;
+  let autosaveTimer = null;
+  function roman(number) {
+    const values = [[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
+    let result = '';
+    values.forEach(([value, symbol]) => { while (number >= value) { result += symbol; number -= value; } });
+    return result;
+  }
   function applyRowType(row) {
     const kind = row.querySelector('.row-type').value;
     const isItem = kind === 'item';
@@ -149,7 +157,13 @@
       if (!isItem) input.value = '';
     });
     row.querySelector('.line-description').required = !isItem || hasItemData;
-    row.querySelector('.item-code').placeholder = isItem ? 'Auto' : 'I / A1';
+    const directAmount = row.querySelector('.direct-line-amount');
+    const calculatedAmount = row.querySelector('.calculated-line-amount');
+    directAmount.classList.toggle('d-none', isItem || kind === 'note');
+    directAmount.readOnly = isItem || kind === 'note';
+    calculatedAmount.classList.toggle('d-none', !isItem);
+    if (isItem || kind === 'note') directAmount.value = '';
+    row.querySelector('.item-code').placeholder = isItem ? 'Auto' : 'I / I.1';
     row.querySelector('.item-code').readOnly = kind === 'section' || kind === 'subheading';
   }
   function autoSizeDescription(input) {
@@ -159,7 +173,12 @@
   function updateTotals() {
     let total = 0, sectionTotal = 0;
     let sectionRow = null, sectionNumber = 0, subheadingNumber = 0, itemNumber = 0;
-    function showSubtotal(row, value) { if (row) row.querySelector('.line-amount').innerHTML = `<strong>Subtotal ${value.toFixed(2)}</strong>`; }
+    function showSubtotal(row, value) {
+      if (!row || parseFloat(row.querySelector('.direct-line-amount').value)) return;
+      const output = row.querySelector('.calculated-line-amount');
+      output.classList.remove('d-none');
+      output.innerHTML = value ? `<strong>Subtotal ${value.toFixed(2)}</strong>` : '';
+    }
     rows.querySelectorAll('.quotation-row').forEach(row => {
       applyRowType(row);
       const kind = row.querySelector('.row-type').value;
@@ -167,21 +186,24 @@
       if (kind === 'section') {
         showSubtotal(sectionRow, sectionTotal);
         sectionNumber += 1; subheadingNumber = 0; itemNumber = 0;
-        code.value = sectionNumber;
+        code.value = roman(sectionNumber);
         sectionRow = row; sectionTotal = 0;
+        const direct = parseFloat(row.querySelector('.direct-line-amount').value) || 0;
+        total += direct;
       } else if (kind === 'subheading') {
         if (!sectionNumber) sectionNumber = 1;
         subheadingNumber += 1; itemNumber = 0;
-        code.value = `${sectionNumber}.${subheadingNumber}`;
-        row.querySelector('.line-amount').textContent = '';
+        code.value = `${roman(sectionNumber)}.${subheadingNumber}`;
+        const direct = parseFloat(row.querySelector('.direct-line-amount').value) || 0;
+        total += direct; sectionTotal += direct;
       } else if (kind === 'item') {
         const amount = (parseFloat(row.querySelector('.line-quantity').value) || 0) * (parseFloat(row.querySelector('.line-rate').value) || 0);
         itemNumber += 1;
         if (!code.value.trim()) code.value = itemNumber;
-        row.querySelector('.line-amount').textContent = amount.toFixed(2);
+        row.querySelector('.calculated-line-amount').textContent = amount.toFixed(2);
         total += amount; sectionTotal += amount;
       } else {
-        row.querySelector('.line-amount').textContent = '';
+        row.querySelector('.calculated-line-amount').textContent = '';
       }
       autoSizeDescription(row.querySelector('.line-description'));
     });
@@ -247,13 +269,52 @@
     if (event.target.closest('.move-term-down') && term.nextElementSibling) terms.insertBefore(term.nextElementSibling, term);
     renumberTerms();
   });
-  document.getElementById('quotationForm').addEventListener('keydown', function (event) {
+  quotationForm.addEventListener('keydown', function (event) {
     if (event.key !== 'Enter' || event.target.tagName === 'TEXTAREA' || event.target.type === 'submit') return;
     const currentRow = event.target.closest('.quotation-row');
     event.preventDefault();
     if (currentRow) addRow('item', [], currentRow);
   });
-  document.getElementById('quotationForm').addEventListener('input', function () { quotationChanged = true; });
+  function serialiseDraft() {
+    const payload = {};
+    new FormData(quotationForm).forEach((value, key) => {
+      if (value instanceof File) return;
+      if (!payload[key]) payload[key] = [];
+      payload[key].push(value);
+    });
+    localStorage.setItem(autosaveKey, JSON.stringify({savedAt: new Date().toISOString(), values: payload}));
+    autosaveStatus.innerHTML = `<i class="bi bi-cloud-check"></i> Backed up locally at ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+  }
+  function restoreDraft(saved) {
+    const desiredRows = (saved.values.row_type || []).length;
+    while (rows.children.length < desiredRows) rows.appendChild(template.cloneNode(true));
+    while (rows.children.length > Math.max(1, desiredRows)) rows.lastElementChild.remove();
+    const desiredTerms = (saved.values.term_title || []).length;
+    while (terms.children.length < desiredTerms) terms.appendChild(termTemplate.cloneNode(true));
+    while (terms.children.length > Math.max(1, desiredTerms)) terms.lastElementChild.remove();
+    Object.entries(saved.values || {}).forEach(([name, values]) => {
+      const controls = quotationForm.querySelectorAll(`[name="${CSS.escape(name)}"]`);
+      controls.forEach((control, index) => { if (values[index] !== undefined && control.type !== 'file') control.value = values[index]; });
+    });
+    updateTotals();
+  }
+  quotationForm.addEventListener('input', function () {
+    quotationChanged = true;
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(serialiseDraft, 700);
+  });
+  quotationForm.addEventListener('submit', function () { localStorage.removeItem(autosaveKey); });
+  try {
+    const saved = JSON.parse(localStorage.getItem(autosaveKey) || 'null');
+    if (saved && saved.values) {
+      const banner = document.createElement('div');
+      banner.className = 'alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2';
+      banner.innerHTML = `<span><i class="bi bi-cloud-arrow-down"></i> A browser backup from ${new Date(saved.savedAt).toLocaleString()} is available.</span><span><button type="button" class="btn btn-sm btn-primary restore-local-draft">Restore</button> <button type="button" class="btn btn-sm btn-outline-secondary discard-local-draft">Discard</button></span>`;
+      quotationForm.prepend(banner);
+      banner.querySelector('.restore-local-draft').addEventListener('click', () => { restoreDraft(saved); banner.remove(); quotationChanged = true; });
+      banner.querySelector('.discard-local-draft').addEventListener('click', () => { localStorage.removeItem(autosaveKey); banner.remove(); });
+    }
+  } catch (error) { localStorage.removeItem(autosaveKey); }
   const importForm = document.getElementById('quotationImportForm');
   if (importForm) importForm.addEventListener('submit', function (event) {
     if (quotationChanged && !window.confirm('Importing will replace the quotation values currently in the editor. Continue?')) event.preventDefault();

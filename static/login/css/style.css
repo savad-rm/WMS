@@ -29,7 +29,9 @@ img{max-width:100%;}
 /*-- end reset --*/
 body {
 	font-family: 'Hind', sans-serif;
-} 
+}
+.login-brand { text-align: center; margin: 0 auto 1.2rem; }
+.login-brand img { width: min(420px, 84vw); height: auto; display: inline-block; }
 /*-- main --*/ 
 
 h1 {

@@ -79,7 +79,7 @@
           </tbody><tfoot><tr><th colspan="6" class="text-end">Quotation Total</th><th class="text-end" id="quotationTotal">0.00</th><th></th></tr></tfoot>
         </table></div><div class="form-text">Press Enter from a row field to insert the next item directly below it. For work priced as one lump sum, enter the total directly on its section or subheading and leave item rows out. Select text in a description and press <strong>B</strong> to make it bold.</div></div>
         <div class="col-12"><hr><h6 class="text-primary fw-bold">Client and Quotation Details</h6></div>
-        <div class="col-md-6"><div class="border rounded p-3 h-100"><label class="form-label" for="quotationClientName">Client name</label><input id="quotationClientName" name="quotation_client_name" value="{% firstof quote_form.quotation_client_name quote_form.client_name enquiry.client_name %}" class="form-control fw-bold" maxlength="255" autocomplete="organization" required><div class="row g-2 mt-1"><div class="col-md-6"><label class="form-label" for="quotationClientPhone">Phone number</label><input id="quotationClientPhone" name="quotation_client_phone" value="{% firstof quote_form.quotation_client_phone quote_form.client_phone enquiry.client_phone %}" class="form-control" maxlength="30" autocomplete="tel"></div><div class="col-md-6"><label class="form-label" for="quotationClientEmail">Email</label><input id="quotationClientEmail" type="email" name="quotation_client_email" value="{% firstof quote_form.quotation_client_email quote_form.client_email enquiry.client_email %}" class="form-control" maxlength="254" autocomplete="email"></div></div><label class="form-label mt-3" for="clientAddress">Address</label><textarea id="clientAddress" name="client_address" class="form-control bg-white" rows="4" maxlength="1000" autocomplete="street-address" placeholder="Building / street&#10;Area&#10;Doha - Qatar">{{ quote_form.client_address|default:'Doha - State of Qatar' }}</textarea><div class="form-text">All client details above are editable and saved only on this quotation. The original enquiry contact remains unchanged.</div></div></div>
+        <div class="col-md-6"><div class="border rounded p-3 h-100"><label class="form-label" for="quotationClientName">Client name</label><input id="quotationClientName" name="quotation_client_name" value="{{ quote_form.client_name }}" class="form-control fw-bold" maxlength="255" autocomplete="organization" required><div class="row g-2 mt-1"><div class="col-md-6"><label class="form-label" for="quotationClientPhone">Phone number</label><input id="quotationClientPhone" name="quotation_client_phone" value="{{ quote_form.client_phone }}" class="form-control" maxlength="30" autocomplete="tel"></div><div class="col-md-6"><label class="form-label" for="quotationClientEmail">Email</label><input id="quotationClientEmail" type="email" name="quotation_client_email" value="{{ quote_form.client_email }}" class="form-control" maxlength="254" autocomplete="email"></div></div><label class="form-label mt-3" for="clientAddress">Address</label><textarea id="clientAddress" name="client_address" class="form-control bg-white" rows="4" maxlength="255" autocomplete="street-address" placeholder="Building / street&#10;Area&#10;Doha - Qatar">{{ quote_form.client_address }}</textarea><div class="form-text">All client details above are editable and saved only on this quotation. The original enquiry contact remains unchanged.</div></div></div>
         <div class="col-md-6"><label class="form-label" for="quotationIssueDate">Quotation date</label><input id="quotationIssueDate" type="date" name="issue_date" value="{% firstof quote_form.issue_date quotation_issue_date %}" class="form-control" required><label class="form-label mt-3">Subject</label><input name="subject" value="{{ quote_form.subject|default:'' }}" class="form-control" placeholder="Quotation for {{ enquiry.title }}" required><label class="form-label mt-3">Introduction</label><textarea name="introduction" class="form-control" rows="4">{{ quote_form.introduction|default:default_introduction }}</textarea></div>
         <div class="col-12"><div class="d-flex justify-content-between align-items-center"><h6 class="text-primary fw-bold mb-0">Specification / Clarification Terms</h6><button class="btn btn-sm btn-outline-primary" id="addQuotationTerm" type="button"><i class="bi bi-plus-lg"></i> Add Term</button></div><div id="quotationTerms" class="mt-2">
           {% for term in quote_terms %}<div class="quotation-term border rounded p-2 mb-2"><div class="d-flex gap-2"><span class="term-number fw-bold pt-2"></span><div class="flex-grow-1"><input name="term_title" value="{{ term.title }}" class="form-control form-control-sm fw-bold mb-2" placeholder="Term heading" required><textarea name="term_body" class="form-control form-control-sm" rows="3" required>{{ term.body }}</textarea></div><div class="d-flex flex-column gap-1"><button class="btn btn-sm btn-outline-secondary move-term-up" type="button" title="Move up"><i class="bi bi-arrow-up"></i></button><button class="btn btn-sm btn-outline-secondary move-term-down" type="button" title="Move down"><i class="bi bi-arrow-down"></i></button><button class="btn btn-sm btn-outline-danger remove-quotation-term" type="button" title="Remove"><i class="bi bi-trash"></i></button></div></div></div>{% endfor %}
@@ -134,9 +134,13 @@
   const quotationForm = document.getElementById('quotationForm');
   const autosaveStatus = document.getElementById('quotationAutosaveStatus');
   const autosaveKey = `wms:quotation-draft:{{ enquiry.id }}:${location.search || 'new'}`;
+  const serverAutosaveUrl = "{% url 'workflow_autosave_quotation' enquiry.id %}";
   let activeDescription = null;
   let quotationChanged = false;
   let autosaveTimer = null;
+  let serverSaveInFlight = false;
+  let serverSaveQueued = false;
+  let formSubmitting = false;
   function roman(number) {
     const values = [[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
     let result = '';
@@ -217,6 +221,7 @@
     if (afterRow) afterRow.insertAdjacentElement('afterend', row);
     else rows.appendChild(row);
     updateTotals();
+    scheduleAutosave();
     row.querySelector('.line-description').focus();
     row.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
@@ -231,6 +236,7 @@
     if (rows.children.length > 1) button.closest('.quotation-row').remove();
     else fields.forEach(name => { button.closest('tr').querySelector(`[name="${name}"]`).value = ''; });
     updateTotals();
+    scheduleAutosave();
   });
   rows.addEventListener('paste', event => {
     if (event.target.name !== 'item_code') return;
@@ -260,6 +266,7 @@
     term.querySelector('[name="term_title"]').value = '';
     term.querySelector('[name="term_body"]').value = '';
     terms.appendChild(term); renumberTerms(); term.querySelector('input').focus();
+    scheduleAutosave();
   });
   terms.addEventListener('click', function (event) {
     const term = event.target.closest('.quotation-term');
@@ -268,6 +275,7 @@
     if (event.target.closest('.move-term-up') && term.previousElementSibling) terms.insertBefore(term, term.previousElementSibling);
     if (event.target.closest('.move-term-down') && term.nextElementSibling) terms.insertBefore(term.nextElementSibling, term);
     renumberTerms();
+    scheduleAutosave();
   });
   quotationForm.addEventListener('keydown', function (event) {
     if (event.key !== 'Enter' || event.target.tagName === 'TEXTAREA' || event.target.type === 'submit') return;
@@ -275,6 +283,35 @@
     event.preventDefault();
     if (currentRow) addRow('item', [], currentRow);
   });
+  async function serverAutosave() {
+    if (formSubmitting) return;
+    if (serverSaveInFlight) { serverSaveQueued = true; return; }
+    serverSaveInFlight = true;
+    serverSaveQueued = false;
+    autosaveStatus.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span> Saving draft securely...';
+    try {
+      const response = await fetch(serverAutosaveUrl, {
+        method: 'POST', body: new FormData(quotationForm),
+        headers: {'X-Requested-With': 'XMLHttpRequest'}, credentials: 'same-origin',
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Autosave failed');
+      let draftId = quotationForm.querySelector('[name="draft_id"]');
+      if (!draftId) {
+        draftId = document.createElement('input');
+        draftId.type = 'hidden'; draftId.name = 'draft_id';
+        quotationForm.prepend(draftId);
+      }
+      draftId.value = result.draft_id;
+      quotationChanged = false;
+      autosaveStatus.innerHTML = `<i class="bi bi-cloud-check text-success"></i> All changes saved to server at ${result.saved_at} <span class="text-muted">(${result.quotation_number})</span>`;
+    } catch (error) {
+      autosaveStatus.innerHTML = '<i class="bi bi-cloud-slash text-warning"></i> Saved in this browser; server autosave will retry when you continue editing.';
+    } finally {
+      serverSaveInFlight = false;
+      if (serverSaveQueued && !formSubmitting) serverAutosave();
+    }
+  }
   function serialiseDraft() {
     const payload = {};
     new FormData(quotationForm).forEach((value, key) => {
@@ -283,7 +320,8 @@
       payload[key].push(value);
     });
     localStorage.setItem(autosaveKey, JSON.stringify({savedAt: new Date().toISOString(), values: payload}));
-    autosaveStatus.innerHTML = `<i class="bi bi-cloud-check"></i> Backed up locally at ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+    autosaveStatus.innerHTML = `<i class="bi bi-cloud-check"></i> Backed up locally at ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}; saving to server...`;
+    serverAutosave();
   }
   function restoreDraft(saved) {
     const desiredRows = (saved.values.row_type || []).length;
@@ -298,12 +336,13 @@
     });
     updateTotals();
   }
-  quotationForm.addEventListener('input', function () {
+  function scheduleAutosave() {
     quotationChanged = true;
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(serialiseDraft, 700);
-  });
-  quotationForm.addEventListener('submit', function () { localStorage.removeItem(autosaveKey); });
+  }
+  quotationForm.addEventListener('input', scheduleAutosave);
+  quotationForm.addEventListener('submit', function () { formSubmitting = true; localStorage.removeItem(autosaveKey); });
   try {
     const saved = JSON.parse(localStorage.getItem(autosaveKey) || 'null');
     if (saved && saved.values) {
@@ -315,6 +354,7 @@
       banner.querySelector('.discard-local-draft').addEventListener('click', () => { localStorage.removeItem(autosaveKey); banner.remove(); });
     }
   } catch (error) { localStorage.removeItem(autosaveKey); }
+  window.setInterval(function () { if (quotationChanged && !formSubmitting) serverAutosave(); }, 15000);
   const importForm = document.getElementById('quotationImportForm');
   if (importForm) importForm.addEventListener('submit', function (event) {
     if (quotationChanged && !window.confirm('Importing will replace the quotation values currently in the editor. Continue?')) event.preventDefault();

@@ -316,52 +316,60 @@ def _detail_context(request, record, extra=None):
     }
     if form_source and not (extra or {}).get('quote_form'):
         document = unpack_document(form_source.details, form_source.validity_days)
+        draft_state = document.get('draft_state') if editing_quote else {}
+        document_client = document.get('client') or {}
         quote_costing = getattr(form_source, 'costing', None)
+        saved_form = draft_state.get('form', {}) if isinstance(draft_state, dict) else {}
+        saved_rows = draft_state.get('rows', []) if isinstance(draft_state, dict) else []
+        saved_terms = draft_state.get('terms', []) if isinstance(draft_state, dict) else []
+        quote_form = {
+            'issue_date': (
+                timezone.localdate().isoformat() if imported_quote
+                else form_source.issue_date.isoformat()
+            ),
+            'subject': (
+                f'Quotation for {record.title}' if imported_quote else form_source.subject
+            ),
+            'client_address': (
+                'Doha - State of Qatar' if imported_quote else form_source.client_address
+            ),
+            'client_name': (
+                record.client_name if imported_quote
+                else document_client.get('name', record.client_name)
+            ),
+            'client_phone': (
+                record.client_phone if imported_quote
+                else document_client.get('phone', record.client_phone)
+            ),
+            'client_email': (
+                record.client_email if imported_quote
+                else document_client.get('email', record.client_email)
+            ),
+            'introduction': form_source.introduction,
+            'validity_days': form_source.validity_days,
+            'project_duration': form_source.project_duration,
+            'closing_text': form_source.closing_text,
+            'signatory_name': (
+                request.workflow_staff.name if imported_quote else form_source.signatory_name
+            ),
+            'signatory_title': (
+                request.workflow_staff.designation if imported_quote else form_source.signatory_title
+            ),
+            'signatory_phone': (
+                request.workflow_staff.phone if imported_quote else form_source.signatory_phone
+            ),
+            'remarks': document.get('remarks', ''),
+            'material_cost': quote_costing.material_cost if quote_costing else '',
+            'labour_cost': quote_costing.labour_cost if quote_costing else '',
+            'other_cost': quote_costing.other_cost if quote_costing else '',
+            'costing_notes': quote_costing.notes if quote_costing else '',
+        }
+        if saved_form and not imported_quote:
+            quote_form.update(saved_form)
         context.update({
-            'quote_form': {
-                'issue_date': (
-                    timezone.localdate().isoformat() if imported_quote
-                    else form_source.issue_date.isoformat()
-                ),
-                'subject': (
-                    f'Quotation for {record.title}' if imported_quote else form_source.subject
-                ),
-                'client_address': (
-                    'Doha - State of Qatar' if imported_quote else form_source.client_address
-                ),
-                'client_name': (
-                    record.client_name if imported_quote
-                    else document.get('client', {}).get('name') or record.client_name
-                ),
-                'client_phone': (
-                    record.client_phone if imported_quote
-                    else document.get('client', {}).get('phone') or record.client_phone
-                ),
-                'client_email': (
-                    record.client_email if imported_quote
-                    else document.get('client', {}).get('email') or record.client_email
-                ),
-                'introduction': form_source.introduction,
-                'validity_days': form_source.validity_days,
-                'project_duration': form_source.project_duration,
-                'closing_text': form_source.closing_text,
-                'signatory_name': (
-                    request.workflow_staff.name if imported_quote else form_source.signatory_name
-                ),
-                'signatory_title': (
-                    request.workflow_staff.designation if imported_quote else form_source.signatory_title
-                ),
-                'signatory_phone': (
-                    request.workflow_staff.phone if imported_quote else form_source.signatory_phone
-                ),
-                'remarks': document.get('remarks', ''),
-                'material_cost': quote_costing.material_cost if quote_costing else '',
-                'labour_cost': quote_costing.labour_cost if quote_costing else '',
-                'other_cost': quote_costing.other_cost if quote_costing else '',
-                'costing_notes': quote_costing.notes if quote_costing else '',
-            },
-            'quote_terms': document['terms'],
-            'quote_rows': [
+            'quote_form': quote_form,
+            'quote_terms': saved_terms or document['terms'],
+            'quote_rows': saved_rows or [
                 {
                     'row_type': line_kind(line), 'item_code': line.item_code,
                     'description': line.description,
@@ -375,6 +383,13 @@ def _detail_context(request, record, extra=None):
         })
     elif may_create_initial and not (extra or {}).get('quote_terms'):
         context['quote_terms'] = default_terms()
+        context['quote_form'] = {
+            'issue_date': timezone.localdate().isoformat(),
+            'client_name': record.client_name,
+            'client_phone': record.client_phone,
+            'client_email': record.client_email,
+            'client_address': 'Doha - State of Qatar',
+        }
     context.update(extra or {})
     return context
 
@@ -648,8 +663,173 @@ def assign_estimator(request, enquiry_id):
     record.assigned_to = estimator
     record.status = 'assigned'
     record.save(update_fields=('assigned_to', 'status', 'updated_at'))
+    # Assignment can happen after a discussion has already started. Surface the
+    # discussion to the estimator immediately instead of waiting for a new post.
+    if estimator.LOGIN_id:
+        workflow_notification.objects.update_or_create(
+            dedupe_key=f'enquiry-assignment:{record.pk}:{estimator.LOGIN_id}',
+            defaults={
+                'recipient_id': estimator.LOGIN_id,
+                'ENQUIRY': record,
+                'event': 'enquiry_comment',
+                'level': 'info',
+                'message': f'You were assigned to {record.title}. Open the enquiry discussion.',
+                'link': _enquiry_discussion_url(record),
+                'read_at': None,
+            },
+        )
     messages.success(request, f'Enquiry assigned to {estimator.name}.')
     return redirect('workflow_detail', enquiry_id=enquiry_id)
+
+
+def _autosave_decimal(value):
+    try:
+        number = Decimal(str(value).strip() or '0')
+    except InvalidOperation:
+        return Decimal('0')
+    return number if number.is_finite() and number >= 0 else Decimal('0')
+
+
+@require_POST
+@role_required('Estimator')
+def autosave_quotation(request, enquiry_id):
+    """Persist an in-progress quotation without requiring it to be valid yet."""
+    record = get_object_or_404(
+        enquiry.objects.prefetch_related('quotations__lines'),
+        pk=enquiry_id, assigned_to=request.workflow_staff,
+    )
+    row_fields = {
+        'row_type': request.POST.getlist('row_type'),
+        'item_code': request.POST.getlist('item_code'),
+        'description': request.POST.getlist('line_description'),
+        'unit': request.POST.getlist('unit'),
+        'quantity': request.POST.getlist('quantity'),
+        'unit_rate': request.POST.getlist('unit_rate'),
+        'amount': request.POST.getlist('line_amount'),
+    }
+    row_count = max((len(values) for values in row_fields.values()), default=0)
+    draft_rows = [
+        {key: values[index] if index < len(values) else '' for key, values in row_fields.items()}
+        for index in range(row_count)
+    ]
+    term_titles = request.POST.getlist('term_title')
+    term_bodies = request.POST.getlist('term_body')
+    draft_terms = [
+        {
+            'title': term_titles[index] if index < len(term_titles) else '',
+            'body': term_bodies[index] if index < len(term_bodies) else '',
+        }
+        for index in range(max(len(term_titles), len(term_bodies)))
+    ] or default_terms()
+    client = {
+        'name': request.POST.get('quotation_client_name', '').strip() or record.client_name,
+        'phone': request.POST.get('quotation_client_phone', '').strip(),
+        'email': request.POST.get('quotation_client_email', '').strip().lower(),
+    }
+    draft_form_names = (
+        'issue_date', 'subject', 'client_address', 'introduction', 'validity_days',
+        'project_duration', 'closing_text', 'signatory_name', 'signatory_title',
+        'signatory_phone', 'remarks', 'material_cost', 'labour_cost', 'other_cost',
+        'costing_notes', 'quotation_client_name', 'quotation_client_phone',
+        'quotation_client_email',
+    )
+    draft_form = {name: request.POST.get(name, '') for name in draft_form_names}
+    details = pack_document(
+        draft_terms, request.POST.get('remarks', ''), client_details=client,
+        draft_state={'form': draft_form, 'rows': draft_rows, 'terms': draft_terms},
+    )
+
+    parsed_lines = []
+    section_number = subheading_number = item_number = 0
+    for position, row in enumerate(draft_rows, start=1):
+        kind = row['row_type'] if row['row_type'] in ('item', 'section', 'subheading', 'note') else 'item'
+        if not any(str(value).strip() for value in row.values()):
+            continue
+        if kind == 'section':
+            section_number += 1
+            subheading_number = item_number = 0
+            code = _roman_number(section_number)
+        elif kind == 'subheading':
+            if section_number == 0:
+                section_number = 1
+            subheading_number += 1
+            item_number = 0
+            code = f'{_roman_number(section_number)}.{subheading_number}'
+        else:
+            item_number += 1
+            code = row['item_code'].strip() or str(item_number)
+        quantity = _autosave_decimal(row['quantity']) if kind == 'item' else Decimal('0')
+        rate = _autosave_decimal(row['unit_rate']) if kind == 'item' else Decimal('0')
+        amount = quantity * rate if kind == 'item' else _autosave_decimal(row['amount'])
+        parsed_lines.append({
+            'item_code': code,
+            'description': row['description'].strip() or ' ',
+            'unit': row['unit'].strip() if kind == 'item' else {
+                'section': SECTION_UNIT, 'subheading': SUBHEADING_UNIT, 'note': NOTE_UNIT,
+            }[kind],
+            'quantity': quantity, 'unit_rate': rate, 'amount': amount, 'position': position,
+        })
+
+    issue_date = parse_date(request.POST.get('issue_date', '')) or timezone.localdate()
+    try:
+        validity_days = min(365, max(1, int(request.POST.get('validity_days') or 14)))
+    except ValueError:
+        validity_days = 14
+    amount = sum((line['amount'] for line in parsed_lines), Decimal('0'))
+    with transaction.atomic():
+        quotes = quotation.objects.select_for_update().filter(ENQUIRY=record)
+        draft_id = request.POST.get('draft_id', '').strip()
+        quote = quotes.filter(
+            pk=draft_id, status='draft', created_by=request.workflow_staff,
+        ).first() if draft_id.isdigit() else None
+        revision_source_id = request.POST.get('revision_of', '').strip()
+        revision_source = quotes.exclude(status='draft').filter(
+            pk=revision_source_id,
+        ).first() if revision_source_id.isdigit() else None
+        if not quote:
+            if quotes.exists() and not revision_source:
+                return JsonResponse({'ok': False, 'error': 'Open the existing draft or start a revision.'}, status=409)
+            version = (quotes.aggregate(value=Max('version'))['value'] or 0) + 1
+            first_quote = quotes.order_by('version', 'id').first()
+            revision = (
+                (quotes.aggregate(value=Max('revision'))['value'] or 0) + 1
+                if first_quote else 0
+            )
+            quote = quotation.objects.create(
+                ENQUIRY=record, version=version, revision=revision, issue_date=issue_date,
+                amount=amount, details=details, status='draft', created_by=request.workflow_staff,
+            )
+            assign_quotation_reference(quote, first_quote)
+        quote.issue_date = issue_date
+        quote.amount = amount
+        quote.details = details
+        quote.subject = request.POST.get('subject', '').strip()[:255]
+        quote.client_address = request.POST.get('client_address', '').strip()[:255]
+        quote.introduction = request.POST.get('introduction', '').strip()
+        quote.validity_days = validity_days
+        quote.project_duration = request.POST.get('project_duration', '').strip()
+        quote.closing_text = request.POST.get('closing_text', '').strip()
+        quote.signatory_name = request.POST.get('signatory_name', '').strip()[:100]
+        quote.signatory_title = request.POST.get('signatory_title', '').strip()[:100]
+        quote.signatory_phone = request.POST.get('signatory_phone', '').strip()[:40]
+        quote.save()
+        quote.lines.all().delete()
+        quotation_line.objects.bulk_create([
+            quotation_line(QUOTATION=quote, **line) for line in parsed_lines
+        ])
+        costing.objects.update_or_create(
+            QUOTATION=quote,
+            defaults={
+                'material_cost': _autosave_decimal(request.POST.get('material_cost')),
+                'labour_cost': _autosave_decimal(request.POST.get('labour_cost')),
+                'other_cost': _autosave_decimal(request.POST.get('other_cost')),
+                'notes': request.POST.get('costing_notes', '').strip(),
+            },
+        )
+    return JsonResponse({
+        'ok': True, 'draft_id': quote.pk, 'quotation_number': quote.display_number,
+        'saved_at': timezone.localtime().strftime('%H:%M:%S'),
+    })
 
 
 @require_POST
@@ -699,8 +879,14 @@ def add_quotation(request, enquiry_id):
             or record.description
             or quote_terms[0]['body']
         )
+    posted_form = request.POST.dict()
+    posted_form.update({
+        'client_name': request.POST.get('quotation_client_name', ''),
+        'client_phone': request.POST.get('quotation_client_phone', ''),
+        'client_email': request.POST.get('quotation_client_email', ''),
+    })
     form_context = {
-        'quote_form': request.POST,
+        'quote_form': posted_form,
         'quote_rows': quote_rows,
         'quote_terms': quote_terms or default_terms(),
         'editing_quote': draft_quote,
@@ -839,6 +1025,9 @@ def add_quotation(request, enquiry_id):
         return quotation_error('Client phone cannot exceed 30 characters.')
     if len(client_email) > 254 or (client_email and not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', client_email)):
         return quotation_error('Enter a valid client email address.')
+    client_address = request.POST.get('client_address', '').strip()
+    if len(client_address) > 255:
+        return quotation_error('Client address cannot exceed 255 characters.')
     document_details = pack_document(
         quote_terms, request.POST.get('remarks', ''),
         client_details={
@@ -852,7 +1041,7 @@ def add_quotation(request, enquiry_id):
         'issue_date': issue_date,
         'details': document_details,
         'subject': request.POST.get('subject', '').strip() or f'Quotation for {record.title}',
-        'client_address': request.POST.get('client_address', '').strip() or 'Doha-State of Qatar',
+        'client_address': client_address or 'Doha-State of Qatar',
         'introduction': request.POST.get('introduction', '').strip() or DEFAULT_INTRODUCTION,
         'validity_days': validity_days,
         'payment_terms': term_map.get('payment terms', DEFAULT_TERM_MAP['Payment Terms']),
@@ -971,6 +1160,7 @@ def view_quotation(request, quote_id):
     )
     role = _workflow_role(request.workflow_account.usertype)
     discussion_url = _quotation_discussion_url(quote)
+    quote_costing = getattr(quote, 'costing', None)
     return _render(request, 'Workflow/quotation_view.html', {
         'quote': quote,
         'enquiry': quote.ENQUIRY,
@@ -1000,17 +1190,18 @@ def view_quotation(request, quote_id):
         'can_manager_approve': role == 'Marketing Manager' and quote.status == 'manager_review',
         'can_accountant_approve': role == 'Accountant' and quote.status == 'accountant_review',
         'can_approve_costing': (
-            role == 'Project Manager' and not getattr(quote.costing, 'approved_at', None)
+            role == 'Project Manager' and quote_costing is not None
+            and not quote_costing.approved_at
         ),
         'can_submit': (
             role in ('Document Controller', 'Marketing Executive', 'Marketing Manager')
-            and quote.status == 'approved' and getattr(quote.costing, 'approved_at', None)
+            and quote.status == 'approved'
         ),
         'can_submit_role': role in ('Document Controller', 'Marketing Executive', 'Marketing Manager'),
-        'costing_approved': bool(getattr(quote.costing, 'approved_at', None)),
+        'costing_approved': bool(quote_costing and quote_costing.approved_at),
         'can_award': (
-            role == 'Marketing Executive' and quote.status == 'submitted'
-            and quote.ENQUIRY.created_by_id == request.workflow_account.id
+            role in ('Marketing Executive', 'Marketing Manager')
+            and quote.status == 'submitted'
         ),
     })
 
@@ -1185,8 +1376,8 @@ def approve_costing(request, quote_id):
 def submit_quotation(request, quote_id):
     with transaction.atomic():
         quote = get_object_or_404(
-            quotation.objects.select_for_update().select_related('ENQUIRY'), pk=quote_id, status='approved',
-            costing__approved_at__isnull=False,
+            quotation.objects.select_for_update().select_related('ENQUIRY'),
+            pk=quote_id, status='approved',
         )
         if not _can_access_enquiry(request, quote.ENQUIRY):
             return HttpResponseForbidden('You do not have permission to submit this quotation.')
@@ -1203,13 +1394,14 @@ def submit_quotation(request, quote_id):
 
 
 @require_POST
-@role_required('Marketing Executive')
+@role_required('Marketing Executive', 'Marketing Manager')
 def award_project(request, quote_id):
     with transaction.atomic():
         quote = get_object_or_404(
             quotation.objects.select_for_update(), pk=quote_id, status='submitted',
-            ENQUIRY__created_by=request.workflow_account,
         )
+        if not _can_access_enquiry(request, quote.ENQUIRY):
+            return HttpResponseForbidden('You do not have permission to update this quotation.')
         quote.status = 'accepted'
         quote.details = update_quotation_tracking(
             quote.details, quote.validity_days, client_status='approved',

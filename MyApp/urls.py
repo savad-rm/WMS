@@ -20,6 +20,7 @@ urlpatterns = [
     path('workflow/enquiries/<int:enquiry_id>/discussion/', workflow_views.enquiry_discussion, name='workflow_enquiry_discussion'),
     path('workflow/enquiries/<int:enquiry_id>/assign/', workflow_views.assign_estimator, name='workflow_assign'),
     path('workflow/enquiries/<int:enquiry_id>/quotation/', workflow_views.add_quotation, name='workflow_add_quotation'),
+    path('workflow/enquiries/<int:enquiry_id>/quotation/autosave/', workflow_views.autosave_quotation, name='workflow_autosave_quotation'),
     path('workflow/quotations/<int:quote_id>/download/<str:file_format>/', workflow_views.download_quotation, name='workflow_download_quotation'),
     path('workflow/quotations/<int:quote_id>/view/', workflow_views.view_quotation, name='workflow_view_quotation'),
     path('workflow/quotations/<int:quote_id>/remove-file/', workflow_views.remove_quotation_file, name='workflow_remove_quotation_file'),

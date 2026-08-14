@@ -35,7 +35,7 @@ def default_terms(validity_days=14):
     return terms
 
 
-def pack_document(terms, remarks='', tracking=None, client_details=None):
+def pack_document(terms, remarks='', tracking=None, client_details=None, draft_state=None):
     payload = {
         'terms': [
             {'title': str(term.get('title', '')).strip(), 'body': str(term.get('body', '')).strip()}
@@ -55,6 +55,8 @@ def pack_document(terms, remarks='', tracking=None, client_details=None):
             'phone': str(client_details.get('phone', '')).strip(),
             'email': str(client_details.get('email', '')).strip(),
         }
+    if draft_state:
+        payload['draft_state'] = draft_state
     return DOCUMENT_PREFIX + json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
 
 
@@ -66,13 +68,14 @@ def unpack_document(value, validity_days=14):
                 payload.setdefault('remarks', '')
                 payload.setdefault('tracking', {})
                 payload.setdefault('client', {})
+                payload.setdefault('draft_state', {})
                 return payload
         except (TypeError, ValueError, json.JSONDecodeError):
             pass
     terms = default_terms(validity_days)
     if value:
         terms[0]['body'] = value
-    return {'terms': terms, 'remarks': '', 'tracking': {}, 'client': {}}
+    return {'terms': terms, 'remarks': '', 'tracking': {}, 'client': {}, 'draft_state': {}}
 
 
 def quotation_tracking(value, validity_days=14):
@@ -91,6 +94,7 @@ def update_quotation_tracking(value, validity_days=14, **updates):
     return pack_document(
         document['terms'], document.get('remarks', ''), tracking,
         client_details=document.get('client'),
+        draft_state=document.get('draft_state'),
     )
 
 

@@ -1,0 +1,51 @@
+Mobile Number	Qatar Number should accepted
+Staff Rol	Project Engineer & Operation Manager to be added
+View	Add sorting option for list view
+cad view	"[Violation] Permissions policy violation: unload is not allowed in this document.
+Ro        @        cad-viewer.js:4207"
+Admin Dashboard	Return to main dash board from enquiry not working
+alert pop up 	page balnking while popup to be fixed
+enquiry erro refresh	error while adding enquiry results in page refresh
+How to remove the added file from quotation	
+Quotation revision should be given as button in quotation view, now when quotation view clicked revision quotation comming automaticaly	
+Client address should be given detailed columns, like Name (should be in bold letter), Phone Number, Email and address in multiple line	
+Quotation font should be Helvetica, All Font size should be 10, except rate & amount (both should be 11)	
+There should be default quotation terms same as the sample quote and it should be editable	
+Serial Number for quotation terms should be automaticaly adjusted when a object is removed or added in a random position	
+Quotation number, date & "QUOTATION"-name plate should be allined with right margin 	
+adapt bold headings from sample quotation, also follow the text allinment for headings and column names	
+Quotation items should have subheading as per the sample quote	
+When enter button clicked from client adress window quote should not be saved, only by pressing save button quote should be saved	
+Inside description box custom bold option required	
+There should be quotation view option for whoever has the access without downloading the file 	
+Best Regards and Signatory Details should be same details and style as sample quote and should be editable	
+For estimator while view an existing quotation, it shows "Create Revised Quotation" instead of existing quotation	
+While post an enquiery, there should be an option to ask doubt, or comment between parties (M.execuitive, M.Manager, estimator & accountant)	
+Follow the same arrangements of the sample quote (Client Name onLeft top corner, Quote number & Date right top corner, then subject ect..) 	
+Marketing Manager should have the provision to add new enquiery	
+Marketing executive need only permission to view quotations which they created enquiery	
+Enquiry and Quotation List should be seperate	
+Units: M2/Nos./ITEM/LM/RM/Sets.	
+In Quotation following items have to be centralized	
+Date,Description, Unit, QTY,Rate & Amount	
+Subheading raw height should be reduced	
+Sectiones Raw size should be upto "Rate" column	
+While making subtotal, the sections name should be in bold letter	
+While writing grand total, no need of "Qatari Riyal" in the end separately	
+Preview is not needed while making quotation, its only needed after saving	
+Section Number is not in order (it follow the item number) , 	
+Quotation Approval should be from quotation view, not from enquiry view	
+In new Enquiry - Quotation dedline no need time (only date is enough)	
+Quotation Discussion window should be seperate, comments of each quatation should be should is a separate view page	
+In Enquiry there should be Marketing Executive name	
+While prepare quote description should be fully visible 	
+Section /Subheading should be possible to enter total amount if we did not enter amount in item columns, in this case items column should be merged as one column	
+Stamp and signature should be added at bottom of the quotation	
+Quotation date change option should be available	
+DESCRIPTION Item should be alinged left side	
+Section serial number make Latin numbers	
+Enquiry discussion is not visible in notification	
+Quotation submittal option to client	
+Client adress should be editable while preparing quotation	
+Is there auto save option while preparing quotation?	
+Enquiry discussion is not visible in notification for Estimator	

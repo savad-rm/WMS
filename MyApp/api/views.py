@@ -165,9 +165,9 @@ def _quotation_payload(quote):
         'client_remarks': tracking['client_remarks'],
         'client_status': tracking['client_status'],
         'client': {
-            'name': client.get('name') or quote.ENQUIRY.client_name,
-            'phone': client.get('phone') or quote.ENQUIRY.client_phone,
-            'email': client.get('email') or quote.ENQUIRY.client_email,
+            'name': client.get('name', quote.ENQUIRY.client_name),
+            'phone': client.get('phone', quote.ENQUIRY.client_phone),
+            'email': client.get('email', quote.ENQUIRY.client_email),
             'address': quote.client_address,
         },
         'created_at': _iso(quote.created_at),
@@ -630,9 +630,9 @@ def _enquiry_actions(account, record):
             actions.append('accountant_approve')
         if role == 'Project Manager' and hasattr(latest, 'costing') and not latest.costing.approved_at:
             actions.append('costing_approve')
-        if role in ('Document Controller', 'Marketing Executive', 'Marketing Manager') and latest.status == 'approved' and hasattr(latest, 'costing') and latest.costing.approved_at:
+        if role in ('Document Controller', 'Marketing Executive', 'Marketing Manager') and latest.status == 'approved':
             actions.append('submit')
-        if role == 'Marketing Executive' and record.created_by_id == account.pk and latest.status == 'submitted':
+        if role in ('Marketing Executive', 'Marketing Manager') and latest.status == 'submitted':
             actions.append('award')
     return actions
 
@@ -724,12 +724,12 @@ class EnquiryActionView(APIView):
                     cost.approved_by = person
                     cost.approved_at = timezone.now()
                     cost.save(update_fields=('approved_by', 'approved_at', 'updated_at'))
-                elif action == 'submit' and request.user.usertype in ('Document Controller', 'Marketing Executive', 'Marketing Manager') and latest.status == 'approved' and costing.objects.filter(QUOTATION=latest, approved_at__isnull=False).exists():
+                elif action == 'submit' and request.user.usertype in ('Document Controller', 'Marketing Executive', 'Marketing Manager') and latest.status == 'approved':
                     latest.status = 'submitted'
                     latest.save(update_fields=('status', 'updated_at'))
                     record.status = 'submitted'
                     record.save(update_fields=('status', 'updated_at'))
-                elif action == 'award' and request.user.usertype == 'Marketing Executive' and record.created_by_id == request.user.pk and latest.status == 'submitted':
+                elif action == 'award' and request.user.usertype in ('Marketing Executive', 'Marketing Manager') and latest.status == 'submitted':
                     latest.status = 'accepted'
                     latest.save(update_fields=('status', 'updated_at'))
                     record.status = 'awarded'

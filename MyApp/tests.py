@@ -15,6 +15,7 @@ from django.core.management import call_command
 from django.test import Client, TestCase, TransactionTestCase
 from django.urls import reverse
 from django.utils import timezone
+from openpyxl import load_workbook
 
 from .models import (
     chat, enquiry, enquiry_attachment, estimate, login, material, material_request,
@@ -25,7 +26,7 @@ from .deadline_notifications import ensure_quotation_deadline_notifications
 from .quotation_document import (
     default_terms, pack_document, presentation_rows, quotation_tracking, unpack_document,
 )
-from .quotation_exports import quotation_amount_words
+from .quotation_exports import build_quotation_excel, quotation_amount_words
 
 
 class WorkflowTests(TestCase):
@@ -483,12 +484,106 @@ class WorkflowTests(TestCase):
         self.assertTrue(workflow_notification.objects.filter(
             recipient=self.manager[0], event='enquiry_comment', read_at__isnull=True,
         ).exists())
+        self.assertTrue(workflow_notification.objects.filter(
+            recipient=self.estimator[0], event='enquiry_comment', read_at__isnull=True,
+        ).exists())
         self.sign_in_as(*self.manager)
         discussion = self.client.get(reverse('workflow_enquiry_discussion', args=(record.pk,)))
         self.assertContains(discussion, 'Please confirm the site measurement.')
         self.assertFalse(workflow_notification.objects.filter(
             recipient=self.manager[0], event='enquiry_comment', read_at__isnull=True,
         ).exists())
+
+        late_assignment = enquiry.objects.create(
+            title='Discussion already in progress', client_name='Client',
+            created_by=self.executive[0], status='new',
+        )
+        late_assignment.comments.create(
+            ENQUIRY=late_assignment, author=self.executive[0],
+            comment=f'[ENQ:{late_assignment.pk}] Existing client clarification.',
+        )
+        response = self.client.post(
+            reverse('workflow_assign', args=(late_assignment.pk,)),
+            {'estimator': self.estimator[1].pk},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(workflow_notification.objects.filter(
+            recipient=self.estimator[0], ENQUIRY=late_assignment,
+            event='enquiry_comment', read_at__isnull=True,
+            link=reverse('workflow_enquiry_discussion', args=(late_assignment.pk,)),
+        ).exists())
+
+    def test_null_heading_amount_merges_output_and_server_autosave_recovers_rows(self):
+        record = enquiry.objects.create(
+            title='Autosaved quotation', client_name='Client',
+            created_by=self.executive[0], assigned_to=self.estimator[1], status='assigned',
+        )
+        self.sign_in_as(*self.estimator)
+        payload = {
+            'row_type': ['section', 'subheading', 'item'],
+            'item_code': ['', '', ''],
+            'line_description': ['GENERAL WORKS', 'Lump sum option', 'Partially entered item'],
+            'unit': ['', '', 'M2'], 'quantity': ['', '', ''],
+            'unit_rate': ['', '', ''], 'line_amount': ['', '500.00', ''],
+            'quotation_client_name': 'Autosave Client',
+            'quotation_client_phone': '', 'quotation_client_email': '',
+            'client_address': 'Doha', 'subject': 'Autosave recovery test',
+            'term_title': ['Scope of Work'], 'term_body': ['Saved automatically'],
+        }
+        response = self.client.post(
+            reverse('workflow_autosave_quotation', args=(record.pk,)), payload,
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        self.assertEqual(response.status_code, 200)
+        draft = quotation.objects.get(ENQUIRY=record)
+        self.assertEqual(draft.status, 'draft')
+        self.assertEqual(draft.amount, Decimal('500.00'))
+        self.assertEqual(draft.lines.count(), 3)
+        payload['draft_id'] = str(draft.pk)
+        payload['line_description'][-1] = 'Recovered partial item'
+        second = self.client.post(
+            reverse('workflow_autosave_quotation', args=(record.pk,)), payload,
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(quotation.objects.filter(ENQUIRY=record).count(), 1)
+        edit_page = self.client.get(
+            reverse('workflow_detail', args=(record.pk,)) + f'?edit={draft.pk}'
+        )
+        self.assertContains(edit_page, 'Recovered partial item')
+
+        workbook = load_workbook(build_quotation_excel(draft))
+        sheet = workbook['Quote']
+        self.assertIn('C19:G19', {str(value) for value in sheet.merged_cells.ranges})
+        self.assertIn('C20:F20', {str(value) for value in sheet.merged_cells.ranges})
+        self.assertEqual(sheet['G20'].value, 500)
+
+    def test_marketing_manager_can_submit_and_award_without_costing_gate(self):
+        record = enquiry.objects.create(
+            title='Client submittal', client_name='Client',
+            created_by=self.executive[0], assigned_to=self.estimator[1], status='approved',
+        )
+        quote = quotation.objects.create(
+            ENQUIRY=record, version=1, quotation_number='QTN/TEST/SUBMIT',
+            amount=Decimal('1000'), details=pack_document(default_terms()),
+            status='approved', created_by=self.estimator[1],
+        )
+        self.sign_in_as(*self.manager)
+        view = self.client.get(reverse('workflow_view_quotation', args=(quote.pk,)))
+        self.assertContains(view, 'Mark Submitted to Client')
+        self.assertEqual(
+            self.client.post(reverse('workflow_submit_quotation', args=(quote.pk,))).status_code,
+            302,
+        )
+        quote.refresh_from_db()
+        self.assertEqual(quote.status, 'submitted')
+        view = self.client.get(reverse('workflow_view_quotation', args=(quote.pk,)))
+        self.assertContains(view, 'Mark as Awarded')
+        self.client.post(reverse('workflow_award_project', args=(quote.pk,)))
+        quote.refresh_from_db()
+        record.refresh_from_db()
+        self.assertEqual(quote.status, 'accepted')
+        self.assertEqual(record.status, 'awarded')
 
     def test_invalid_legacy_gets_do_not_raise_debug_exceptions(self):
         self.assertRedirects(

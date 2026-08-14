@@ -121,9 +121,9 @@ def build_quotation_excel(quote):
     enquiry = quote.ENQUIRY
     document = unpack_document(quote.details, quote.validity_days)
     client = document.get('client') or {}
-    client_name = client.get('name') or enquiry.client_name
-    client_phone = client.get('phone') or enquiry.client_phone
-    client_email = client.get('email') or enquiry.client_email
+    client_name = client.get('name', enquiry.client_name)
+    client_phone = client.get('phone', enquiry.client_phone)
+    client_email = client.get('email', enquiry.client_email)
     rows = presentation_rows(_quotation_lines(quote))
 
     for merged in list(sheet.merged_cells.ranges):
@@ -166,7 +166,9 @@ def build_quotation_excel(quote):
                 line.item_code if kind in ('section', 'subheading') else '',
             )
             sheet.cell(current_row, 3, plain_rich_text(line.description))
-            heading_end_column = 6 if kind in ('section', 'subheading') else 7
+            heading_end_column = (
+                6 if kind in ('section', 'subheading') and line.amount else 7
+            )
             sheet.merge_cells(
                 start_row=current_row, start_column=3,
                 end_row=current_row, end_column=heading_end_column,
@@ -261,7 +263,7 @@ def build_quotation_excel(quote):
         current_row += 1
     if SIGNATURE_IMAGE.exists() and STAMP_IMAGE.exists():
         signature = ExcelImage(str(SIGNATURE_IMAGE))
-        signature.width, signature.height = 120, 36
+        signature.width, signature.height = 135, 54
         stamp = ExcelImage(str(STAMP_IMAGE))
         stamp.width, stamp.height = 82, 82
         sheet.add_image(signature, f'C{max(19, current_row - 4)}')
@@ -323,9 +325,9 @@ def build_quotation_pdf(quote):
     record = quote.ENQUIRY
     document = unpack_document(quote.details, quote.validity_days)
     client = document.get('client') or {}
-    client_name = client.get('name') or record.client_name
-    client_phone = client.get('phone') or record.client_phone
-    client_email = client.get('email') or record.client_email
+    client_name = client.get('name', record.client_name)
+    client_phone = client.get('phone', record.client_phone)
+    client_email = client.get('email', record.client_email)
     client_lines = [f'<b>{escape(_client_nameplate(client_name))}</b>']
     if client_phone:
         client_lines.append(f'Phone: {escape(client_phone)}')
@@ -375,7 +377,7 @@ def build_quotation_pdf(quote):
             ])
             row_spans.append((
                 row_index, 1,
-                4 if kind in ('section', 'subheading') else 5,
+                4 if kind in ('section', 'subheading') and line.amount else 5,
             ))
             if kind != 'note':
                 bold_rows.append(row_index)
@@ -451,7 +453,7 @@ def build_quotation_pdf(quote):
         Paragraph('<b>Exalter Trading &amp; Contracting</b>', normal),
     ]
     if SIGNATURE_IMAGE.exists():
-        signatory.append(Image(str(SIGNATURE_IMAGE), width=34 * mm, height=10 * mm))
+        signatory.append(Image(str(SIGNATURE_IMAGE), width=40 * mm, height=16 * mm))
     signatory.extend([
         Paragraph(f'<b>{quote.signatory_name}</b>', normal),
         Paragraph(f'<b>{quote.signatory_title}</b>', normal),

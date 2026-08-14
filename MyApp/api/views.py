@@ -42,7 +42,11 @@ from MyApp.models import (
     worker_entry,
     workflow_notification,
 )
-from MyApp.quotation_document import quotation_tracking, unpack_document
+from MyApp.quotation_document import (
+    quotation_tracking, unpack_document, update_quotation_tracking,
+)
+from MyApp.quotation_activity import publish_client_response
+from MyApp.quotation_email import QuotationDeliveryError, send_quotation_to_client
 
 from .authentication import issue_token
 from MyApp.deadline_notifications import ensure_quotation_deadline_notifications
@@ -660,6 +664,7 @@ class EnquiryActionView(APIView):
         if not _enquiry_allowed(request.user, record):
             raise PermissionDenied('You cannot access this enquiry.')
         person = _person(request.user)
+        workflow_message = 'Workflow updated.'
         with transaction.atomic():
             effective_role = _effective_role(request.user)
             if action == 'assign' and effective_role in ('Marketing Manager', 'Project Manager'):
@@ -725,15 +730,34 @@ class EnquiryActionView(APIView):
                     cost.approved_at = timezone.now()
                     cost.save(update_fields=('approved_by', 'approved_at', 'updated_at'))
                 elif action == 'submit' and request.user.usertype in ('Document Controller', 'Marketing Executive', 'Marketing Manager') and latest.status == 'approved':
+                    try:
+                        recipient = send_quotation_to_client(latest)
+                    except QuotationDeliveryError as exc:
+                        raise ValidationError({'email': [str(exc)]}) from exc
                     latest.status = 'submitted'
-                    latest.save(update_fields=('status', 'updated_at'))
+                    latest.details = update_quotation_tracking(
+                        latest.details, latest.validity_days,
+                        submitted_at=timezone.now().isoformat(), client_status='under_review',
+                    )
+                    latest.save(update_fields=('status', 'details', 'updated_at'))
                     record.status = 'submitted'
                     record.save(update_fields=('status', 'updated_at'))
+                    workflow_message = (
+                        f'Quotation emailed successfully to {recipient}; '
+                        'client status is now Under Review.'
+                    )
                 elif action == 'award' and request.user.usertype in ('Marketing Executive', 'Marketing Manager') and latest.status == 'submitted':
                     latest.status = 'accepted'
-                    latest.save(update_fields=('status', 'updated_at'))
+                    latest.details = update_quotation_tracking(
+                        latest.details, latest.validity_days, client_status='approved',
+                    )
+                    latest.save(update_fields=('status', 'details', 'updated_at'))
                     record.status = 'awarded'
                     record.save(update_fields=('status', 'updated_at'))
+                    publish_client_response(latest, request.user, 'approved')
                 else:
                     raise PermissionDenied('This action is not available at the current workflow stage.')
-        return Response({'enquiry': _enquiry_payload(record, detailed=True), 'message': 'Workflow updated.'})
+        return Response({
+            'enquiry': _enquiry_payload(record, detailed=True),
+            'message': workflow_message,
+        })

@@ -87,6 +87,16 @@ WMS_DB_PORT=5432
 WMS_DB_SSLMODE=require
 WMS_DB_CONN_MAX_AGE=60
 
+WMS_EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+WMS_EMAIL_HOST=<smtp-host>
+WMS_EMAIL_PORT=587
+WMS_EMAIL_HOST_USER=<verified-sender-account>
+WMS_EMAIL_HOST_PASSWORD=<app-password-or-smtp-secret>
+WMS_EMAIL_USE_TLS=true
+WMS_EMAIL_USE_SSL=false
+WMS_EMAIL_TIMEOUT=20
+WMS_DEFAULT_FROM_EMAIL=quotations@your-domain.example
+
 WMS_BACKUP_ROOT=/srv/wms/backups
 WMS_BACKUP_RETENTION_DAYS=30
 WMS_BACKUP_DATABASE_TIMEOUT=3600

@@ -64,6 +64,25 @@ MESSAGE_TAGS = {40: 'danger'}
 
 WMS_MOBILE_TOKEN_MAX_AGE = int(os.environ.get('WMS_MOBILE_TOKEN_MAX_AGE', str(30 * 24 * 60 * 60)))
 
+# Outbound quotation email. Production credentials must be supplied through
+# environment variables or the deployment secret manager, never committed.
+EMAIL_BACKEND = os.environ.get(
+    'WMS_EMAIL_BACKEND',
+    'django.core.mail.backends.smtp.EmailBackend',
+)
+EMAIL_HOST = os.environ.get('WMS_EMAIL_HOST', 'localhost')
+EMAIL_PORT = int(os.environ.get('WMS_EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.environ.get('WMS_EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('WMS_EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.environ.get('WMS_EMAIL_USE_TLS', 'true').lower() in ('1', 'true', 'yes')
+EMAIL_USE_SSL = os.environ.get('WMS_EMAIL_USE_SSL', 'false').lower() in ('1', 'true', 'yes')
+EMAIL_TIMEOUT = int(os.environ.get('WMS_EMAIL_TIMEOUT', '20'))
+DEFAULT_FROM_EMAIL = os.environ.get(
+    'WMS_DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'quotations@exalterpro.com',
+)
+if EMAIL_USE_TLS and EMAIL_USE_SSL:
+    raise ImproperlyConfigured('Enable only one of WMS_EMAIL_USE_TLS or WMS_EMAIL_USE_SSL.')
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',

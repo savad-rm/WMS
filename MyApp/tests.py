@@ -2,6 +2,7 @@ import json
 import sqlite3
 import tarfile
 import tempfile
+from unittest.mock import patch
 from contextlib import closing
 from decimal import Decimal
 from io import BytesIO
@@ -10,9 +11,10 @@ from pathlib import Path
 
 from django.db import IntegrityError, transaction
 from django.contrib.auth.hashers import check_password, make_password
+from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
-from django.test import Client, TestCase, TransactionTestCase
+from django.test import Client, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from openpyxl import load_workbook
@@ -29,6 +31,10 @@ from .quotation_document import (
 from .quotation_exports import build_quotation_excel, quotation_amount_words
 
 
+@override_settings(
+    EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+    DEFAULT_FROM_EMAIL='quotations@exalter.example',
+)
 class WorkflowTests(TestCase):
     def create_user(self, role, index):
         account = login.objects.create(
@@ -119,6 +125,10 @@ class WorkflowTests(TestCase):
         self.client.post(reverse('workflow_submit_quotation', args=(quote.pk,)))
         quote.refresh_from_db()
         self.assertEqual(quote.status, 'submitted')
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['client@example.com'])
+        self.assertEqual(mail.outbox[0].attachments[0][2], 'application/pdf')
+        self.assertTrue(mail.outbox[0].attachments[0][0].endswith('.pdf'))
         submitted_tracking = quotation_tracking(quote.details, quote.validity_days)
         self.assertTrue(submitted_tracking['submitted_at'])
         self.assertEqual(submitted_tracking['client_status'], 'under_review')
@@ -130,6 +140,58 @@ class WorkflowTests(TestCase):
         self.assertEqual(quote.status, 'accepted')
         self.assertEqual(record.status, 'awarded')
         self.assertEqual(quotation_tracking(quote.details)['client_status'], 'approved')
+        self.assertTrue(record.comments.filter(
+            comment__startswith=f'[QID:{quote.pk}] Client response updated to Approved.',
+        ).exists())
+        self.assertTrue(workflow_notification.objects.filter(
+            recipient=self.estimator[0], event='quotation_comment',
+            link=reverse('workflow_quotation_discussion', args=(quote.pk,)),
+            read_at__isnull=True,
+        ).exists())
+
+        self.sign_in_as(*self.estimator)
+        detail = self.client.get(
+            reverse('workflow_detail', args=(record.pk,)) + f'?revise={quote.pk}'
+        )
+        self.assertNotContains(detail, 'Create Revision')
+        blocked_revision = self.client.post(
+            reverse('workflow_add_quotation', args=(record.pk,)),
+            {'revision_of': quote.pk, 'amount': '500.00'},
+        )
+        self.assertEqual(blocked_revision.status_code, 400)
+        self.assertContains(
+            blocked_revision, 'An awarded quotation cannot be revised or edited.',
+            status_code=400,
+        )
+        self.assertEqual(quotation.objects.filter(ENQUIRY=record).count(), 1)
+        self.sign_in_as(*self.executive)
+        dashboard = self.client.get(reverse('workflow_dashboard'))
+        self.assertNotContains(dashboard, 'Save Response')
+
+    def test_failed_client_email_does_not_mark_quotation_submitted(self):
+        record = enquiry.objects.create(
+            title='Email failure safety', client_name='Client',
+            client_email='client@example.com', created_by=self.executive[0],
+            assigned_to=self.estimator[1], status='approved',
+        )
+        quote = quotation.objects.create(
+            ENQUIRY=record, version=1, quotation_number='QTN/MAIL/FAIL',
+            amount='1000.00', details=pack_document(
+                default_terms(), client_details={'email': 'client@example.com'},
+            ),
+            status='approved', created_by=self.estimator[1],
+        )
+        self.sign_in_as(*self.manager)
+        with self.assertLogs('MyApp.quotation_email', level='ERROR'):
+            with patch('MyApp.quotation_email.EmailMessage.send', side_effect=OSError('SMTP down')):
+                response = self.client.post(
+                    reverse('workflow_submit_quotation', args=(quote.pk,)), follow=True,
+                )
+        quote.refresh_from_db()
+        record.refresh_from_db()
+        self.assertEqual(quote.status, 'approved')
+        self.assertEqual(record.status, 'approved')
+        self.assertContains(response, 'remains approved and was not submitted')
 
     def test_enquiry_history_and_quotation_register_remain_separate(self):
         record = enquiry.objects.create(
@@ -167,6 +229,16 @@ class WorkflowTests(TestCase):
         self.assertEqual(tracking['client_remarks'], 'Revise joinery scope and price.')
         self.assertEqual(record.description, 'Original enquiry scope must remain unchanged.')
         self.assertTrue(enquiry.objects.filter(pk=record.pk).exists())
+        self.assertTrue(record.comments.filter(
+            comment__contains='Client response updated to Rejected.',
+        ).filter(comment__contains='Revise joinery scope and price.').exists())
+        self.assertTrue(workflow_notification.objects.filter(
+            recipient=self.estimator[0], event='quotation_comment',
+            link=reverse('workflow_quotation_discussion', args=(quote.pk,)),
+        ).exists())
+        discussion = self.client.get(reverse('workflow_quotation_discussion', args=(quote.pk,)))
+        self.assertContains(discussion, 'Client Response')
+        self.assertContains(discussion, 'Revise joinery scope and price.')
 
     def test_marketing_executive_cannot_edit_another_executives_client_response(self):
         other_executive = self.create_user('Marketing Executive', 31)
@@ -560,7 +632,7 @@ class WorkflowTests(TestCase):
 
     def test_marketing_manager_can_submit_and_award_without_costing_gate(self):
         record = enquiry.objects.create(
-            title='Client submittal', client_name='Client',
+            title='Client submittal', client_name='Client', client_email='client@example.com',
             created_by=self.executive[0], assigned_to=self.estimator[1], status='approved',
         )
         quote = quotation.objects.create(
@@ -570,7 +642,7 @@ class WorkflowTests(TestCase):
         )
         self.sign_in_as(*self.manager)
         view = self.client.get(reverse('workflow_view_quotation', args=(quote.pk,)))
-        self.assertContains(view, 'Mark Submitted to Client')
+        self.assertContains(view, 'Email &amp; Submit to Client')
         self.assertEqual(
             self.client.post(reverse('workflow_submit_quotation', args=(quote.pk,))).status_code,
             302,

@@ -33,6 +33,8 @@ from .quotation_document import (
     quotation_tracking, unpack_document, update_quotation_tracking,
 )
 from .quotation_numbers import assign_quotation_reference
+from .quotation_activity import publish_client_response
+from .quotation_email import QuotationDeliveryError, send_quotation_to_client
 
 
 WORKFLOW_ROLES = {
@@ -160,6 +162,7 @@ def _quotation_comment_threads(quote):
                 break
         reply_match = re.match(r'^\[REPLY:(\d+)\]\s*(.*)$', value, re.DOTALL)
         item.display_comment = reply_match.group(2) if reply_match else value
+        item.is_client_response = item.display_comment.startswith('Client response updated to ')
         item.replies = []
         if reply_match and int(reply_match.group(1)) in by_id:
             by_id[int(reply_match.group(1))].replies.append(item)
@@ -244,19 +247,23 @@ def _detail_record(enquiry_id):
 
 def _detail_context(request, record, extra=None):
     role = _workflow_role(request.workflow_account.usertype)
+    is_awarded = (
+        record.status == 'awarded'
+        or record.quotations.filter(status='accepted').exists()
+    )
     revision_source = None
     editing_quote = None
     revision_id = request.GET.get('revise', '').strip()
-    if role == 'Estimator' and revision_id:
+    if role == 'Estimator' and revision_id and not is_awarded:
         revision_source = record.quotations.exclude(status='draft').filter(pk=revision_id).first()
     edit_id = request.GET.get('edit', '').strip()
     if role == 'Estimator' and edit_id:
         editing_quote = record.quotations.filter(
             pk=edit_id, status='draft', created_by=request.workflow_staff,
         ).first()
-    if (extra or {}).get('editing_quote'):
+    if (extra or {}).get('editing_quote') and not is_awarded:
         editing_quote = extra['editing_quote']
-    if (extra or {}).get('revision_source'):
+    if (extra or {}).get('revision_source') and not is_awarded:
         revision_source = extra['revision_source']
     may_create_initial = role == 'Estimator' and not record.quotations.exists()
     can_quote = may_create_initial or revision_source is not None or editing_quote is not None
@@ -297,7 +304,7 @@ def _detail_context(request, record, extra=None):
         'estimators': staff.objects.filter(designation='Estimator').only('id', 'name'),
         'can_assign': role in ('Marketing Manager', 'Project Manager'),
         'can_quote': can_quote,
-        'can_start_revision': role == 'Estimator',
+        'can_start_revision': role == 'Estimator' and not is_awarded,
         'revision_source': revision_source,
         'editing_quote': editing_quote,
         'imported_quote': imported_quote,
@@ -472,7 +479,7 @@ def dashboard(request):
         quote.client_status = tracking['client_status'] if tracking['client_status'] in CLIENT_RESPONSE_STATUSES else 'under_review'
         quote.client_status_label = CLIENT_RESPONSE_STATUSES[quote.client_status]
         quote.submitted_at_display = parse_datetime(tracking['submitted_at']) if tracking['submitted_at'] else None
-        quote.client_response_editable = quote.status in ('submitted', 'accepted', 'rejected')
+        quote.client_response_editable = quote.status in ('submitted', 'rejected')
         quote.marketing_executive_name = marketing_names.get(
             quote.ENQUIRY.created_by_id, quote.ENQUIRY.created_by.username,
         )
@@ -698,6 +705,11 @@ def autosave_quotation(request, enquiry_id):
         enquiry.objects.prefetch_related('quotations__lines'),
         pk=enquiry_id, assigned_to=request.workflow_staff,
     )
+    if record.status == 'awarded' or record.quotations.filter(status='accepted').exists():
+        return JsonResponse({
+            'ok': False,
+            'error': 'An awarded quotation cannot be revised.',
+        }, status=409)
     row_fields = {
         'row_type': request.POST.getlist('row_type'),
         'item_code': request.POST.getlist('item_code'),
@@ -723,8 +735,14 @@ def autosave_quotation(request, enquiry_id):
     ] or default_terms()
     client = {
         'name': request.POST.get('quotation_client_name', '').strip() or record.client_name,
-        'phone': request.POST.get('quotation_client_phone', '').strip(),
-        'email': request.POST.get('quotation_client_email', '').strip().lower(),
+        'phone': (
+            request.POST.get('quotation_client_phone', '').strip()
+            if 'quotation_client_phone' in request.POST else record.client_phone
+        ),
+        'email': (
+            request.POST.get('quotation_client_email', '').strip().lower()
+            if 'quotation_client_email' in request.POST else record.client_email
+        ),
     }
     draft_form_names = (
         'issue_date', 'subject', 'client_address', 'introduction', 'validity_days',
@@ -900,6 +918,9 @@ def add_quotation(request, enquiry_id):
             _detail_context(request, record, form_context), status=400,
         )
 
+    if record.status == 'awarded' or existing_snapshot.filter(status='accepted').exists():
+        return quotation_error('An awarded quotation cannot be revised or edited.')
+
     if draft_id and not draft_quote:
         return quotation_error('This draft is no longer available for editing.')
 
@@ -1017,8 +1038,14 @@ def add_quotation(request, enquiry_id):
         return quotation_error('You can revise only a quotation created by you.')
     term_map = {term['title'].strip().lower(): term['body'] for term in quote_terms}
     client_name = request.POST.get('quotation_client_name', '').strip() or record.client_name
-    client_phone = request.POST.get('quotation_client_phone', '').strip()
-    client_email = request.POST.get('quotation_client_email', '').strip().lower()
+    client_phone = (
+        request.POST.get('quotation_client_phone', '').strip()
+        if 'quotation_client_phone' in request.POST else record.client_phone
+    )
+    client_email = (
+        request.POST.get('quotation_client_email', '').strip().lower()
+        if 'quotation_client_email' in request.POST else record.client_email
+    )
     if len(client_name) > 255:
         return quotation_error('Client name cannot exceed 255 characters.')
     if len(client_phone) > 30:
@@ -1153,6 +1180,7 @@ def view_quotation(request, quote_id):
     )
     if not _can_access_enquiry(request, quote.ENQUIRY):
         return HttpResponseForbidden('You do not have permission to view this quotation.')
+    document = unpack_document(quote.details, quote.validity_days)
     tracking = quotation_tracking(quote.details, quote.validity_days)
     tracking['submitted_at_value'] = parse_datetime(tracking['submitted_at']) if tracking['submitted_at'] else None
     tracking['client_status_label'] = CLIENT_RESPONSE_STATUSES.get(
@@ -1164,7 +1192,7 @@ def view_quotation(request, quote_id):
     return _render(request, 'Workflow/quotation_view.html', {
         'quote': quote,
         'enquiry': quote.ENQUIRY,
-        'document': unpack_document(quote.details, quote.validity_days),
+        'document': document,
         'quotation_rows': presentation_rows(quote.lines.all()),
         'amount_words': quotation_amount_words(quote.amount),
         'discussion_unread_count': workflow_notification.objects.filter(
@@ -1173,10 +1201,13 @@ def view_quotation(request, quote_id):
         ).count(),
         'client_tracking': tracking,
         'client_response_statuses': CLIENT_RESPONSE_STATUSES,
+        'submission_recipient': (document.get('client') or {}).get(
+            'email', quote.ENQUIRY.client_email,
+        ),
         'can_manage_client_response': (
             _workflow_role(request.workflow_account.usertype) in (
                 'Admin', 'Marketing Executive', 'Marketing Manager',
-            ) and quote.status in ('submitted', 'accepted', 'rejected')
+            ) and quote.status in ('submitted', 'rejected')
         ),
         'can_remove_quote_file': (
             _workflow_role(request.workflow_account.usertype) == 'Estimator'
@@ -1197,7 +1228,6 @@ def view_quotation(request, quote_id):
             role in ('Document Controller', 'Marketing Executive', 'Marketing Manager')
             and quote.status == 'approved'
         ),
-        'can_submit_role': role in ('Document Controller', 'Marketing Executive', 'Marketing Manager'),
         'costing_approved': bool(quote_costing and quote_costing.approved_at),
         'can_award': (
             role in ('Marketing Executive', 'Marketing Manager')
@@ -1374,22 +1404,30 @@ def approve_costing(request, quote_id):
 @require_POST
 @role_required('Document Controller', 'Marketing Executive', 'Marketing Manager')
 def submit_quotation(request, quote_id):
-    with transaction.atomic():
-        quote = get_object_or_404(
-            quotation.objects.select_for_update().select_related('ENQUIRY'),
-            pk=quote_id, status='approved',
-        )
-        if not _can_access_enquiry(request, quote.ENQUIRY):
-            return HttpResponseForbidden('You do not have permission to submit this quotation.')
-        quote.status = 'submitted'
-        quote.details = update_quotation_tracking(
-            quote.details, quote.validity_days,
-            submitted_at=timezone.now().isoformat(), client_status='under_review',
-        )
-        quote.save(update_fields=('status', 'details', 'updated_at'))
-        quote.ENQUIRY.status = 'submitted'
-        quote.ENQUIRY.save(update_fields=('status', 'updated_at'))
-    messages.success(request, 'Quotation marked as submitted to the client.')
+    try:
+        with transaction.atomic():
+            quote = get_object_or_404(
+                quotation.objects.select_for_update().select_related('ENQUIRY'),
+                pk=quote_id, status='approved',
+            )
+            if not _can_access_enquiry(request, quote.ENQUIRY):
+                return HttpResponseForbidden('You do not have permission to submit this quotation.')
+            recipient = send_quotation_to_client(quote)
+            quote.status = 'submitted'
+            quote.details = update_quotation_tracking(
+                quote.details, quote.validity_days,
+                submitted_at=timezone.now().isoformat(), client_status='under_review',
+            )
+            quote.save(update_fields=('status', 'details', 'updated_at'))
+            quote.ENQUIRY.status = 'submitted'
+            quote.ENQUIRY.save(update_fields=('status', 'updated_at'))
+    except QuotationDeliveryError as exc:
+        messages.error(request, f'{exc} The quotation remains approved and was not submitted.')
+        return redirect('workflow_view_quotation', quote_id=quote_id)
+    messages.success(
+        request,
+        f'Quotation emailed successfully to {recipient}; client status is now Under Review.',
+    )
     return redirect('workflow_view_quotation', quote_id=quote.pk)
 
 
@@ -1409,6 +1447,7 @@ def award_project(request, quote_id):
         quote.save(update_fields=('status', 'details', 'updated_at'))
         quote.ENQUIRY.status = 'awarded'
         quote.ENQUIRY.save(update_fields=('status', 'updated_at'))
+        publish_client_response(quote, request.workflow_account, 'approved')
     messages.success(request, 'Client acceptance recorded; the enquiry is ready to become a project.')
     return redirect('workflow_detail', enquiry_id=quote.ENQUIRY_id)
 
@@ -1422,7 +1461,7 @@ def update_quotation_client_response(request, quote_id):
         )
         if not _can_access_enquiry(request, quote.ENQUIRY):
             return HttpResponseForbidden('You do not have permission to update this quotation.')
-        if quote.status not in ('submitted', 'accepted', 'rejected'):
+        if quote.status not in ('submitted', 'rejected'):
             messages.error(request, 'Client feedback can be recorded only after quotation submittal.')
             return redirect('workflow_dashboard')
         client_status = request.POST.get('client_status', 'under_review').strip()
@@ -1447,6 +1486,9 @@ def update_quotation_client_response(request, quote_id):
         elif client_status in ('under_review', 'rejected') and quote.ENQUIRY.status != 'closed':
             quote.ENQUIRY.status = 'submitted' if client_status == 'under_review' else 'quoted'
         quote.ENQUIRY.save(update_fields=('status', 'updated_at'))
+        publish_client_response(
+            quote, request.workflow_account, client_status, client_remarks,
+        )
     messages.success(request, f'Client response saved for {quote.display_number}.')
     if request.POST.get('return_to') == 'quotation':
         return redirect('workflow_view_quotation', quote_id=quote.pk)

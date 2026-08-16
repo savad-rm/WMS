@@ -67,13 +67,14 @@ Site-update payloads:
 | Action | Role | Payload/precondition |
 |---|---|---|
 | `assign` | Marketing Manager, Project Manager | `estimator_id` |
-| `quote` | Assigned Estimator | Save a draft using `amount`, `details`, three costing amounts, optional notes |
-| `submit_for_approval` | Draft owner Estimator | Lock the draft and start Marketing Manager review |
+| `quote` | Assigned Estimator | Save a private draft using `amount`, `details`, three costing amounts, optional notes |
+| `submit_for_approval` | Draft owner Estimator | Lock the draft, make it visible to other workflow roles, and start Marketing Manager review |
 | `manager_approve` | Marketing Manager | Manager-review quotation |
 | `accountant_approve` | Accountant | Accountant-review quotation |
 | `costing_approve` | Project Manager | Quotation has costing |
-| `submit` | Document Controller | Quotation and costing approved |
-| `award` | Enquiry Marketing Executive | Submitted quotation |
+| `request_revision` | Marketing Manager at `manager_review`; Accountant at `accountant_review` | `{"remarks":"..."}` (required, max 2,000 chars); returns the quotation to draft and notifies the estimator |
+| `submit` | Document Controller, Marketing Executive, Marketing Manager | Quotation status `approved`; server emails the generated PDF to the client and sets client status to `under_review` |
+| `award` | Marketing Executive, Marketing Manager | Submitted quotation; sets client status to `approved` and finalises the enquiry |
 
 Detailed enquiry responses keep every quotation revision in `quotations`. Each quotation includes the existing identity, amount, status, details, and creation fields plus:
 
@@ -82,6 +83,10 @@ Detailed enquiry responses keep every quotation revision in `quotations`. Each q
 | `submitted_at` | ISO datetime or `null` | First recorded client-submittal time |
 | `client_status` | string | `under_review`, `approved`, or `rejected` |
 | `client_remarks` | string | Client feedback maintained by authorised web users |
+
+### Client-submittal lifecycle
+
+`Draft` quotations are private to their estimator and are not returned to other roles. After `submit_for_approval`, the quotation proceeds through `manager_review` and `accountant_review` to `approved`. The `submit` action sends the PDF using configured SMTP; if the recipient or mail server is invalid, the API returns a validation error and leaves the quotation approved/not submitted. A successful send records `submitted_at` and `under_review`. Marketing Executive or Marketing Manager can then use `award`; this records `approved`, publishes a discussion message/notifications, and removes revision/status actions. The web client provides CC, subject, and body fields; the mobile action uses server-configured defaults.
 
 ## Responses
 

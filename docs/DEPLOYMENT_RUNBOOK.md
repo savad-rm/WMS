@@ -12,6 +12,11 @@
 | `WMS_SECURE_SSL_REDIRECT` | `true` behind correctly configured proxy |
 | `WMS_SECURE_HSTS_SECONDS` | Increase after HTTPS validation |
 | `WMS_MOBILE_TOKEN_MAX_AGE` | Organizational token lifetime in seconds |
+| `WMS_EMAIL_BACKEND` | Production SMTP backend; do not leave the local development backend enabled |
+| `WMS_EMAIL_HOST`, `WMS_EMAIL_PORT` | Reachable approved SMTP service |
+| `WMS_EMAIL_HOST_USER`, `WMS_EMAIL_HOST_PASSWORD` | Secret-managed verified sender credentials |
+| `WMS_EMAIL_USE_TLS`, `WMS_EMAIL_USE_SSL` | Exactly one transport security mode enabled |
+| `WMS_DEFAULT_FROM_EMAIL` | Verified sender address used for quotation delivery |
 
 ## Backend release
 
@@ -29,7 +34,7 @@
 ```
 
 5. Restart application workers using the service manager.
-6. Smoke test web login, `/WMS/api/v1/auth/login/`, role project filtering, media access, and CAD viewing.
+6. Smoke test web login, `/WMS/api/v1/auth/login/`, role project filtering, media access, CAD viewing, and quotation delivery. For delivery, submit an approved quotation to a controlled mailbox and verify the PDF attachment, `Under Review` state, and discussion/notification entry. Also verify an intentionally failed SMTP/recipient attempt leaves the quotation approved and not submitted.
 7. Monitor 4xx/5xx rates, latency, database locks, storage, and authentication failures.
 
 ## Mobile release

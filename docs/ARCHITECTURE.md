@@ -12,6 +12,7 @@ flowchart TB
   T --> F["Protected media"]
   API --> F
   T --> CAD["Local CAD JS/WASM viewer"]
+  D --> SMTP["Configured SMTP / email provider"]
 ```
 
 ## Backend
@@ -22,6 +23,8 @@ flowchart TB
 - Legacy session middleware deliberately bypasses `/WMS/api/`; Django REST Framework handles API authentication.
 - Project access is calculated from role and allocation tables on every request. The client never determines authorization.
 - Existing table and template contracts remain intact.
+- Quotation transitions and notification/email side effects are performed in transactional workflow handlers. Draft visibility is enforced server-side, not by template/API filtering alone.
+- Client submission uses the configured SMTP backend and attaches the generated PDF; credentials are supplied through environment/secret management, never source control.
 
 ## Mobile
 

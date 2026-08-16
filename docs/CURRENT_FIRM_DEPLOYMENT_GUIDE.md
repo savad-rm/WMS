@@ -33,6 +33,7 @@ Do not launch until every item has an owner and evidence:
 - PostgreSQL migration rehearsal has been completed with a copy of real data.
 - The Flyway team has applied and recorded all approved schema SQL. Application developers do not create Flyway scripts in this repository.
 - HTTPS, DNS, email/push notification credentials and the production mobile API URL are ready.
+- SMTP delivery has been tested with a controlled mailbox: an approved quotation can be submitted from its saved view with recipient/CC/subject/body, the PDF arrives attached, and a failed SMTP/recipient attempt leaves the quotation approved and not submitted.
 - Backup creation, off-site transfer and a full restore drill have passed.
 - Monitoring, incident contacts, rollback owner, maintenance window and go/no-go owner are recorded.
 - Client documents and staff data have an approved retention/access policy.

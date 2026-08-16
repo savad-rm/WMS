@@ -8,6 +8,9 @@
 - Project and enquiry authorization is checked server-side for every API request.
 - Site writes require both the Supervisor role and project allocation.
 - Approval transitions check role and current workflow state inside transactions.
+- Draft quotations are private to their estimator; server-side visibility checks protect quotation HTML, PDF, discussion, and API responses.
+- SMTP credentials and sender configuration are environment secrets. Mail errors are logged without passwords, tokens, document contents, or full message bodies.
+- Client responses and quotation discussions are permission-checked and generate auditable notification records.
 - CAD streaming uses authenticated role checks and private/no-store caching.
 - Production settings reject a development secret or missing allowed hosts.
 

@@ -46,8 +46,9 @@ mobile/
 3. Projects are filtered by allocation for site roles.
 4. Supervisor uses **Add site update** for progress, material, and worker entries.
 5. Project Manager reviews pending material requests in Project Detail.
-6. Workflow roles use **Available actions**; the server returns only valid next actions.
-7. Password change revokes the session and requires sign-in again.
+6. Workflow roles use **Available actions**; the server returns only valid next actions, including revision requests during manager/accountant review.
+7. Estimator quotation drafts are private. Other roles see the quotation only after **Submit for approval**. Client submission sends the server-generated PDF by email; a failed recipient/SMTP configuration is returned as an error without changing workflow state. Marketing Executive/Manager can award a submitted quotation, which creates discussion and notification activity.
+8. Password change revokes the session and requires sign-in again.
 
 ## Quality gates
 

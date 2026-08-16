@@ -11,12 +11,12 @@ The web application is the complete administrative interface. WMS Mobile is the 
 | Role | Primary responsibilities |
 |---|---|
 | Admin | Staff/project administration, allocations, reporting, project creation, document transfer |
-| Marketing Executive | Create enquiries, attach files, comment, collect documents, record client acceptance |
-| Marketing Manager | Review enquiries, assign estimators, first quotation approval |
-| Estimator | Assigned enquiries, quotation versions, costing |
+| Marketing Executive | Create enquiries, attach files, comment, submit approved quotations to clients, record client acceptance |
+| Marketing Manager | Create/review enquiries, assign estimators, first quotation approval, request revision, submit and award approved quotations |
+| Estimator | Assigned enquiries, private quotation drafts, quotation versions, costing, submit-for-approval |
 | Project Manager | Allocated projects, scope/materials/schedules, costing and material-request approval |
 | Accountant | Final quotation approval, project payments, accounting |
-| Document Controller | Verify project documents and release approved quotations |
+| Document Controller | Verify project documents and release approved quotations to clients |
 | Supervisor | Site progress, workers, usage, requests, photos |
 | Purchaser | Allocated projects, demand, deliveries, material issue status |
 
@@ -27,18 +27,21 @@ Project Managers, Supervisors, and Purchasers only see projects assigned through
 ```mermaid
 flowchart LR
   E["Marketing creates enquiry"] --> A["Manager assigns estimator"]
-  A --> Q["Estimator creates quotation and costing"]
-  Q --> M["Marketing Manager approval"]
+  A --> Q["Estimator saves private draft"]
+  Q --> F["Estimator submits for approval"]
+  F --> M["Marketing Manager approval"]
   M --> C["Accountant approval"]
-  Q --> P["Project Manager costing approval"]
-  C --> D{"Quotation and costing approved?"}
-  P --> D
-  D -->|Yes| S["Document Controller submits quotation"]
-  S --> W["Marketing records acceptance"]
+  M -->|Revision request| Q
+  C -->|Revision request| Q
+  C --> S["Authorised user submits to client"]
+  S --> U["Client status: Under Review"]
+  U --> W["Marketing Executive/Manager records Awarded"]
   W --> R["Admin creates project and transfers documents"]
 ```
 
-Enquiry states are `open → assigned → quoted → approved → submitted → awarded`. `closed` is terminal for an enquiry that does not proceed. Quotations are versioned. Submission requires both quotation approvals and Project Manager costing approval.
+Enquiry states are `open → assigned → quoted → approved → submitted → awarded`. `closed` is terminal for an enquiry that does not proceed. A draft is not `quoted`: the enquiry becomes `Quotation Prepared` only when the estimator submits the quotation for approval. Accountant approval makes the quotation client-ready; Project Manager costing approval is an independent project-control step and is not a prerequisite for client submission. A successful submission sends the generated PDF by email and sets client status to `Under Review`; Marketing Executive or Marketing Manager can then mark it `Awarded` (`Approved`). Awarded quotations are final and cannot be revised or have their client status changed.
+
+Draft quotations remain private to their estimator. Other roles cannot view, download, discuss, or approve a draft until it is submitted for approval. Manager and Accountant revision requests before final approval return the quotation to draft, clear the relevant approvals, and notify the estimator.
 
 ## Project execution
 

@@ -409,6 +409,7 @@ def build_quotation_pdf(quote):
         colWidths=[14 * mm, 70 * mm, 15 * mm, 14 * mm, 20 * mm, 23 * mm],
         repeatRows=1,
         splitByRow=1,
+        splitInRow=0,
     )
     table_style = [
         ('GRID', (0, 0), (-1, -1), .55, colors.black),
@@ -443,10 +444,12 @@ def build_quotation_pdf(quote):
     story.extend([line_table, Paragraph('<u><b>Specification/Clarification</b></u>', heading)])
 
     for index, term in enumerate(document['terms'], start=1):
-        story.append(Paragraph(f'<u>{index}. {term["title"]}</u>', heading))
-        for line in term['body'].splitlines() or ['']:
-            if line.strip():
-                story.append(Paragraph(line.strip(), normal))
+        term_flowables = [Paragraph(f'<u>{index}. {term["title"]}</u>', heading)]
+        term_flowables.extend(
+            Paragraph(line.strip(), normal)
+            for line in term['body'].splitlines() if line.strip()
+        )
+        story.append(KeepTogether(term_flowables))
 
     signatory = [
         Paragraph('<b>With Best Regards,</b>', normal),

@@ -31,6 +31,7 @@ urlpatterns = [
     path('workflow/notifications/<int:notification_id>/read/', workflow_views.read_workflow_notification, name='workflow_notification_read'),
     path('workflow/enquiries/<int:enquiry_id>/documents/', workflow_views.collect_document, name='workflow_collect_document'),
     path('workflow/quotations/<int:quote_id>/manager-approve/', workflow_views.manager_approve, name='workflow_manager_approve'),
+    path('workflow/quotations/<int:quote_id>/request-revision/', workflow_views.request_quotation_revision, name='workflow_request_quotation_revision'),
     path('workflow/quotations/<int:quote_id>/accountant-approve/', workflow_views.accountant_approve, name='workflow_accountant_approve'),
     path('workflow/quotations/<int:quote_id>/approve-costing/', workflow_views.approve_costing, name='workflow_approve_costing'),
     path('workflow/quotations/<int:quote_id>/submit/', workflow_views.submit_quotation, name='workflow_submit_quotation'),

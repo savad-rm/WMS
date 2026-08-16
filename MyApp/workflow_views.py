@@ -33,8 +33,9 @@ from .quotation_document import (
     quotation_tracking, unpack_document, update_quotation_tracking,
 )
 from .quotation_numbers import assign_quotation_reference
-from .quotation_activity import publish_client_response
+from .quotation_activity import publish_client_response, publish_quotation_message
 from .quotation_email import QuotationDeliveryError, send_quotation_to_client
+from .quotation_email import quotation_email_content
 
 
 WORKFLOW_ROLES = {
@@ -131,6 +132,17 @@ def _can_access_enquiry(request, record):
     if role == 'Estimator':
         return record.assigned_to_id == getattr(request.workflow_staff, 'id', None)
     return True
+
+
+def _can_view_quotation(request, quote):
+    if not _can_access_enquiry(request, quote.ENQUIRY):
+        return False
+    if quote.status != 'draft':
+        return True
+    return (
+        _workflow_role(request.workflow_account.usertype) == 'Estimator'
+        and quote.created_by_id == getattr(request.workflow_staff, 'id', None)
+    )
 
 
 def _workflow_role(role):
@@ -304,6 +316,11 @@ def _detail_context(request, record, extra=None):
         'estimators': staff.objects.filter(designation='Estimator').only('id', 'name'),
         'can_assign': role in ('Marketing Manager', 'Project Manager'),
         'can_quote': can_quote,
+        'visible_quotations': [
+            quote for quote in record.quotations.all()
+            if quote.status != 'draft'
+            or (role == 'Estimator' and quote.created_by_id == getattr(request.workflow_staff, 'id', None))
+        ],
         'can_start_revision': role == 'Estimator' and not is_awarded,
         'revision_source': revision_source,
         'editing_quote': editing_quote,
@@ -405,7 +422,10 @@ def _detail_context(request, record, extra=None):
 def dashboard(request):
     role = _workflow_role(request.workflow_account.usertype)
     records = enquiry.objects.select_related('created_by', 'assigned_to', 'PROJECT').prefetch_related(
-        Prefetch('quotations', queryset=quotation.objects.only('id', 'ENQUIRY_id'))
+        Prefetch(
+            'quotations',
+            queryset=quotation.objects.exclude(status='draft').only('id', 'ENQUIRY_id'),
+        )
     )
     if role == 'Marketing Executive':
         records = records.filter(created_by=request.workflow_account)
@@ -430,7 +450,9 @@ def dashboard(request):
     }.get(enquiry_sort, ('-created_at',))
     records = records.order_by(*enquiry_ordering)
 
-    quote_records = quotation.objects.filter(ENQUIRY__in=accessible_records).select_related(
+    quote_records = quotation.objects.filter(
+        ENQUIRY__in=accessible_records,
+    ).exclude(status='draft').select_related(
         'ENQUIRY', 'ENQUIRY__created_by', 'created_by',
     )
     if query:
@@ -1149,7 +1171,7 @@ def download_quotation(request, quote_id, file_format):
     quote = get_object_or_404(
         quotation.objects.select_related('ENQUIRY').prefetch_related('lines'), pk=quote_id,
     )
-    if not _can_access_enquiry(request, quote.ENQUIRY):
+    if not _can_view_quotation(request, quote):
         return HttpResponseForbidden('You do not have permission to download this quotation.')
     safe_number = quote.display_number.replace('/', '-').replace('\\', '-')
     if file_format == 'xlsx':
@@ -1178,7 +1200,7 @@ def view_quotation(request, quote_id):
         ).prefetch_related('lines'),
         pk=quote_id,
     )
-    if not _can_access_enquiry(request, quote.ENQUIRY):
+    if not _can_view_quotation(request, quote):
         return HttpResponseForbidden('You do not have permission to view this quotation.')
     document = unpack_document(quote.details, quote.validity_days)
     tracking = quotation_tracking(quote.details, quote.validity_days)
@@ -1189,6 +1211,7 @@ def view_quotation(request, quote_id):
     role = _workflow_role(request.workflow_account.usertype)
     discussion_url = _quotation_discussion_url(quote)
     quote_costing = getattr(quote, 'costing', None)
+    email_subject, email_body = quotation_email_content(quote)
     return _render(request, 'Workflow/quotation_view.html', {
         'quote': quote,
         'enquiry': quote.ENQUIRY,
@@ -1201,6 +1224,8 @@ def view_quotation(request, quote_id):
         ).count(),
         'client_tracking': tracking,
         'client_response_statuses': CLIENT_RESPONSE_STATUSES,
+        'email_subject': email_subject,
+        'email_body': email_body,
         'submission_recipient': (document.get('client') or {}).get(
             'email', quote.ENQUIRY.client_email,
         ),
@@ -1220,6 +1245,10 @@ def view_quotation(request, quote_id):
         ),
         'can_manager_approve': role == 'Marketing Manager' and quote.status == 'manager_review',
         'can_accountant_approve': role == 'Accountant' and quote.status == 'accountant_review',
+        'can_request_revision': (
+            (role == 'Marketing Manager' and quote.status == 'manager_review')
+            or (role == 'Accountant' and quote.status == 'accountant_review')
+        ),
         'can_approve_costing': (
             role == 'Project Manager' and quote_costing is not None
             and not quote_costing.approved_at
@@ -1243,7 +1272,7 @@ def quotation_discussion(request, quote_id):
             'ENQUIRY', 'ENQUIRY__assigned_to__LOGIN', 'created_by',
         ), pk=quote_id,
     )
-    if not _can_access_enquiry(request, quote.ENQUIRY):
+    if not _can_view_quotation(request, quote):
         return HttpResponseForbidden('You do not have permission to view this discussion.')
     workflow_notification.objects.filter(
         recipient=request.workflow_account, event='quotation_comment',
@@ -1275,7 +1304,7 @@ def add_quotation_comment(request, quote_id):
         quotation.objects.select_related('ENQUIRY', 'ENQUIRY__assigned_to__LOGIN'),
         pk=quote_id,
     )
-    if not _can_access_enquiry(request, quote.ENQUIRY):
+    if not _can_view_quotation(request, quote):
         return HttpResponseForbidden('You do not have permission to comment on this quotation.')
     value = request.POST.get('comment', '').strip()
     if value:
@@ -1360,6 +1389,43 @@ def read_workflow_notification(request, notification_id):
 
 
 @require_POST
+@role_required('Marketing Manager', 'Accountant')
+def request_quotation_revision(request, quote_id):
+    role = _workflow_role(request.workflow_account.usertype)
+    expected_status = 'manager_review' if role == 'Marketing Manager' else 'accountant_review'
+    with transaction.atomic():
+        quote = get_object_or_404(
+            quotation.objects.select_for_update().select_related('ENQUIRY'),
+            pk=quote_id, status=expected_status,
+        )
+        remarks = request.POST.get('remarks', '').strip()
+        if not remarks:
+            messages.error(request, 'Enter the correction or revision request for the estimator.')
+            return redirect('workflow_view_quotation', quote_id=quote.pk)
+        if len(remarks) > 2000:
+            messages.error(request, 'Revision request cannot exceed 2,000 characters.')
+            return redirect('workflow_view_quotation', quote_id=quote.pk)
+        quote.status = 'draft'
+        quote.manager_approved_by = None
+        quote.manager_approved_at = None
+        quote.accountant_approved_by = None
+        quote.accountant_approved_at = None
+        quote.save(update_fields=(
+            'status', 'manager_approved_by', 'manager_approved_at',
+            'accountant_approved_by', 'accountant_approved_at', 'updated_at',
+        ))
+        if quote.ENQUIRY.status not in ('closed', 'awarded'):
+            quote.ENQUIRY.status = 'assigned'
+            quote.ENQUIRY.save(update_fields=('status', 'updated_at'))
+        publish_quotation_message(
+            quote, request.workflow_account,
+            f'{role} requested quotation revision.\nRevision request: {remarks}',
+        )
+    messages.success(request, 'Revision request sent to the estimator. The quotation is editable again.')
+    return redirect('workflow_dashboard')
+
+
+@require_POST
 @role_required('Marketing Manager')
 def manager_approve(request, quote_id):
     with transaction.atomic():
@@ -1412,7 +1478,12 @@ def submit_quotation(request, quote_id):
             )
             if not _can_access_enquiry(request, quote.ENQUIRY):
                 return HttpResponseForbidden('You do not have permission to submit this quotation.')
-            recipient = send_quotation_to_client(quote)
+            recipient = send_quotation_to_client(
+                quote,
+                cc=request.POST.get('cc', ''),
+                subject=request.POST.get('subject'),
+                body=request.POST.get('body'),
+            )
             quote.status = 'submitted'
             quote.details = update_quotation_tracking(
                 quote.details, quote.validity_days,

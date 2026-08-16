@@ -16,6 +16,12 @@ def publish_client_response(quote, author, client_status, remarks=''):
     value = f'Client response updated to {label}.'
     if remarks:
         value += f'\nRemarks: {remarks}'
+    return publish_quotation_message(
+        quote, author, value, notification_message=f'Client response on {quote.display_number}: {label}.',
+    )
+
+
+def publish_quotation_message(quote, author, value, notification_message=None):
     item = enquiry_comment.objects.create(
         ENQUIRY=quote.ENQUIRY,
         author=author,
@@ -35,7 +41,7 @@ def publish_client_response(quote, author, client_status, remarks=''):
             ENQUIRY=quote.ENQUIRY,
             event='quotation_comment',
             level='info',
-            message=f'Client response on {quote.display_number}: {label}.',
+            message=notification_message or f'New quotation discussion message on {quote.display_number}.',
             link=discussion_url,
             dedupe_key=f'quotation-client-response:{item.pk}:{recipient_id}',
         )

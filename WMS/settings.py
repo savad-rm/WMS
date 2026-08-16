@@ -12,9 +12,13 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 
 from pathlib import Path
 import os
+from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from .env
+load_dotenv(BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
@@ -227,3 +231,35 @@ CSRF_TRUSTED_ORIGINS = [
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+EMAIL_BACKEND = os.environ.get(
+    'WMS_EMAIL_BACKEND',
+    'django.core.mail.backends.smtp.EmailBackend',
+)
+
+EMAIL_HOST = os.environ.get('WMS_EMAIL_HOST', 'localhost')
+EMAIL_PORT = int(os.environ.get('WMS_EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.environ.get('WMS_EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('WMS_EMAIL_HOST_PASSWORD', '')
+
+EMAIL_USE_TLS = os.environ.get(
+    'WMS_EMAIL_USE_TLS',
+    'true'
+).lower() in ('1', 'true', 'yes')
+
+EMAIL_USE_SSL = os.environ.get(
+    'WMS_EMAIL_USE_SSL',
+    'false'
+).lower() in ('1', 'true', 'yes')
+
+EMAIL_TIMEOUT = int(os.environ.get('WMS_EMAIL_TIMEOUT', '20'))
+
+DEFAULT_FROM_EMAIL = os.environ.get(
+    'WMS_DEFAULT_FROM_EMAIL',
+    EMAIL_HOST_USER or 'quotations@exalterpro.com',
+)
+
+if EMAIL_USE_TLS and EMAIL_USE_SSL:
+    raise ImproperlyConfigured(
+        'Enable only one of WMS_EMAIL_USE_TLS or WMS_EMAIL_USE_SSL.'
+    )

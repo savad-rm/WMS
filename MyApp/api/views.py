@@ -45,7 +45,7 @@ from MyApp.models import (
 from MyApp.quotation_document import (
     quotation_tracking, unpack_document, update_quotation_tracking,
 )
-from MyApp.quotation_activity import publish_client_response
+from MyApp.quotation_activity import publish_client_response, publish_quotation_message
 from MyApp.quotation_email import QuotationDeliveryError, send_quotation_to_client
 
 from .authentication import issue_token
@@ -630,8 +630,10 @@ def _enquiry_actions(account, record):
     if latest:
         if role == 'Marketing Manager' and latest.status == 'manager_review':
             actions.append('manager_approve')
+            actions.append('request_revision')
         if role == 'Accountant' and latest.status == 'accountant_review':
             actions.append('accountant_approve')
+            actions.append('request_revision')
         if role == 'Project Manager' and hasattr(latest, 'costing') and not latest.costing.approved_at:
             actions.append('costing_approve')
         if role in ('Document Controller', 'Marketing Executive', 'Marketing Manager') and latest.status == 'approved':
@@ -710,6 +712,28 @@ class EnquiryActionView(APIView):
                     latest.save(update_fields=('status', 'updated_at'))
                     record.status = 'quoted'
                     record.save(update_fields=('status', 'updated_at'))
+                elif action == 'request_revision' and request.user.usertype in ('Marketing Manager', 'Accountant') and latest.status in ('manager_review', 'accountant_review'):
+                    remarks = str(request.data.get('remarks', '')).strip()
+                    if not remarks:
+                        raise ValidationError({'remarks': ['Explain what the estimator must correct.']})
+                    if len(remarks) > 2000:
+                        raise ValidationError({'remarks': ['Revision request cannot exceed 2,000 characters.']})
+                    latest.status = 'draft'
+                    latest.manager_approved_by = None
+                    latest.manager_approved_at = None
+                    latest.accountant_approved_by = None
+                    latest.accountant_approved_at = None
+                    latest.save(update_fields=(
+                        'status', 'manager_approved_by', 'manager_approved_at',
+                        'accountant_approved_by', 'accountant_approved_at', 'updated_at',
+                    ))
+                    record.status = 'assigned'
+                    record.save(update_fields=('status', 'updated_at'))
+                    publish_quotation_message(
+                        latest, request.user,
+                        f'{request.user.usertype} requested quotation revision.\nRevision request: {remarks}',
+                    )
+                    workflow_message = 'Revision request sent to the estimator.'
                 elif action == 'manager_approve' and request.user.usertype == 'Marketing Manager' and latest.status == 'manager_review':
                     latest.status = 'accountant_review'
                     latest.manager_approved_by = person

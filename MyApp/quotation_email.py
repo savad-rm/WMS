@@ -1,4 +1,5 @@
 import logging
+import re
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -33,9 +34,7 @@ def quotation_recipient_email(quote):
     return recipient
 
 
-def send_quotation_to_client(quote):
-    """Email the generated client PDF and return the confirmed recipient address."""
-    recipient = quotation_recipient_email(quote)
+def quotation_email_content(quote):
     subject = f'{quote.display_number} - {quote.subject or "Quotation"}'
     body = (
         f'Dear {quote.ENQUIRY.client_name},\n\n'
@@ -45,6 +44,28 @@ def send_quotation_to_client(quote):
         'With Best Regards,\n'
         'Exalter Trading & Contracting'
     )
+    return subject, body
+
+
+def _parse_cc(value):
+    addresses = [item.strip().lower() for item in re.split(r'[,;\s]+', value or '') if item.strip()]
+    for address in addresses:
+        try:
+            validate_email(address)
+        except ValidationError as exc:
+            raise QuotationDeliveryError(f'Correct the CC email address: {address}.') from exc
+    return addresses
+
+
+def send_quotation_to_client(quote, *, cc='', subject=None, body=None):
+    """Email the generated client PDF and return the confirmed recipient address."""
+    recipient = quotation_recipient_email(quote)
+    default_subject, default_body = quotation_email_content(quote)
+    subject = (subject or default_subject).strip()[:255]
+    body = (body or default_body).strip()
+    if not subject or not body:
+        raise QuotationDeliveryError('Enter both an email subject and message before sending.')
+    cc_addresses = _parse_cc(cc)
     try:
         pdf = build_quotation_pdf(quote).getvalue()
         message = EmailMessage(
@@ -52,6 +73,7 @@ def send_quotation_to_client(quote):
             body=body,
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=[recipient],
+            cc=cc_addresses,
         )
         message.attach(f'{quote.display_number.replace("/", "-")}.pdf', pdf, 'application/pdf')
         if message.send(fail_silently=False) != 1:

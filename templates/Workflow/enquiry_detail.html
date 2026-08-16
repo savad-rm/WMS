@@ -10,6 +10,9 @@
   .quotation-entry-table .quotation-row.table-light .line-description { min-height: 42px; }
   .quotation-entry-table .quotation-row[data-kind="subheading"] .line-description { min-height: 38px; }
   .quotation-entry-table .direct-line-amount { min-width: 95px; text-align: right; }
+  .quotation-entry-table .direct-line-amount::placeholder { color: #6c757d; font-size: .8rem; }
+  .quotation-entry-table .quotation-row:not([data-kind="item"]) .line-description { font-weight: 600; }
+  .quotation-entry-table .quotation-row[data-kind="section"] .line-description { text-align: center; }
   .autosave-status { min-height: 24px; }
 </style>
 {% endblock %}
@@ -95,7 +98,7 @@
 
     <div class="card"><div class="card-body">
       <h5 class="card-title">Quotations</h5>
-      {% for quote in enquiry.quotations.all %}
+      {% for quote in visible_quotations %}
       <div class="border rounded p-3 mb-3">
         <div class="d-flex flex-wrap justify-content-between gap-2"><div><strong>{{ quote.display_number }}</strong>{% if quote.revision %}<span class="badge bg-secondary ms-2">Revision R{{ quote.revision }}</span>{% endif %}<div class="small text-muted">Issued {{ quote.issue_date|date:'d M Y' }} &middot; QAR {{ quote.amount }}</div></div><span class="badge bg-info text-dark align-self-start">{{ quote.get_status_display }}</span></div>
         <p class="mt-2"><strong>{{ quote.subject }}</strong></p>
@@ -163,6 +166,26 @@
     row.querySelector('.line-description').required = !isItem || hasItemData;
     const directAmount = row.querySelector('.direct-line-amount');
     const calculatedAmount = row.querySelector('.calculated-line-amount');
+    const descriptionCell = row.querySelector('.line-description').parentElement;
+    const unitCell = row.querySelector('.line-unit').parentElement;
+    const quantityCell = row.querySelector('.line-quantity').parentElement;
+    const rateCell = row.querySelector('.line-rate').parentElement;
+    const amountCell = row.querySelector('.line-amount');
+    if (!isItem) {
+      unitCell.style.display = 'none';
+      quantityCell.style.display = 'none';
+      rateCell.style.display = 'none';
+      descriptionCell.colSpan = kind === 'note' ? 5 : 4;
+      directAmount.placeholder = kind === 'note' ? '' : 'Subtotal (optional)';
+    } else {
+      unitCell.style.display = '';
+      quantityCell.style.display = '';
+      rateCell.style.display = '';
+      descriptionCell.colSpan = 1;
+      amountCell.style.display = '';
+      directAmount.placeholder = '';
+    }
+    amountCell.style.display = kind === 'note' ? 'none' : '';
     directAmount.classList.toggle('d-none', isItem || kind === 'note');
     directAmount.readOnly = isItem || kind === 'note';
     calculatedAmount.classList.toggle('d-none', !isItem);

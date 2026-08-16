@@ -122,11 +122,16 @@ class WorkflowTests(TestCase):
         self.assertIsNotNone(quote.costing.approved_at)
 
         self.sign_in_as(*self.controller)
-        self.client.post(reverse('workflow_submit_quotation', args=(quote.pk,)))
+        self.client.post(
+            reverse('workflow_submit_quotation', args=(quote.pk,)),
+            {'cc': 'copy@example.com', 'subject': 'Custom client subject', 'body': 'Please review the attached quotation.'},
+        )
         quote.refresh_from_db()
         self.assertEqual(quote.status, 'submitted')
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ['client@example.com'])
+        self.assertEqual(mail.outbox[0].cc, ['copy@example.com'])
+        self.assertEqual(mail.outbox[0].subject, 'Custom client subject')
         self.assertEqual(mail.outbox[0].attachments[0][2], 'application/pdf')
         self.assertTrue(mail.outbox[0].attachments[0][0].endswith('.pdf'))
         submitted_tracking = quotation_tracking(quote.details, quote.validity_days)
@@ -192,6 +197,37 @@ class WorkflowTests(TestCase):
         self.assertEqual(quote.status, 'approved')
         self.assertEqual(record.status, 'approved')
         self.assertContains(response, 'remains approved and was not submitted')
+
+    def test_manager_can_request_revision_before_approval(self):
+        record = enquiry.objects.create(
+            title='Revision request flow', client_name='Client',
+            created_by=self.executive[0], assigned_to=self.estimator[1], status='quoted',
+        )
+        quote = quotation.objects.create(
+            ENQUIRY=record, version=1, quotation_number='QTN/REV/001', amount='1000.00',
+            details=pack_document(default_terms()), status='manager_review',
+            created_by=self.estimator[1],
+        )
+        self.sign_in_as(*self.manager)
+        view = self.client.get(reverse('workflow_view_quotation', args=(quote.pk,)))
+        self.assertContains(view, 'Request Revision')
+        response = self.client.post(
+            reverse('workflow_request_quotation_revision', args=(quote.pk,)),
+            {'remarks': 'Please correct the flooring quantity before approval.'},
+        )
+        self.assertRedirects(response, reverse('workflow_dashboard'), fetch_redirect_response=False)
+        quote.refresh_from_db()
+        record.refresh_from_db()
+        self.assertEqual(quote.status, 'draft')
+        self.assertEqual(record.status, 'assigned')
+        self.assertTrue(record.comments.filter(
+            comment__contains='Marketing Manager requested quotation revision',
+        ).exists())
+        self.assertTrue(workflow_notification.objects.filter(
+            recipient=self.estimator[0], event='quotation_comment',
+            link=reverse('workflow_quotation_discussion', args=(quote.pk,)),
+            read_at__isnull=True,
+        ).exists())
 
     def test_enquiry_history_and_quotation_register_remain_separate(self):
         record = enquiry.objects.create(
@@ -469,6 +505,23 @@ class WorkflowTests(TestCase):
             view = self.client.get(reverse('workflow_view_quotation', args=(quote.pk,)))
             self.assertContains(view, 'Quotation PDF preview')
             self.assertContains(view, '?preview=1')
+            self.sign_in_as(*self.manager)
+            self.assertEqual(
+                self.client.get(reverse('workflow_view_quotation', args=(quote.pk,))).status_code,
+                403,
+            )
+            self.assertNotContains(
+                self.client.get(reverse('workflow_dashboard')), quote.display_number,
+            )
+            self.sign_in_as(*self.estimator)
+            self.assertEqual(
+                self.client.post(
+                    reverse('workflow_submit_for_approval', args=(quote.pk,)),
+                ).status_code,
+                302,
+            )
+            quote.refresh_from_db()
+            self.assertEqual(quote.status, 'manager_review')
             rendered_rows = presentation_rows(quote.lines.all())
             self.assertEqual(
                 [row['kind'] for row in rendered_rows],

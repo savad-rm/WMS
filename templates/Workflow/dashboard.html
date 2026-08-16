@@ -68,7 +68,8 @@
           {% endif %}
         </div>
         <form class="workflow-filter-form" method="get">
-          <input class="form-control" type="search" name="q" value="{{ query }}" placeholder="Search enquiries" aria-label="Search enquiries">
+          <input class="form-control" type="search" name="enquiry_q" value="{{ enquiry_query }}" placeholder="Search enquiries" aria-label="Search enquiries">
+          <input type="hidden" name="quotation_q" value="{{ quotation_query }}">
           <input type="hidden" name="quotation_sort" value="{{ quotation_sort }}">
           <select class="form-select" name="enquiry_sort" aria-label="Sort enquiries">
             <option value="-date" {% if enquiry_sort == '-date' %}selected{% endif %}>Newest first</option>
@@ -112,7 +113,8 @@
       <div class="dataTable-top d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <p class="text-muted small mb-0">Open Discussion to review internal messages and client responses. The badge shows unread activity.</p>
         <form class="workflow-filter-form" method="get">
-          <input class="form-control" type="search" name="q" value="{{ query }}" placeholder="Search quotations" aria-label="Search quotations">
+          <input class="form-control" type="search" name="quotation_q" value="{{ quotation_query }}" placeholder="Search quotations" aria-label="Search quotations">
+          <input type="hidden" name="enquiry_q" value="{{ enquiry_query }}">
           <input type="hidden" name="enquiry_sort" value="{{ enquiry_sort }}">
           <select class="form-select" name="quotation_sort" aria-label="Sort quotations">
             <option value="-date" {% if quotation_sort == '-date' %}selected{% endif %}>Newest first</option>

@@ -443,14 +443,14 @@ def dashboard(request):
     elif role == 'Estimator':
         records = records.filter(assigned_to=request.workflow_staff)
     accessible_records = records
-    query = request.GET.get('q', '').strip()
-    if query:
+    enquiry_query = request.GET.get('enquiry_q', '').strip()
+    if enquiry_query:
         records = records.filter(
-            Q(title__icontains=query)
-            | Q(client_name__icontains=query)
-            | Q(client_email__icontains=query)
-            | Q(client_phone__icontains=query)
-            | Q(assigned_to__name__icontains=query)
+            Q(title__icontains=enquiry_query)
+            | Q(client_name__icontains=enquiry_query)
+            | Q(client_email__icontains=enquiry_query)
+            | Q(client_phone__icontains=enquiry_query)
+            | Q(assigned_to__name__icontains=enquiry_query)
         )
     enquiry_sort = request.GET.get('enquiry_sort', '-date')
     enquiry_ordering = {
@@ -466,13 +466,14 @@ def dashboard(request):
     ).exclude(status='draft').select_related(
         'ENQUIRY', 'ENQUIRY__created_by', 'created_by',
     )
-    if query:
+    quotation_query = request.GET.get('quotation_q', '').strip()
+    if quotation_query:
         quote_records = quote_records.filter(
-            Q(quotation_number__icontains=query)
-            | Q(ENQUIRY__client_name__icontains=query)
-            | Q(ENQUIRY__title__icontains=query)
-            | Q(ENQUIRY__created_by__username__icontains=query)
-            | Q(created_by__name__icontains=query)
+            Q(quotation_number__icontains=quotation_query)
+            | Q(ENQUIRY__client_name__icontains=quotation_query)
+            | Q(ENQUIRY__title__icontains=quotation_query)
+            | Q(ENQUIRY__created_by__username__icontains=quotation_query)
+            | Q(created_by__name__icontains=quotation_query)
         )
     quotation_sort = request.GET.get('quotation_sort', '-date')
     quotation_ordering = {
@@ -526,7 +527,9 @@ def dashboard(request):
         'quotations': quote_records,
         'can_add': role in ('Marketing Executive', 'Marketing Manager'),
         'can_manage_client_response': role in ('Admin', 'Marketing Executive', 'Marketing Manager'),
-        'query': query,
+        'query': enquiry_query,
+        'enquiry_query': enquiry_query,
+        'quotation_query': quotation_query,
         'enquiry_sort': enquiry_sort,
         'quotation_sort': quotation_sort,
         'client_response_statuses': CLIENT_RESPONSE_STATUSES,

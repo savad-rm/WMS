@@ -228,9 +228,19 @@ def Add_project(request):
 def Add_project_post(request):
     pno=request.POST['project_no']
     pname=request.POST['t1']
-    client_name = request.POST['client_name']
-    phone = request.POST['phone']
-    email = request.POST['email'].strip().lower()
+    enquiry_id = request.POST.get('enquiry')
+    selected_enquiry = None
+    if enquiry_id:
+        selected_enquiry = enquiry.objects.select_for_update().filter(
+            pk=enquiry_id, status='awarded', PROJECT__isnull=True,
+        ).first()
+        if selected_enquiry is None:
+            messages.error(request, 'That awarded enquiry has already been transferred or is no longer available.')
+            return redirect('Add_project')
+
+    client_name = selected_enquiry.client_name if selected_enquiry else request.POST['client_name']
+    phone = selected_enquiry.client_phone if selected_enquiry and selected_enquiry.client_phone else request.POST['phone']
+    email = (selected_enquiry.client_email if selected_enquiry and selected_enquiry.client_email else request.POST['email']).strip().lower()
     place = request.POST['place']
     unit_no = request.POST['unit_no']
     project_value = request.POST['project_value']
@@ -297,13 +307,10 @@ def Add_project_post(request):
                     for item in copied_schedules
                 ])
 
-    enquiry_id = request.POST.get('enquiry')
-    if enquiry_id:
-        selected_enquiry = enquiry.objects.filter(pk=enquiry_id, status='awarded', PROJECT__isnull=True).first()
-        if selected_enquiry:
-            selected_enquiry.PROJECT = pobj
-            selected_enquiry.save(update_fields=('PROJECT', 'updated_at'))
-            selected_enquiry.project_documents.update(transferred_to=pobj)
+    if selected_enquiry:
+        selected_enquiry.PROJECT = pobj
+        selected_enquiry.save(update_fields=('PROJECT', 'updated_at'))
+        selected_enquiry.project_documents.update(transferred_to=pobj)
 
     messages.success(request, 'Project added successfully.')
     return redirect('View_Project')

@@ -64,6 +64,40 @@ class WorkflowTests(TestCase):
         with self.assertRaises(IntegrityError), transaction.atomic():
             login.objects.create(username=self.executive[0].username, password='x', usertype='Estimator')
 
+    def test_admin_project_transfer_locks_awarded_enquiry_and_uses_its_client_details(self):
+        admin = self.create_user('Admin', 7)
+        record = enquiry.objects.create(
+            title='Awarded fit-out', client_name='Awarded Client',
+            client_email='awarded@example.com', client_phone='5551234',
+            created_by=self.executive[0], status='awarded',
+        )
+        self.sign_in_as(*admin)
+        response = self.client.post(reverse('Add_project_post'), {
+            'project_no': 'P-AWARD-1', 't1': 'Awarded Fit-out Project',
+            'client_name': 'Incorrect Form Client', 'phone': '0000000',
+            'email': 'incorrect@example.com', 'place': 'Doha', 'unit_no': '',
+            'project_value': '1000', 'starting_date': '2026-08-01',
+            'handout_date': '2026-09-01', 'project_duration': '31 Days',
+            'project_area': '', 'project_type': '', 'textfield13': '',
+            'enquiry': record.pk,
+        })
+        self.assertEqual(response.status_code, 302)
+        created = project.objects.get(project_no='P-AWARD-1')
+        record.refresh_from_db()
+        self.assertEqual(record.PROJECT_id, created.pk)
+        self.assertEqual(created.client_name, record.client_name)
+        self.assertEqual(created.email, record.client_email)
+
+        self.client.post(reverse('Add_project_post'), {
+            'project_no': 'P-AWARD-2', 't1': 'Duplicate Project',
+            'client_name': 'Client', 'phone': '0000000', 'email': 'x@example.com',
+            'place': 'Doha', 'unit_no': '', 'project_value': '1000',
+            'starting_date': '2026-08-01', 'handout_date': '2026-09-01',
+            'project_duration': '31 Days', 'project_area': '', 'project_type': '',
+            'textfield13': '', 'enquiry': record.pk,
+        })
+        self.assertFalse(project.objects.filter(project_no='P-AWARD-2').exists())
+
     def test_legacy_password_is_upgraded_after_login(self):
         response = self.client.post(reverse('login_post'), {
             'username': self.executive[0].username, 'password': 'test-password',

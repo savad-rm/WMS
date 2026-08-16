@@ -14,9 +14,13 @@
         perPageSelect: [10, 25, 50, 100],
         labels: {
           placeholder: 'Search list...',
-          perPage: 'records per page',
+          perPage: 'Show',
           noRows: 'No records found',
           info: 'Showing {start} to {end} of {rows} records'
+        },
+        layout: {
+          top: '{search}',
+          bottom: '{select}{info}{pager}'
         }
       });
     });

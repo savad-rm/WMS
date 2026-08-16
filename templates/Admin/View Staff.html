@@ -4,7 +4,6 @@
   <h3 class="text-primary mb-0">Staff</h3>
   <a href="{% url 'Add_staff' %}" class="btn btn-primary"><i class="bi bi-person-plus"></i> Add Staff</a>
 </div>
-<form method="post" action="{% url 'search_staff' %}" class="d-flex gap-2 justify-content-end mb-3">{% csrf_token %}<input type="search" name="text" placeholder="Enter name here..." class="form-control" style="max-width:320px"><button type="submit" class="btn btn-outline-info">Search</button></form>
 <div class="table-responsive">
   <table class="table table-striped align-middle">
     <thead><tr style="background-color:#00a0dc;color:white"><th>Sl.No</th><th>Name</th><th>Username</th><th>DOB</th><th>Phone</th><th>Photo</th><th>Email</th><th>Address</th><th>Contact (Home)</th><th>Designation</th><th>Actions</th></tr></thead>

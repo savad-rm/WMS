@@ -447,6 +447,12 @@ def build_quotation_pdf(quote):
         ),
         '', '', '', '', Paragraph(f'<b>{quote.amount:,.2f}</b>', money),
     ])
+    # Populate the lump-sum cells before constructing the ReportLab table.
+    # Table copies its input data, so assigning these values afterwards leaves
+    # the rendered (vertically merged) cells blank.
+    for group in lump_sum_row_ranges.values():
+        table_data[group['start']][4] = Paragraph(f'{group["total"]:,.2f}', money)
+        table_data[group['start']][5] = Paragraph(f'{group["total"]:,.2f}', money)
     line_table = Table(
         table_data,
         colWidths=[14 * mm, 70 * mm, 15 * mm, 14 * mm, 20 * mm, 23 * mm],
@@ -472,8 +478,6 @@ def build_quotation_pdf(quote):
         if group['end'] > group['start']:
             for column in (4, 5):
                 table_style.append(('SPAN', (column, group['start']), (column, group['end'])))
-        table_data[group['start']][4] = Paragraph(f'{group["total"]:,.2f}', money)
-        table_data[group['start']][5] = Paragraph(f'{group["total"]:,.2f}', money)
     for row_index in bold_rows:
         table_style.append(('FONTNAME', (0, row_index), (-1, row_index), 'Helvetica-Bold'))
     for row_index, entry in enumerate(quotation_entries, start=1):

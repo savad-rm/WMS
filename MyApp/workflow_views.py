@@ -1025,7 +1025,11 @@ def add_quotation(request, enquiry_id):
             return quotation_error(f'Line {position} requires a positive quantity and non-negative rate.')
         parsed_lines.append({
             **row, 'quantity': quantity, 'unit_rate': rate,
-            'amount': quantity * rate, 'position': position,
+            # A direct section/subheading total is authoritative for its child
+            # rows. Child quantities remain useful for the BOQ, while their
+            # rate and calculated amount may legitimately be blank.
+            'amount': Decimal('0') if active_lump_sum else quantity * rate,
+            'position': position,
         })
 
     # Preserve compatibility for integrations that still send a single total.

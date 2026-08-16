@@ -18,4 +18,5 @@ This directory is the Exalter Trading & Contracting Django application (WMS).
 - Do not create Django/Flyway migration files in this workspace. Report required SQL to the migration team.
 - Keep draft quotations private to their estimator; only submitted-for-approval quotations are visible to other roles.
 - Preserve quotation history, client response discussion and notification audit trails.
+- Project creation belongs to Accountant. Creation must atomically allocate the single Project Manager and preserve awarded-enquiry quotation/document transfer links.
 - Keep secrets in environment variables or a secret manager; never commit SMTP credentials.

@@ -215,17 +215,36 @@ def login_post(request):
 def Admin_home(request):
     return render(request,'Admin/index.html')
 
-@legacy_role_required('Admin')
+def _single_project_manager():
+    candidates = list(
+        staff.objects.filter(designation='Project Manager')
+        .select_related('LOGIN').order_by('id')[:2]
+    )
+    if len(candidates) == 1:
+        return candidates[0], ''
+    if not candidates:
+        return None, 'Create one Project Manager staff account before creating a project.'
+    return None, 'Automatic assignment requires exactly one Project Manager staff account.'
+
+
+@legacy_role_required('Accountant')
 def Add_project(request):
+    default_project_manager, project_manager_error = _single_project_manager()
     return render(request,'Admin/Add Project.html', {
+        'default_project_manager': default_project_manager,
+        'project_manager_error': project_manager_error,
         'source_projects': project.objects.all().only('id', 'project_no', 'project_name').order_by('project_name'),
         'awarded_enquiries': enquiry.objects.filter(status='awarded', PROJECT__isnull=True).only('id', 'title', 'client_name'),
     })
 
 @require_POST
-@legacy_role_required('Admin')
+@legacy_role_required('Accountant')
 @db_transaction.atomic
 def Add_project_post(request):
+    default_project_manager, project_manager_error = _single_project_manager()
+    if project_manager_error:
+        messages.error(request, project_manager_error)
+        return redirect('Add_project')
     pno=request.POST['project_no']
     pname=request.POST['t1']
     enquiry_id = request.POST.get('enquiry')
@@ -269,8 +288,15 @@ def Add_project_post(request):
     pobj.project_type=project_type
     pobj.description=description
     pobj.estimate_status='pending'
-    pobj.status='pending'
+    # Automatic Project Manager assignment replaces the former manual step,
+    # which also moved a newly-created project into the ongoing portfolio.
+    pobj.status='ongoing'
     pobj.save()
+    project_manager_allocation.objects.create(
+        allocated_date=pobj.date,
+        PROJECT=pobj,
+        STAFF=default_project_manager,
+    )
 
     # Optionally reuse an existing project's planning data without sharing rows.
     source_id = request.POST.get('source_project')
@@ -312,8 +338,11 @@ def Add_project_post(request):
         selected_enquiry.save(update_fields=('PROJECT', 'updated_at'))
         selected_enquiry.project_documents.update(transferred_to=pobj)
 
-    messages.success(request, 'Project added successfully.')
-    return redirect('View_Project')
+    messages.success(
+        request,
+        f'Project added successfully and assigned to {default_project_manager.name}.',
+    )
+    return redirect('View_all_projects')
 
 @legacy_role_required('Admin')
 def Add_staff(request):

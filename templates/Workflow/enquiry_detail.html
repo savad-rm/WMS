@@ -80,7 +80,7 @@
             <tr class="quotation-row" data-kind="section"><td><select name="row_type" class="form-select form-select-sm row-type"><option value="item">Item</option><option value="subheading">Subheading</option><option value="section" selected>Section</option><option value="note">Note</option></select></td><td><input name="item_code" value="I" class="form-control form-control-sm item-code" readonly></td><td><textarea name="line_description" class="form-control form-control-sm line-description" rows="2" maxlength="255">GENERAL PRELIMINARIES</textarea></td><td><select name="unit" class="form-select form-select-sm line-unit"><option value="">Select</option>{% for unit in quotation_units %}<option value="{{ unit }}">{{ unit }}</option>{% endfor %}</select></td><td><input type="text" inputmode="decimal" name="quantity" class="form-control form-control-sm line-quantity"></td><td><input type="text" inputmode="decimal" name="unit_rate" class="form-control form-control-sm line-rate"></td><td class="text-center line-amount"><input type="text" inputmode="decimal" name="line_amount" class="form-control form-control-sm direct-line-amount" aria-label="Direct row total"><span class="calculated-line-amount"></span></td><td><button class="btn btn-sm btn-outline-danger remove-quotation-row" type="button"><i class="bi bi-trash"></i></button></td></tr>
           {% endfor %}
           </tbody><tfoot><tr><th colspan="6" class="text-end">Quotation Total</th><th class="text-end" id="quotationTotal">0.00</th><th></th></tr></tfoot>
-        </table></div><div class="form-text">Press Enter from a row field to insert the next item directly below it. For work priced as one lump sum, enter the total directly on its section or subheading and leave item rows out. Select text in a description and press <strong>B</strong> to make it bold.</div></div>
+        </table></div><div class="form-text">Press Enter from a row field to insert the next item directly below it. For lump-sum work, enter the total on its section or subheading; child item quantities may be listed with blank rates and amounts. Select text in a description and press <strong>B</strong> to make it bold.</div></div>
         <div class="col-12"><hr><h6 class="text-primary fw-bold">Client and Quotation Details</h6></div>
         <div class="col-md-6"><div class="border rounded p-3 h-100"><label class="form-label" for="quotationClientName">Client name</label><input id="quotationClientName" name="quotation_client_name" value="{{ quote_form.client_name }}" class="form-control fw-bold" maxlength="255" autocomplete="organization" required><div class="row g-2 mt-1"><div class="col-md-6"><label class="form-label" for="quotationClientPhone">Phone number</label><input id="quotationClientPhone" name="quotation_client_phone" value="{{ quote_form.client_phone }}" class="form-control" maxlength="30" autocomplete="tel"></div><div class="col-md-6"><label class="form-label" for="quotationClientEmail">Email</label><input id="quotationClientEmail" type="email" name="quotation_client_email" value="{{ quote_form.client_email }}" class="form-control" maxlength="254" autocomplete="email"></div></div><label class="form-label mt-3" for="clientAddress">Address</label><textarea id="clientAddress" name="client_address" class="form-control bg-white" rows="4" maxlength="255" autocomplete="street-address" placeholder="Building / street&#10;Area&#10;Doha - Qatar">{{ quote_form.client_address }}</textarea><div class="form-text">All client details above are editable and saved only on this quotation. The original enquiry contact remains unchanged.</div></div></div>
         <div class="col-md-6"><label class="form-label" for="quotationIssueDate">Quotation date</label><input id="quotationIssueDate" type="date" name="issue_date" value="{% firstof quote_form.issue_date quotation_issue_date %}" class="form-control" required><label class="form-label mt-3">Subject</label><input name="subject" value="{{ quote_form.subject|default:'' }}" class="form-control" placeholder="Quotation for {{ enquiry.title }}" required><label class="form-label mt-3">Introduction</label><textarea name="introduction" class="form-control" rows="4">{{ quote_form.introduction|default:default_introduction }}</textarea></div>
@@ -150,7 +150,7 @@
     values.forEach(([value, symbol]) => { while (number >= value) { result += symbol; number -= value; } });
     return result;
   }
-  function applyRowType(row) {
+  function applyRowType(row, lumpSumCovered = false) {
     const kind = row.querySelector('.row-type').value;
     const isItem = kind === 'item';
     row.dataset.kind = kind;
@@ -160,7 +160,9 @@
     ['.line-unit', '.line-quantity', '.line-rate'].forEach(selector => {
       const input = row.querySelector(selector);
       input.readOnly = !isItem;
-      input.required = isItem && hasItemData && selector !== '.line-unit';
+      input.required = isItem && hasItemData && (
+        selector === '.line-quantity' || (selector === '.line-rate' && !lumpSumCovered)
+      );
       if (!isItem) input.value = '';
     });
     row.querySelector('.line-description').required = !isItem || hasItemData;
@@ -199,6 +201,7 @@
   }
   function updateTotals() {
     let total = 0, sectionTotal = 0;
+    let activeLumpSum = false, sectionDirectTotal = null;
     let sectionRow = null, sectionNumber = 0, subheadingNumber = 0, itemNumber = 0;
     function showSubtotal(row, value) {
       if (!row || parseFloat(row.querySelector('.direct-line-amount').value)) return;
@@ -207,34 +210,46 @@
       output.innerHTML = value ? `<strong>Subtotal ${value.toFixed(2)}</strong>` : '';
     }
     rows.querySelectorAll('.quotation-row').forEach(row => {
-      applyRowType(row);
       const kind = row.querySelector('.row-type').value;
       const code = row.querySelector('.item-code');
       if (kind === 'section') {
-        showSubtotal(sectionRow, sectionTotal);
+        showSubtotal(sectionRow, sectionDirectTotal === null ? sectionTotal : sectionDirectTotal);
         sectionNumber += 1; subheadingNumber = 0; itemNumber = 0;
         code.value = roman(sectionNumber);
         sectionRow = row; sectionTotal = 0;
         const direct = parseFloat(row.querySelector('.direct-line-amount').value) || 0;
+        sectionDirectTotal = direct > 0 ? direct : null;
+        activeLumpSum = direct > 0;
         total += direct;
       } else if (kind === 'subheading') {
         if (!sectionNumber) sectionNumber = 1;
         subheadingNumber += 1; itemNumber = 0;
         code.value = `${roman(sectionNumber)}.${subheadingNumber}`;
         const direct = parseFloat(row.querySelector('.direct-line-amount').value) || 0;
-        total += direct; sectionTotal += direct;
+        activeLumpSum = direct > 0;
+        if (sectionDirectTotal === null) {
+          total += direct; sectionTotal += direct;
+        }
       } else if (kind === 'item') {
-        const amount = (parseFloat(row.querySelector('.line-quantity').value) || 0) * (parseFloat(row.querySelector('.line-rate').value) || 0);
+        applyRowType(row, activeLumpSum);
+        const quantity = parseFloat(row.querySelector('.line-quantity').value) || 0;
+        const rateField = row.querySelector('.line-rate');
+        const hasRate = rateField.value.trim() !== '';
+        const amount = quantity * (parseFloat(rateField.value) || 0);
         itemNumber += 1;
         if (!code.value.trim()) code.value = itemNumber;
-        row.querySelector('.calculated-line-amount').textContent = amount.toFixed(2);
-        total += amount; sectionTotal += amount;
+        row.querySelector('.calculated-line-amount').textContent = activeLumpSum && !hasRate ? '' : amount.toFixed(2);
+        if (!activeLumpSum && sectionDirectTotal === null) {
+          total += amount; sectionTotal += amount;
+        }
       } else {
+        activeLumpSum = false;
         row.querySelector('.calculated-line-amount').textContent = '';
       }
+      if (kind !== 'item') applyRowType(row, activeLumpSum);
       autoSizeDescription(row.querySelector('.line-description'));
     });
-    showSubtotal(sectionRow, sectionTotal);
+    showSubtotal(sectionRow, sectionDirectTotal === null ? sectionTotal : sectionDirectTotal);
     document.getElementById('quotationTotal').textContent = total.toFixed(2);
   }
   function addRow(kind = 'item', values = [], afterRow = null) {

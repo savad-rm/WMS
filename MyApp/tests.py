@@ -28,7 +28,7 @@ from .deadline_notifications import ensure_quotation_deadline_notifications
 from .quotation_document import (
     default_terms, pack_document, presentation_rows, quotation_tracking, unpack_document,
 )
-from .quotation_exports import build_quotation_excel, quotation_amount_words
+from .quotation_exports import build_quotation_excel, build_quotation_pdf, quotation_amount_words
 
 
 @override_settings(
@@ -50,6 +50,7 @@ class WorkflowTests(TestCase):
         session = self.client.session
         session['lid'] = account.pk
         session['sid'] = person.pk
+        session['role'] = account.usertype
         session.save()
 
     def setUp(self):
@@ -64,14 +65,23 @@ class WorkflowTests(TestCase):
         with self.assertRaises(IntegrityError), transaction.atomic():
             login.objects.create(username=self.executive[0].username, password='x', usertype='Estimator')
 
-    def test_admin_project_transfer_locks_awarded_enquiry_and_uses_its_client_details(self):
+    def test_accountant_creates_project_with_automatic_manager_and_preserves_awarded_transfer(self):
         admin = self.create_user('Admin', 7)
         record = enquiry.objects.create(
             title='Awarded fit-out', client_name='Awarded Client',
             client_email='awarded@example.com', client_phone='5551234',
             created_by=self.executive[0], status='awarded',
         )
-        self.sign_in_as(*admin)
+        quote = quotation.objects.create(
+            ENQUIRY=record, version=1, amount=Decimal('1000'),
+            status='accepted', created_by=self.estimator[1],
+        )
+        document = project_document.objects.create(
+            ENQUIRY=record, document_type='quotation',
+            file='project_documents/test/awarded-quotation.pdf',
+            collected_by=self.executive[0],
+        )
+        self.sign_in_as(*self.accountant)
         response = self.client.post(reverse('Add_project_post'), {
             'project_no': 'P-AWARD-1', 't1': 'Awarded Fit-out Project',
             'client_name': 'Incorrect Form Client', 'phone': '0000000',
@@ -81,12 +91,20 @@ class WorkflowTests(TestCase):
             'project_area': '', 'project_type': '', 'textfield13': '',
             'enquiry': record.pk,
         })
-        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse('View_all_projects'))
         created = project.objects.get(project_no='P-AWARD-1')
         record.refresh_from_db()
         self.assertEqual(record.PROJECT_id, created.pk)
         self.assertEqual(created.client_name, record.client_name)
         self.assertEqual(created.email, record.client_email)
+        self.assertEqual(created.status, 'ongoing')
+        self.assertEqual(
+            project_manager_allocation.objects.get(PROJECT=created).STAFF,
+            self.project_manager[1],
+        )
+        document.refresh_from_db()
+        self.assertEqual(document.transferred_to_id, created.pk)
+        self.assertEqual(quote.ENQUIRY_id, record.pk)
 
         self.client.post(reverse('Add_project_post'), {
             'project_no': 'P-AWARD-2', 't1': 'Duplicate Project',
@@ -98,6 +116,10 @@ class WorkflowTests(TestCase):
         })
         self.assertFalse(project.objects.filter(project_no='P-AWARD-2').exists())
 
+        self.sign_in_as(*admin)
+        self.assertEqual(self.client.get(reverse('Add_project')).status_code, 403)
+        self.assertEqual(self.client.post(reverse('Add_project_post'), {}).status_code, 403)
+
     def test_legacy_password_is_upgraded_after_login(self):
         response = self.client.post(reverse('login_post'), {
             'username': self.executive[0].username, 'password': 'test-password',
@@ -105,6 +127,16 @@ class WorkflowTests(TestCase):
         self.assertRedirects(response, reverse('workflow_dashboard'))
         self.executive[0].refresh_from_db()
         self.assertTrue(check_password('test-password', self.executive[0].password))
+
+    def test_accountant_project_creation_requires_exactly_one_project_manager(self):
+        self.project_manager[1].delete()
+        self.sign_in_as(*self.accountant)
+        page = self.client.get(reverse('Add_project'))
+        self.assertContains(page, 'Create one Project Manager staff account')
+        self.assertContains(page, 'disabled')
+        response = self.client.post(reverse('Add_project_post'), {})
+        self.assertRedirects(response, reverse('Add_project'))
+        self.assertFalse(project.objects.exists())
 
     def test_complete_quotation_approval_and_award_flow(self):
         self.sign_in_as(*self.executive)
@@ -598,6 +630,61 @@ class WorkflowTests(TestCase):
             ).status_code, 302)
             quote.refresh_from_db()
             self.assertFalse(quote.file)
+
+    def test_section_lump_sum_allows_blank_child_rates_and_exports_merged_total(self):
+        record = enquiry.objects.create(
+            title='Lump sum electrical works', client_name='Client',
+            created_by=self.executive[0], assigned_to=self.estimator[1], status='assigned',
+        )
+        self.sign_in_as(*self.estimator)
+        response = self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), {
+            'row_type': ['section', 'item', 'item', 'item'],
+            'item_code': ['', '1', '2', '3'],
+            'line_description': [
+                'CIVIL WORK', 'PARTITION', 'PAINT WORK', 'BLOCK WORK',
+            ],
+            'unit': ['', 'ITEM', 'ITEM', 'ITEM'],
+            'quantity': ['', '1', '1', '1'],
+            'unit_rate': ['', '', '', ''],
+            'line_amount': ['52000.00', '', '', ''],
+            'material_cost': '10000', 'labour_cost': '5000', 'other_cost': '0',
+        })
+        self.assertEqual(response.status_code, 302)
+        quote = quotation.objects.get(ENQUIRY=record)
+        self.assertEqual(quote.amount, Decimal('52000.00'))
+        self.assertEqual(
+            list(quote.lines.values_list('unit_rate', 'amount'))[1:],
+            [(Decimal('0.00'), Decimal('0.00'))] * 3,
+        )
+
+        rendered_rows = presentation_rows(quote.lines.all())
+        self.assertEqual(
+            [row['kind'] for row in rendered_rows],
+            ['section', 'item', 'item', 'item', 'section_total'],
+        )
+        self.assertEqual(rendered_rows[-1]['amount'], Decimal('52000.00'))
+
+        workbook = load_workbook(build_quotation_excel(quote), data_only=False)
+        sheet = workbook['Quote']
+        merged_ranges = {str(cell_range) for cell_range in sheet.merged_cells.ranges}
+        self.assertIn('F20:F22', merged_ranges)
+        self.assertIn('G20:G22', merged_ranges)
+        self.assertEqual(sheet['F20'].value, 52000)
+        self.assertEqual(sheet['G20'].value, 52000)
+        self.assertEqual(sheet['D23'].value, 'Sub-Total (QAR)')
+        self.assertEqual(sheet['G23'].value, 52000)
+
+        pdf = build_quotation_pdf(quote)
+        self.assertTrue(pdf.getvalue().startswith(b'%PDF'))
+        self.assertGreater(len(pdf.getvalue()), 1000)
+
+        edit_page = self.client.get(
+            reverse('workflow_detail', args=(record.pk,)) + f'?edit={quote.pk}'
+        )
+        self.assertContains(edit_page, 'value="52000.00"')
+        # The structural row plus all three child rows keep a genuinely blank
+        # rate in the editor instead of being normalised back to 0.00.
+        self.assertContains(edit_page, 'value="" class="form-control form-control-sm line-rate"', count=4)
 
     def test_heading_total_date_address_and_enquiry_discussion(self):
         record = enquiry.objects.create(

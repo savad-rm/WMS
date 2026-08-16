@@ -1,4 +1,4 @@
-{% extends "Admin/index.html" %}
+{% extends "Accountant/acindex.html" %}
 {% block body %}
 <form id="form1" name="form1" method="post" action="/WMS/Add_project_post/" >
     {% csrf_token %}
@@ -75,8 +75,10 @@
     </td></tr>
     <tr><td>Awarded Enquiry</td><td><select name="enquiry" class="form-control"><option value="">No enquiry transfer</option>{% for item in awarded_enquiries %}<option value="{{ item.id }}">{{ item.title }} — {{ item.client_name }}</option>{% endfor %}</select><div class="form-text">Transfers the enquiry, quotation and collected project documents to this project.</div></td></tr>
 
+    <tr><td>Project Manager</td><td>{% if default_project_manager %}<input class="form-control" value="{{ default_project_manager.name }}" readonly><div class="form-text">Automatically assigned when the project is created.</div>{% else %}<div class="alert alert-danger mb-0">{{ project_manager_error }}</div>{% endif %}</td></tr>
+
     <tr align="center">
-      <td height="31" colspan="2"><input type="submit" name="button" id="button" value="Add" class="btn btn-primary" /></td>
+      <td height="31" colspan="2"><input type="submit" name="button" id="button" value="Add" class="btn btn-primary" {% if project_manager_error %}disabled{% endif %}/></td>
     </tr>
   </table>
 </form>

@@ -126,27 +126,28 @@ def presentation_rows(lines):
     rows = []
     section = None
     section_total = 0
-    section_has_direct_total = False
+    section_direct_total = None
     lump_sum_group = None
     next_group_id = 0
 
     def close_section():
-        nonlocal section, section_total, section_has_direct_total
-        if section is not None and section_total and not section_has_direct_total:
+        nonlocal section, section_total, section_direct_total
+        effective_total = section_direct_total if section_direct_total is not None else section_total
+        if section is not None and effective_total:
             rows.append({
                 'kind': 'section_total', 'code': section.item_code,
-                'label': section.description, 'amount': section_total,
+                'label': section.description, 'amount': effective_total,
             })
         section = None
         section_total = 0
-        section_has_direct_total = False
+        section_direct_total = None
 
     for line in lines:
         kind = line_kind(line)
         if kind == 'section':
             close_section()
             section = line
-            section_has_direct_total = line.amount > 0
+            section_direct_total = line.amount if line.amount > 0 else None
             lump_sum_group = None
             if line.amount:
                 next_group_id += 1
@@ -158,13 +159,14 @@ def presentation_rows(lines):
                 next_group_id += 1
                 lump_sum_group = (next_group_id, line.amount)
             rows.append({'kind': kind, 'line': line, 'lump_sum_group_start': lump_sum_group})
-            section_total += line.amount
+            if section_direct_total is None:
+                section_total += line.amount
         else:
             entry = {'kind': kind, 'line': line}
             if kind == 'item' and lump_sum_group:
                 entry['lump_sum_group'] = lump_sum_group
             rows.append(entry)
-            if kind == 'item':
+            if kind == 'item' and section_direct_total is None:
                 section_total += line.amount
             elif kind == 'note':
                 lump_sum_group = None

@@ -10,3 +10,5 @@
 - `tests.py`: regression coverage; extend tests whenever a workflow permission or status changes.
 
 Use existing helpers rather than duplicating status/permission logic. All user input must be validated, and email failures must leave the quotation in its previous state.
+
+Project creation is an Accountant-only legacy web flow. It automatically assigns the single staff member designated `Project Manager`; never restore a separate Admin assignment step or detach the awarded enquiry, quotations, or transferred documents.

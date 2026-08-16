@@ -387,6 +387,8 @@ class WorkflowTests(TestCase):
         self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), payload)
         first = quotation.objects.get(ENQUIRY=record)
         self.client.post(reverse('workflow_submit_for_approval', args=(first.pk,)))
+        first.status = 'under_revision'
+        first.save(update_fields=('status',))
         payload['amount'] = '1250'
         payload['details'] = 'Revised scope'
         payload['revision_of'] = str(first.pk)
@@ -465,7 +467,11 @@ class WorkflowTests(TestCase):
         self.assertNotContains(detail, f'?revise={first.pk}#quotationForm')
         self.client.post(reverse('workflow_submit_for_approval', args=(first.pk,)))
         detail = self.client.get(reverse('workflow_detail', args=(record.pk,)))
-        self.assertContains(detail, f'?revise={first.pk}#quotationForm')
+        self.assertNotContains(detail, f'?revise={first.pk}#quotationForm')
+        first.status = 'under_revision'
+        first.save(update_fields=('status',))
+        quotation_view = self.client.get(reverse('workflow_view_quotation', args=(first.pk,)))
+        self.assertContains(quotation_view, 'Create Revision')
         self.assertEqual(
             self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), payload).status_code,
             400,
@@ -679,9 +685,9 @@ class WorkflowTests(TestCase):
 
         workbook = load_workbook(build_quotation_excel(draft))
         sheet = workbook['Quote']
-        self.assertIn('C19:G19', {str(value) for value in sheet.merged_cells.ranges})
+        self.assertIn('C19:F19', {str(value) for value in sheet.merged_cells.ranges})
         self.assertIn('C20:F20', {str(value) for value in sheet.merged_cells.ranges})
-        self.assertEqual(sheet['G20'].value, 500)
+        self.assertEqual(sheet['G21'].value, 500)
 
     def test_marketing_manager_can_submit_and_award_without_costing_gate(self):
         record = enquiry.objects.create(

@@ -74,6 +74,7 @@ Site-update payloads:
 | `costing_approve` | Project Manager | Quotation has costing |
 | `request_revision` | Marketing Manager at `manager_review`; Accountant at `accountant_review` | `{"remarks":"..."}` (required, max 2,000 chars); returns the quotation to draft and notifies the estimator |
 | `submit` | Document Controller, Marketing Executive, Marketing Manager | Quotation status `approved`; server emails the generated PDF to the client and sets client status to `under_review` |
+| `client_response` | Admin, Marketing Executive, Marketing Manager | `{"client_status":"under_review\|under_revision\|approved\|rejected", "client_remarks":"..."}`; Manager/Admin may set `under_revision`, which notifies the estimator |
 | `award` | Marketing Executive, Marketing Manager | Submitted quotation; sets client status to `approved` and finalises the enquiry |
 
 Detailed enquiry responses keep every quotation revision in `quotations`. Each quotation includes the existing identity, amount, status, details, and creation fields plus:

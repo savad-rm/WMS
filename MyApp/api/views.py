@@ -62,6 +62,12 @@ WORKFLOW_ROLES = frozenset((
     'Admin', 'Marketing Executive', 'Marketing Manager', 'Estimator',
     'Document Controller', 'Project Manager', 'Project Engineer', 'Operation Manager', 'Accountant',
 ))
+CLIENT_RESPONSE_STATUSES = {
+    'under_review': 'Under Review',
+    'under_revision': 'Under Revision',
+    'approved': 'Approved',
+    'rejected': 'Rejected',
+}
 SITE_WRITE_ROLES = frozenset(('Supervisor',))
 
 
@@ -178,7 +184,7 @@ def _quotation_payload(quote):
     }
 
 
-def _enquiry_payload(record, detailed=False):
+def _enquiry_payload(record, detailed=False, account=None):
     payload = {
         'id': record.pk,
         'title': record.title,
@@ -191,7 +197,18 @@ def _enquiry_payload(record, detailed=False):
         'created_at': _iso(record.created_at),
         'updated_at': _iso(record.updated_at),
     }
+    if account and account.usertype == 'Marketing Executive':
+        payload['quotation_statuses'] = [
+            {'id': quote.pk, 'status': quote.status}
+            for quote in record.quotations.all()
+            if quote.status in ('manager_review', 'accountant_review')
+        ]
     if detailed:
+        quotations = record.quotations.all()
+        if account and account.usertype == 'Marketing Executive':
+            quotations = quotations.filter(
+                status__in=('approved', 'submitted', 'accepted', 'rejected', 'under_revision')
+            )
         payload.update({
             'description': record.description,
             'project_id': record.PROJECT_id,
@@ -207,7 +224,7 @@ def _enquiry_payload(record, detailed=False):
                 'comment': item.comment,
                 'created_at': _iso(item.created_at),
             } for item in record.comments.select_related('author')],
-            'quotations': [_quotation_payload(quote) for quote in record.quotations.all()],
+            'quotations': [_quotation_payload(quote) for quote in quotations],
         })
     return payload
 
@@ -518,7 +535,7 @@ class EnquiryListView(APIView):
             queryset = queryset.filter(created_by=request.user)
         elif request.user.usertype == 'Estimator':
             queryset = queryset.filter(assigned_to=_person(request.user))
-        return Response({'results': [_enquiry_payload(item) for item in queryset]})
+        return Response({'results': [_enquiry_payload(item, account=request.user) for item in queryset]})
 
     def post(self, request):
         if request.user.usertype not in ('Admin', 'Marketing Executive', 'Marketing Manager'):
@@ -553,7 +570,7 @@ class EnquiryListView(APIView):
             )
             for upload in request.FILES.getlist('files'):
                 enquiry_attachment.objects.create(ENQUIRY=record, file=upload, original_name=Path(upload.name).name)
-        return Response({'enquiry': _enquiry_payload(record)}, status=status.HTTP_201_CREATED)
+        return Response({'enquiry': _enquiry_payload(record, account=request.user)}, status=status.HTTP_201_CREATED)
 
 
 class EnquiryDetailView(APIView):
@@ -566,7 +583,7 @@ class EnquiryDetailView(APIView):
             raise NotFound('Enquiry not found.') from None
         if not _enquiry_allowed(request.user, record):
             raise PermissionDenied('You cannot access this enquiry.')
-        result = _enquiry_payload(record, detailed=True)
+        result = _enquiry_payload(record, detailed=True, account=request.user)
         result['available_actions'] = _enquiry_actions(request.user, record)
         if _effective_role(request.user) in ('Marketing Manager', 'Project Manager'):
             result['estimators'] = list(staff.objects.filter(designation='Estimator').values('id', 'name'))
@@ -640,6 +657,8 @@ def _enquiry_actions(account, record):
             actions.append('submit')
         if role in ('Marketing Executive', 'Marketing Manager') and latest.status == 'submitted':
             actions.append('award')
+        if role in ('Admin', 'Marketing Executive', 'Marketing Manager') and latest.status in ('submitted', 'rejected', 'under_revision'):
+            actions.append('client_response')
     return actions
 
 
@@ -770,6 +789,30 @@ class EnquiryActionView(APIView):
                         f'Quotation emailed successfully to {recipient}; '
                         'client status is now Under Review.'
                     )
+                elif action == 'client_response' and request.user.usertype in ('Admin', 'Marketing Executive', 'Marketing Manager') and latest.status in ('submitted', 'rejected', 'under_revision'):
+                    client_status = str(request.data.get('client_status', 'under_review')).strip()
+                    if client_status not in CLIENT_RESPONSE_STATUSES:
+                        raise ValidationError({'client_status': ['Select a valid client response status.']})
+                    if client_status == 'under_revision' and request.user.usertype not in ('Admin', 'Marketing Manager'):
+                        raise PermissionDenied('Only a Marketing Manager or Admin can request a client revision.')
+                    client_remarks = str(request.data.get('client_remarks', '')).strip()
+                    if len(client_remarks) > 2000:
+                        raise ValidationError({'client_remarks': ['Client remarks cannot exceed 2,000 characters.']})
+                    latest.details = update_quotation_tracking(
+                        latest.details, latest.validity_days,
+                        client_status=client_status, client_remarks=client_remarks,
+                    )
+                    latest.status = {
+                        'under_review': 'submitted', 'under_revision': 'under_revision',
+                        'approved': 'accepted', 'rejected': 'rejected',
+                    }[client_status]
+                    latest.save(update_fields=('details', 'status', 'updated_at'))
+                    record.status = 'awarded' if client_status == 'approved' else (
+                        'submitted' if client_status in ('under_review', 'under_revision') else 'quoted'
+                    )
+                    record.save(update_fields=('status', 'updated_at'))
+                    publish_client_response(latest, request.user, client_status, client_remarks)
+                    workflow_message = f'Client response recorded as {CLIENT_RESPONSE_STATUSES[client_status]}.'
                 elif action == 'award' and request.user.usertype in ('Marketing Executive', 'Marketing Manager') and latest.status == 'submitted':
                     latest.status = 'accepted'
                     latest.details = update_quotation_tracking(
@@ -782,6 +825,6 @@ class EnquiryActionView(APIView):
                 else:
                     raise PermissionDenied('This action is not available at the current workflow stage.')
         return Response({
-            'enquiry': _enquiry_payload(record, detailed=True),
+            'enquiry': _enquiry_payload(record, detailed=True, account=request.user),
             'message': workflow_message,
         })

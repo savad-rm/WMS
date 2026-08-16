@@ -127,6 +127,8 @@ def presentation_rows(lines):
     section = None
     section_total = 0
     section_has_direct_total = False
+    lump_sum_group = None
+    next_group_id = 0
 
     def close_section():
         nonlocal section, section_total, section_has_direct_total
@@ -145,13 +147,26 @@ def presentation_rows(lines):
             close_section()
             section = line
             section_has_direct_total = line.amount > 0
-            rows.append({'kind': kind, 'line': line})
+            lump_sum_group = None
+            if line.amount:
+                next_group_id += 1
+                lump_sum_group = (next_group_id, line.amount)
+            rows.append({'kind': kind, 'line': line, 'lump_sum_group_start': lump_sum_group})
         elif kind == 'subheading':
-            rows.append({'kind': kind, 'line': line})
+            lump_sum_group = None
+            if line.amount:
+                next_group_id += 1
+                lump_sum_group = (next_group_id, line.amount)
+            rows.append({'kind': kind, 'line': line, 'lump_sum_group_start': lump_sum_group})
             section_total += line.amount
         else:
-            rows.append({'kind': kind, 'line': line})
+            entry = {'kind': kind, 'line': line}
+            if kind == 'item' and lump_sum_group:
+                entry['lump_sum_group'] = lump_sum_group
+            rows.append(entry)
             if kind == 'item':
                 section_total += line.amount
+            elif kind == 'note':
+                lump_sum_group = None
     close_section()
     return rows

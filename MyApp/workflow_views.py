@@ -49,6 +49,7 @@ MAX_UPLOAD_SIZE = 20 * 1024 * 1024
 DEFAULT_TERM_MAP = {item['title']: item['body'] for item in default_terms()}
 CLIENT_RESPONSE_STATUSES = {
     'under_review': 'Under Review',
+    'under_revision': 'Under Revision',
     'approved': 'Approved',
     'rejected': 'Rejected',
 }
@@ -138,6 +139,11 @@ def _can_view_quotation(request, quote):
     if not _can_access_enquiry(request, quote.ENQUIRY):
         return False
     if quote.status != 'draft':
+        if (
+            _workflow_role(request.workflow_account.usertype) == 'Marketing Executive'
+            and quote.status in ('manager_review', 'accountant_review')
+        ):
+            return False
         return True
     return (
         _workflow_role(request.workflow_account.usertype) == 'Estimator'
@@ -267,7 +273,9 @@ def _detail_context(request, record, extra=None):
     editing_quote = None
     revision_id = request.GET.get('revise', '').strip()
     if role == 'Estimator' and revision_id and not is_awarded:
-        revision_source = record.quotations.exclude(status='draft').filter(pk=revision_id).first()
+        revision_source = record.quotations.filter(
+            pk=revision_id, status='under_revision',
+        ).first()
     edit_id = request.GET.get('edit', '').strip()
     if role == 'Estimator' and edit_id:
         editing_quote = record.quotations.filter(
@@ -319,8 +327,11 @@ def _detail_context(request, record, extra=None):
         'visible_quotations': [
             quote for quote in record.quotations.all()
             if quote.status != 'draft'
+            and not (role == 'Marketing Executive' and quote.status in ('manager_review', 'accountant_review'))
             or (role == 'Estimator' and quote.created_by_id == getattr(request.workflow_staff, 'id', None))
         ],
+        # This flag now only controls editing an estimator-owned draft. New
+        # revisions are started from the quotation view after Under Revision.
         'can_start_revision': role == 'Estimator' and not is_awarded,
         'revision_source': revision_source,
         'editing_quote': editing_quote,
@@ -398,8 +409,8 @@ def _detail_context(request, record, extra=None):
                     'row_type': line_kind(line), 'item_code': line.item_code,
                     'description': line.description,
                     'unit': '' if line_kind(line) != 'item' else line.unit,
-                    'quantity': '' if line_kind(line) != 'item' else line.quantity,
-                    'unit_rate': '' if line_kind(line) != 'item' else line.unit_rate,
+                    'quantity': '' if line_kind(line) != 'item' or not line.quantity else line.quantity,
+                    'unit_rate': '' if line_kind(line) != 'item' or not line.unit_rate else line.unit_rate,
                     'amount': line.amount if line_kind(line) != 'item' and line.amount else '',
                 }
                 for line in form_source.lines.all()
@@ -497,11 +508,14 @@ def dashboard(request):
         item.unread_comment_count = unread_by_enquiry.get(item.pk, 0)
     for quote in quote_records:
         tracking = quotation_tracking(quote.details, quote.validity_days)
-        quote.client_remarks = tracking['client_remarks']
         quote.client_status = tracking['client_status'] if tracking['client_status'] in CLIENT_RESPONSE_STATUSES else 'under_review'
         quote.client_status_label = CLIENT_RESPONSE_STATUSES[quote.client_status]
         quote.submitted_at_display = parse_datetime(tracking['submitted_at']) if tracking['submitted_at'] else None
-        quote.client_response_editable = quote.status in ('submitted', 'rejected')
+        quote.client_response_editable = quote.status in ('submitted', 'rejected', 'under_revision')
+        quote.restricted_for_marketing = (
+            role == 'Marketing Executive'
+            and quote.status in ('manager_review', 'accountant_review')
+        )
         quote.marketing_executive_name = marketing_names.get(
             quote.ENQUIRY.created_by_id, quote.ENQUIRY.created_by.username,
         )
@@ -885,8 +899,8 @@ def add_quotation(request, enquiry_id):
         pk=draft_id, status='draft', created_by=request.workflow_staff,
     ).first() if draft_id else None
     revision_source_id = request.POST.get('revision_of', '').strip()
-    revision_source = existing_snapshot.exclude(status='draft').filter(
-        pk=revision_source_id,
+    revision_source = existing_snapshot.filter(
+        pk=revision_source_id, status='under_revision',
     ).first() if revision_source_id else None
     row_types = request.POST.getlist('row_type')
     item_codes = request.POST.getlist('item_code')
@@ -965,6 +979,7 @@ def add_quotation(request, enquiry_id):
     ):
         return quotation_error('Quotation line-item data is incomplete.')
     parsed_lines = []
+    active_lump_sum = False
     for position, row in enumerate(quote_rows, start=1):
         values = tuple(
             str(row[field]).strip()
@@ -990,15 +1005,20 @@ def add_quotation(request, enquiry_id):
                 'quantity': Decimal('0'), 'unit_rate': Decimal('0'),
                 'amount': direct_amount, 'position': position,
             })
+            active_lump_sum = row_type in ('section', 'subheading') and direct_amount > 0
             continue
-        if not row['description'].strip() or not row['quantity'] or not row['unit_rate']:
+        if not row['description'].strip():
+            return quotation_error(f'Enter a description for line {position}.')
+        if not active_lump_sum and (not row['quantity'] or not row['unit_rate']):
             return quotation_error(f'Complete the description, quantity and rate for line {position}.')
         try:
-            quantity = Decimal(row['quantity'])
-            rate = Decimal(row['unit_rate'])
+            quantity = Decimal(row['quantity'] or '0')
+            rate = Decimal(row['unit_rate'] or '0')
         except InvalidOperation:
             return quotation_error(f'Quantity and rate on line {position} must be valid numbers.')
-        if not quantity.is_finite() or not rate.is_finite() or quantity <= 0 or rate < 0:
+        if not quantity.is_finite() or not rate.is_finite() or quantity < 0 or rate < 0:
+            return quotation_error(f'Line {position} requires a positive quantity and non-negative rate.')
+        if not active_lump_sum and (quantity <= 0 or rate <= 0):
             return quotation_error(f'Line {position} requires a positive quantity and non-negative rate.')
         parsed_lines.append({
             **row, 'quantity': quantity, 'unit_rate': rate,
@@ -1054,7 +1074,7 @@ def add_quotation(request, enquiry_id):
         return quotation_error('The selected quotation revision source is not valid for this enquiry.')
     if existing_snapshot.exists() and not revision_source and not draft_quote:
         return quotation_error(
-            'Edit the saved draft, or use Create Revision on an approved quotation.'
+            'Edit the saved draft, or use Create Revision from a quotation returned Under Revision.'
         )
     if revision_source and revision_source.created_by_id != request.workflow_staff.id:
         return quotation_error('You can revise only a quotation created by you.')
@@ -1232,7 +1252,7 @@ def view_quotation(request, quote_id):
         'can_manage_client_response': (
             _workflow_role(request.workflow_account.usertype) in (
                 'Admin', 'Marketing Executive', 'Marketing Manager',
-            ) and quote.status in ('submitted', 'rejected')
+            ) and quote.status in ('submitted', 'rejected', 'under_revision')
         ),
         'can_remove_quote_file': (
             _workflow_role(request.workflow_account.usertype) == 'Estimator'
@@ -1241,6 +1261,11 @@ def view_quotation(request, quote_id):
         'can_edit_draft': (
             role == 'Estimator'
             and quote.status == 'draft'
+            and quote.created_by_id == getattr(request.workflow_staff, 'id', None)
+        ),
+        'can_create_revision': (
+            role == 'Estimator'
+            and quote.status == 'under_revision'
             and quote.created_by_id == getattr(request.workflow_staff, 'id', None)
         ),
         'can_manager_approve': role == 'Marketing Manager' and quote.status == 'manager_review',
@@ -1263,6 +1288,20 @@ def view_quotation(request, quote_id):
             and quote.status == 'submitted'
         ),
     })
+
+
+@role_required('Estimator')
+def start_quotation_revision(request, quote_id):
+    quote = get_object_or_404(
+        quotation.objects.select_related('ENQUIRY'), pk=quote_id,
+        status='under_revision', created_by=request.workflow_staff,
+    )
+    if quote.ENQUIRY.status == 'awarded' or quote.ENQUIRY.quotations.filter(status='accepted').exists():
+        messages.error(request, 'An awarded quotation cannot be revised.')
+        return redirect('workflow_view_quotation', quote_id=quote.pk)
+    return redirect(
+        f'{reverse("workflow_detail", args=(quote.ENQUIRY_id,))}?revise={quote.pk}#quotationForm'
+    )
 
 
 @role_required(*QUOTATION_COMMENT_ROLES)
@@ -1532,12 +1571,15 @@ def update_quotation_client_response(request, quote_id):
         )
         if not _can_access_enquiry(request, quote.ENQUIRY):
             return HttpResponseForbidden('You do not have permission to update this quotation.')
-        if quote.status not in ('submitted', 'rejected'):
+        if quote.status not in ('submitted', 'rejected', 'under_revision'):
             messages.error(request, 'Client feedback can be recorded only after quotation submittal.')
             return redirect('workflow_dashboard')
         client_status = request.POST.get('client_status', 'under_review').strip()
         if client_status not in CLIENT_RESPONSE_STATUSES:
             messages.error(request, 'Select a valid client quotation status.')
+            return redirect('workflow_dashboard')
+        if client_status == 'under_revision' and _workflow_role(request.workflow_account.usertype) not in ('Admin', 'Marketing Manager'):
+            messages.error(request, 'Only a Marketing Manager or Admin can return a quotation for revision.')
             return redirect('workflow_dashboard')
         client_remarks = request.POST.get('client_remarks', '').strip()
         if len(client_remarks) > 2000:
@@ -1550,12 +1592,13 @@ def update_quotation_client_response(request, quote_id):
         )
         quote.status = {
             'under_review': 'submitted', 'approved': 'accepted', 'rejected': 'rejected',
+            'under_revision': 'under_revision',
         }[client_status]
         quote.save(update_fields=('details', 'status', 'updated_at'))
         if client_status == 'approved':
             quote.ENQUIRY.status = 'awarded'
-        elif client_status in ('under_review', 'rejected') and quote.ENQUIRY.status != 'closed':
-            quote.ENQUIRY.status = 'submitted' if client_status == 'under_review' else 'quoted'
+        elif client_status in ('under_review', 'under_revision', 'rejected') and quote.ENQUIRY.status != 'closed':
+            quote.ENQUIRY.status = 'submitted' if client_status in ('under_review', 'under_revision') else 'quoted'
         quote.ENQUIRY.save(update_fields=('status', 'updated_at'))
         publish_client_response(
             quote, request.workflow_account, client_status, client_remarks,

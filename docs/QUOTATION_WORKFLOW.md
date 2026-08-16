@@ -25,13 +25,14 @@
 - New quotation messages create per-user alerts and numeric unread badges in the enquiry and quotation lists. Opening that quotation's discussion marks only its alerts as read.
 - Marketing Manager, Accountant, revision-request, costing-approval, and client-submittal actions are performed from the saved quotation view after reviewing the generated document; they are not exposed on the enquiry view. Client submission opens a mail compose dialog (recipient, optional CC, subject and editable body); the server attaches the generated PDF and reports delivery success/failure. Mobile uses server defaults and does not expose the web compose fields.
 - Every client response (`Under Review`, `Approved/Awarded`, or `Rejected`) is written to the quotation discussion and generates notification entries for the authorised workflow participants.
+- If Marketing Manager records a client revision request, the quotation enters `Under Revision`. The estimator receives the discussion/notification event and starts **Create Revision** from the quotation view; the enquiry history is not used as the revision entry point.
 
 ## Enquiry history and quotation register
 
 - Enquiries remain in the Enquiry History after a quotation is created; creating a quotation does not replace, hide, or convert the enquiry record.
 - The enquiry list keeps the original scope/remarks entered when the enquiry was created. Its list status is `Pending` until an estimator submits a quotation for approval and `Quotation Prepared` afterwards; saving a draft alone does not change the enquiry status.
 - Quotations and revisions appear independently in the Quotation Register, including internal approval and client-submittal details.
-- After submittal, authorised Admin, Marketing Manager, and responsible Marketing Executive users can record the client's status as `Under Review`, `Approved`, or `Rejected` and maintain client remarks. These remarks do not overwrite the enquiry scope or the quotation document remarks.
+- After submittal, authorised Admin, Marketing Manager, and responsible Marketing Executive users can record the client's status as `Under Review`, `Under Revision`, `Approved`, or `Rejected` and maintain client remarks. These remarks do not overwrite the enquiry scope or the quotation document remarks.
 - Client-response tracking is stored inside the quotation's existing structured details payload, so this enhancement requires no database schema migration.
 
 ## Visibility and final-state rules

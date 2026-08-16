@@ -153,21 +153,27 @@ def build_quotation_excel(quote):
     section_item_rows = []
     section_total_rows = []
     all_item_rows = []
+    lump_sum_ranges = {}
 
     def sum_formula(row_numbers):
         return '=' + '+'.join(f'G{number}' for number in row_numbers) if row_numbers else '=0'
 
-    for entry in rows:
+    for entry_index, entry in enumerate(rows):
         kind = entry['kind']
         if kind in ('section', 'subheading', 'note'):
             line = entry['line']
+            group_start = entry.get('lump_sum_group_start')
+            has_group_children = bool(group_start and any(
+                later.get('lump_sum_group') == group_start
+                for later in rows[entry_index + 1:]
+            ))
             sheet.cell(
                 current_row, 2,
                 line.item_code if kind in ('section', 'subheading') else '',
             )
             sheet.cell(current_row, 3, plain_rich_text(line.description))
             heading_end_column = (
-                6 if kind in ('section', 'subheading') and line.amount else 7
+                6 if kind in ('section', 'subheading') else 7
             )
             sheet.merge_cells(
                 start_row=current_row, start_column=3,
@@ -178,17 +184,24 @@ def build_quotation_excel(quote):
                 horizontal='center' if kind == 'section' else 'left',
                 vertical='center', wrap_text=True,
             )
-            if kind in ('section', 'subheading') and line.amount:
+            if kind in ('section', 'subheading') and line.amount and not has_group_children:
                 sheet.cell(current_row, 7, float(line.amount))
                 sheet.cell(current_row, 7).number_format = '#,##0.00'
                 sheet.cell(current_row, 7).font = money_font
                 section_item_rows.append(current_row)
         elif kind == 'item':
             line = entry['line']
-            values = (line.item_code, plain_rich_text(line.description), line.unit, float(line.quantity), float(line.unit_rate))
+            values = (
+                line.item_code, plain_rich_text(line.description), line.unit,
+                float(line.quantity) if line.quantity else None,
+                float(line.unit_rate) if line.unit_rate else None,
+            )
             for column, value in enumerate(values, start=2):
                 sheet.cell(current_row, column, value)
-            sheet.cell(current_row, 7, f'=E{current_row}*F{current_row}')
+            sheet.cell(
+                current_row, 7,
+                f'=E{current_row}*F{current_row}' if line.quantity and line.unit_rate else None,
+            )
             for column in (5, 6, 7):
                 sheet.cell(current_row, column).number_format = '#,##0.00'
             sheet.cell(current_row, 6).font = money_font
@@ -198,6 +211,10 @@ def build_quotation_excel(quote):
             )
             section_item_rows.append(current_row)
             all_item_rows.append(current_row)
+            if entry.get('lump_sum_group'):
+                group_id, group_total = entry['lump_sum_group']
+                group = lump_sum_ranges.setdefault(group_id, {'start': current_row, 'end': current_row, 'total': group_total})
+                group['end'] = current_row
         else:
             sheet.cell(current_row, 2, entry.get('code', ''))
             sheet.cell(current_row, 3, entry['label'])
@@ -222,6 +239,19 @@ def build_quotation_excel(quote):
         else:
             sheet.row_dimensions[current_row].height = 22
         current_row += 1
+
+    for group in lump_sum_ranges.values():
+        for column in (6, 7):
+            if group['end'] > group['start']:
+                sheet.merge_cells(
+                    start_row=group['start'], start_column=column,
+                    end_row=group['end'], end_column=column,
+                )
+            cell = sheet.cell(group['start'], column)
+            cell.value = float(group['total'])
+            cell.number_format = '#,##0.00'
+            cell.font = money_font
+            cell.alignment = Alignment(horizontal='center', vertical='center')
 
     sheet.merge_cells(start_row=current_row, start_column=2, end_row=current_row, end_column=6)
     sheet.cell(
@@ -359,12 +389,18 @@ def build_quotation_pdf(quote):
     ]]
     row_spans = []
     bold_rows = []
+    lump_sum_row_ranges = {}
     quotation_entries = presentation_rows(_quotation_lines(quote))
-    for entry in quotation_entries:
+    for entry_index, entry in enumerate(quotation_entries):
         kind = entry['kind']
         row_index = len(table_data)
         if kind in ('section', 'subheading', 'note'):
             line = entry['line']
+            group_start = entry.get('lump_sum_group_start')
+            has_group_children = bool(group_start and any(
+                later.get('lump_sum_group') == group_start
+                for later in quotation_entries[entry_index + 1:]
+            ))
             line_style = (
                 section_heading if kind == 'section'
                 else subheading_heading if kind == 'subheading'
@@ -373,11 +409,11 @@ def build_quotation_pdf(quote):
             table_data.append([
                 line.item_code if kind in ('section', 'subheading') else '',
                 Paragraph(rich_text_to_html(line.description), line_style), '', '', '',
-                Paragraph(f'{line.amount:,.2f}', money) if line.amount else '',
+                Paragraph(f'{line.amount:,.2f}', money) if line.amount and not has_group_children else '',
             ])
             row_spans.append((
                 row_index, 1,
-                4 if kind in ('section', 'subheading') and line.amount else 5,
+                4 if kind in ('section', 'subheading') else 5,
             ))
             if kind != 'note':
                 bold_rows.append(row_index)
@@ -393,9 +429,16 @@ def build_quotation_pdf(quote):
             line = entry['line']
             table_data.append([
                 line.item_code, Paragraph(rich_text_to_html(line.description), normal), line.unit,
-                f'{line.quantity:,.2f}', Paragraph(f'{line.unit_rate:,.2f}', money),
-                Paragraph(f'{line.amount:,.2f}', money),
+                f'{line.quantity:,.2f}' if line.quantity else '',
+                Paragraph(f'{line.unit_rate:,.2f}', money) if line.unit_rate else '',
+                Paragraph(f'{line.amount:,.2f}', money) if line.amount else '',
             ])
+            if entry.get('lump_sum_group'):
+                group_id, group_total = entry['lump_sum_group']
+                group = lump_sum_row_ranges.setdefault(
+                    group_id, {'start': row_index, 'end': row_index, 'total': group_total},
+                )
+                group['end'] = row_index
     grand_row = len(table_data)
     table_data.append([
         Paragraph(
@@ -425,6 +468,12 @@ def build_quotation_pdf(quote):
     ]
     for row_index, start_column, end_column in row_spans:
         table_style.append(('SPAN', (start_column, row_index), (end_column, row_index)))
+    for group in lump_sum_row_ranges.values():
+        if group['end'] > group['start']:
+            for column in (4, 5):
+                table_style.append(('SPAN', (column, group['start']), (column, group['end'])))
+        table_data[group['start']][4] = Paragraph(f'{group["total"]:,.2f}', money)
+        table_data[group['start']][5] = Paragraph(f'{group["total"]:,.2f}', money)
     for row_index in bold_rows:
         table_style.append(('FONTNAME', (0, row_index), (-1, row_index), 'Helvetica-Bold'))
     for row_index, entry in enumerate(quotation_entries, start=1):

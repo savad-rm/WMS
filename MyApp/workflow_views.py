@@ -460,6 +460,28 @@ def dashboard(request):
     elif role == 'Estimator':
         records = records.filter(assigned_to=request.workflow_staff)
     accessible_records = records
+    dashboard_view = request.GET.get('view', '').strip()
+    dashboard_views = {
+        'open': {
+            'label': 'Open enquiries awaiting assignment',
+            'target': 'enquiries',
+        },
+        'assigned': {
+            'label': 'Enquiries assigned to estimators',
+            'target': 'enquiries',
+        },
+        'awaiting_approval': {
+            'label': 'Quotations awaiting internal approval',
+            'target': 'quotations',
+        },
+        'awarded': {
+            'label': 'Awarded quotations',
+            'target': 'quotations',
+        },
+    }
+    if dashboard_view not in dashboard_views:
+        dashboard_view = ''
+
     enquiry_query = request.GET.get('enquiry_q', '').strip()
     if enquiry_query:
         records = records.filter(
@@ -469,6 +491,10 @@ def dashboard(request):
             | Q(client_phone__icontains=enquiry_query)
             | Q(assigned_to__name__icontains=enquiry_query)
         )
+    if dashboard_view == 'open':
+        records = records.filter(status='open')
+    elif dashboard_view == 'assigned':
+        records = records.filter(status='assigned')
     enquiry_sort = request.GET.get('enquiry_sort', '-date')
     enquiry_ordering = {
         'date': ('created_at',), '-date': ('-created_at',),
@@ -492,6 +518,12 @@ def dashboard(request):
             | Q(ENQUIRY__created_by__username__icontains=quotation_query)
             | Q(created_by__name__icontains=quotation_query)
         )
+    if dashboard_view == 'awaiting_approval':
+        quote_records = quote_records.filter(
+            status__in=('manager_review', 'accountant_review'),
+        )
+    elif dashboard_view == 'awarded':
+        quote_records = quote_records.filter(status='accepted')
     quotation_sort = request.GET.get('quotation_sort', '-date')
     quotation_ordering = {
         'date': ('issue_date', 'created_at'), '-date': ('-issue_date', '-created_at'),
@@ -548,6 +580,9 @@ def dashboard(request):
         'quotation_query': quotation_query,
         'enquiry_sort': enquiry_sort,
         'quotation_sort': quotation_sort,
+        'dashboard_view': dashboard_view,
+        'dashboard_view_label': dashboard_views.get(dashboard_view, {}).get('label', ''),
+        'dashboard_view_target': dashboard_views.get(dashboard_view, {}).get('target', ''),
         'client_response_statuses': CLIENT_RESPONSE_STATUSES,
         'summary': {
             'open': accessible_records.filter(status='open').count(),

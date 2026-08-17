@@ -8,6 +8,7 @@ from decimal import Decimal
 from io import BytesIO
 from datetime import timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 from django.db import IntegrityError, transaction
 from django.contrib.auth.hashers import check_password, make_password
@@ -26,7 +27,8 @@ from .models import (
 )
 from .deadline_notifications import ensure_quotation_deadline_notifications
 from .quotation_document import (
-    default_terms, pack_document, presentation_rows, quotation_tracking, unpack_document,
+    SECTION_UNIT, default_terms, pack_document, presentation_rows, quotation_tracking,
+    unpack_document,
 )
 from .quotation_exports import build_quotation_excel, build_quotation_pdf, quotation_amount_words
 
@@ -313,6 +315,58 @@ class WorkflowTests(TestCase):
             link=reverse('workflow_quotation_discussion', args=(quote.pk,)),
             read_at__isnull=True,
         ).exists())
+
+    def test_dashboard_metric_cards_open_the_matching_filtered_register(self):
+        open_record = enquiry.objects.create(
+            title='Open reception fit-out', client_name='Open Client',
+            created_by=self.executive[0], status='open',
+        )
+        assigned_record = enquiry.objects.create(
+            title='Assigned joinery fit-out', client_name='Assigned Client',
+            created_by=self.executive[0], assigned_to=self.estimator[1], status='assigned',
+        )
+        approval_record = enquiry.objects.create(
+            title='Approval electrical fit-out', client_name='Approval Client',
+            created_by=self.executive[0], status='submitted',
+        )
+        awarded_record = enquiry.objects.create(
+            title='Awarded civil fit-out', client_name='Awarded Client',
+            created_by=self.executive[0], status='awarded',
+        )
+        quotation.objects.create(
+            ENQUIRY=approval_record, version=1, quotation_number='QTN/APPROVAL/001',
+            amount=Decimal('1000.00'), details=pack_document(default_terms()),
+            status='manager_review', created_by=self.estimator[1],
+        )
+        quotation.objects.create(
+            ENQUIRY=awarded_record, version=1, quotation_number='QTN/AWARDED/001',
+            amount=Decimal('2000.00'), details=pack_document(default_terms()),
+            status='accepted', created_by=self.estimator[1],
+        )
+        self.sign_in_as(*self.manager)
+
+        dashboard = self.client.get(reverse('workflow_dashboard'))
+        self.assertContains(dashboard, '?view=open#enquiry-history')
+        self.assertContains(dashboard, '?view=assigned#enquiry-history')
+        self.assertContains(dashboard, '?view=awaiting_approval#quotation-register')
+        self.assertContains(dashboard, '?view=awarded#quotation-register')
+
+        open_view = self.client.get(reverse('workflow_dashboard'), {'view': 'open'})
+        self.assertContains(open_view, 'Showing: Open enquiries awaiting assignment')
+        self.assertContains(open_view, open_record.title)
+        self.assertNotContains(open_view, assigned_record.title)
+
+        approval_view = self.client.get(
+            reverse('workflow_dashboard'), {'view': 'awaiting_approval'},
+        )
+        self.assertContains(approval_view, 'Showing: Quotations awaiting internal approval')
+        self.assertContains(approval_view, 'QTN/APPROVAL/001')
+        self.assertNotContains(approval_view, 'QTN/AWARDED/001')
+
+        awarded_view = self.client.get(reverse('workflow_dashboard'), {'view': 'awarded'})
+        self.assertContains(awarded_view, 'Showing: Awarded quotations')
+        self.assertContains(awarded_view, 'QTN/AWARDED/001')
+        self.assertNotContains(awarded_view, 'QTN/APPROVAL/001')
 
     def test_enquiry_history_and_quotation_register_remain_separate(self):
         record = enquiry.objects.create(
@@ -707,6 +761,43 @@ class WorkflowTests(TestCase):
         # The structural row plus all three child rows keep a genuinely blank
         # rate in the editor instead of being normalised back to 0.00.
         self.assertContains(edit_page, 'value="" class="form-control form-control-sm line-rate"', count=4)
+
+    def test_lump_sum_pdf_paginates_without_forcing_the_group_to_a_new_page(self):
+        lines = [
+            SimpleNamespace(
+                item_code='I', description='CIVIL WORKS', unit=SECTION_UNIT,
+                quantity=Decimal('0'), unit_rate=Decimal('0'), amount=Decimal('164170.00'),
+            ),
+        ]
+        lines.extend(
+            SimpleNamespace(
+                item_code=str(index),
+                description=(
+                    'Supply and installation of detailed construction work including all '
+                    'accessories, fixings and completion requirements for the approved '
+                    'project specification.'
+                ),
+                unit='LS', quantity=Decimal('1'), unit_rate=Decimal('0'), amount=Decimal('0'),
+            )
+            for index in range(1, 25)
+        )
+        quote = SimpleNamespace(
+            lines=lines,
+            ENQUIRY=SimpleNamespace(
+                client_name='Pagination Client', client_phone='', client_email='',
+            ),
+            details='', validity_days=30, display_number='QTN/PAGINATION/001',
+            issue_date=timezone.localdate(), client_address='Doha - State of Qatar',
+            subject='Pagination verification', introduction='', amount=Decimal('164170.00'),
+            closing_text='', signatory_name='Shuhaib',
+            signatory_title='Authorized Signatory', signatory_phone='',
+        )
+
+        pdf = build_quotation_pdf(quote)
+        self.assertTrue(pdf.getvalue().startswith(b'%PDF'))
+        # Before pagination was fragment-aware, ReportLab raised LayoutError
+        # here because its vertical rate/amount span could not cross a page.
+        self.assertGreater(len(pdf.getvalue()), 100_000)
 
     def test_heading_total_date_address_and_enquiry_discussion(self):
         record = enquiry.objects.create(

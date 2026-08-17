@@ -15,7 +15,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import (
-    Image, KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
+    Flowable, Image, KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
 )
 
 from .quotation_document import (
@@ -30,6 +30,45 @@ DETAILED_EXCEL_TEMPLATE = ASSET_DIR / 'quotation_sample.xlsx'
 LETTERHEAD_IMAGE = ASSET_DIR / 'exalter_letterhead.png'
 SIGNATURE_IMAGE = ASSET_DIR / 'exalter_signature.png'
 STAMP_IMAGE = ASSET_DIR / 'exalter_stamp.png'
+
+
+class _PaginatedQuotationTable(Flowable):
+    """Split quotation rows at A4 boundaries without splitting a row.
+
+    ReportLab cannot split a table across a page when it contains a vertical
+    cell span.  Quotations use those spans for lump-sum rate and amount cells,
+    so this flowable creates a fresh, repeated-header table for each page
+    fragment.  A lump-sum span is rebuilt inside each fragment rather than
+    forcing its complete group onto the next page.
+    """
+
+    def __init__(self, build_fragment, row_count, start=0):
+        super().__init__()
+        self.build_fragment = build_fragment
+        self.row_count = row_count
+        self.start = start
+
+    def wrap(self, available_width, available_height):
+        # Ask Platypus to call split(), where the current page's actual usable
+        # height is available and a correctly sized fragment can be produced.
+        return available_width, available_height + 1
+
+    def split(self, available_width, available_height):
+        for end in range(self.row_count, self.start, -1):
+            fragment = self.build_fragment(self.start, end)
+            _, height = fragment.wrap(available_width, available_height)
+            if height <= available_height:
+                flowables = [fragment]
+                if end < self.row_count:
+                    flowables.append(
+                        _PaginatedQuotationTable(
+                            self.build_fragment, self.row_count, start=end,
+                        )
+                    )
+                return flowables
+        # There is no room for even one complete row in the current frame;
+        # Platypus will move this continuation to the next page.
+        return []
 
 def quotation_amount_words(value):
     ones = (
@@ -445,16 +484,8 @@ def build_quotation_pdf(quote):
     for group in lump_sum_row_ranges.values():
         table_data[group['start']][4] = Paragraph(f'{group["total"]:,.2f}', money)
         table_data[group['start']][5] = Paragraph(f'{group["total"]:,.2f}', money)
-    line_table = Table(
-        table_data,
-        # Retain a wide, readable description column while reserving enough
-        # room for six-figure rates and amounts without breaking digits.
-        colWidths=[12 * mm, 66 * mm, 14 * mm, 12 * mm, 23 * mm, 27 * mm],
-        repeatRows=1,
-        splitByRow=1,
-        splitInRow=0,
-    )
-    table_style = [
+    column_widths = [12 * mm, 66 * mm, 14 * mm, 12 * mm, 23 * mm, 27 * mm]
+    base_table_style = [
         ('GRID', (0, 0), (-1, -1), .55, colors.black),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('ALIGN', (0, 0), (0, -1), 'CENTER'),
@@ -464,32 +495,73 @@ def build_quotation_pdf(quote):
         ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3),
         ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
     ]
-    for row_index, start_column, end_column in row_spans:
-        table_style.append(('SPAN', (start_column, row_index), (end_column, row_index)))
-    for group in lump_sum_row_ranges.values():
-        if group['end'] > group['start']:
-            for column in (4, 5):
-                table_style.append(('SPAN', (column, group['start']), (column, group['end'])))
-            # A vertical span cannot be split cleanly by ReportLab. Keep a
-            # normal-size lump-sum group on one page instead of cutting its
-            # item rows and the merged price cell across pages.
-            table_style.append(('NOSPLIT', (0, group['start']), (5, group['end'])))
-    for row_index in bold_rows:
-        table_style.append(('FONTNAME', (0, row_index), (-1, row_index), 'Helvetica-Bold'))
-    for row_index, entry in enumerate(quotation_entries, start=1):
-        if entry['kind'] == 'section':
-            table_style.extend([
-                ('ALIGN', (1, row_index), (4, row_index), 'CENTER'),
-                ('TOPPADDING', (0, row_index), (-1, row_index), 2),
-                ('BOTTOMPADDING', (0, row_index), (-1, row_index), 2),
-            ])
-        elif entry['kind'] == 'subheading':
-            table_style.extend([
-                ('ALIGN', (1, row_index), (4, row_index), 'LEFT'),
-                ('TOPPADDING', (0, row_index), (-1, row_index), 1),
-                ('BOTTOMPADDING', (0, row_index), (-1, row_index), 1),
-            ])
-    line_table.setStyle(TableStyle(table_style))
+
+    def build_line_fragment(start_index, end_index):
+        """Build one page-safe table fragment with its own header and spans."""
+        fragment_data = [list(table_data[0])]
+        fragment_data.extend(list(row) for row in table_data[start_index + 1:end_index + 1])
+        fragment_style = list(base_table_style)
+        first_row = start_index + 1
+        last_row = end_index
+
+        for row_index, start_column, end_column in row_spans:
+            if first_row <= row_index <= last_row:
+                local_row = row_index - start_index
+                fragment_style.append(
+                    ('SPAN', (start_column, local_row), (end_column, local_row))
+                )
+        for row_index in bold_rows:
+            if first_row <= row_index <= last_row:
+                local_row = row_index - start_index
+                fragment_style.append(
+                    ('FONTNAME', (0, local_row), (-1, local_row), 'Helvetica-Bold')
+                )
+        for row_index, entry in enumerate(quotation_entries, start=1):
+            if not first_row <= row_index <= last_row:
+                continue
+            local_row = row_index - start_index
+            if entry['kind'] == 'section':
+                fragment_style.extend([
+                    ('ALIGN', (1, local_row), (4, local_row), 'CENTER'),
+                    ('TOPPADDING', (0, local_row), (-1, local_row), 2),
+                    ('BOTTOMPADDING', (0, local_row), (-1, local_row), 2),
+                ])
+            elif entry['kind'] == 'subheading':
+                fragment_style.extend([
+                    ('ALIGN', (1, local_row), (4, local_row), 'LEFT'),
+                    ('TOPPADDING', (0, local_row), (-1, local_row), 1),
+                    ('BOTTOMPADDING', (0, local_row), (-1, local_row), 1),
+                ])
+
+        for group in lump_sum_row_ranges.values():
+            group_start = group['start']
+            group_end = group['end']
+            if group_end < first_row or group_start > last_row:
+                continue
+            local_start = max(group_start, first_row) - start_index
+            local_end = min(group_end, last_row) - start_index
+            if group_end > group_start:
+                # A cross-page lump sum is visually merged within each page
+                # fragment.  The amount is printed only in the final fragment
+                # so it is never duplicated in the quotation total.
+                for column in (4, 5):
+                    fragment_style.append(
+                        ('SPAN', (column, local_start), (column, local_end))
+                    )
+                    fragment_data[local_start][column] = (
+                        Paragraph(f'{group["total"]:,.2f}', money)
+                        if group_end <= last_row else ''
+                    )
+
+        fragment = Table(
+            fragment_data, colWidths=column_widths, splitByRow=1, splitInRow=0,
+        )
+        fragment.setStyle(TableStyle(fragment_style))
+        return fragment
+
+    line_table = _PaginatedQuotationTable(
+        build_line_fragment, len(table_data) - 1,
+    )
     grand_total_style = ParagraphStyle(
         'QuotationGrandTotal', parent=normal, fontName='Helvetica-Bold',
         fontSize=10, leading=11, alignment=TA_CENTER,

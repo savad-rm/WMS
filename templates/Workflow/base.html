@@ -55,12 +55,12 @@
       <i class="bi bi-list toggle-sidebar-btn" aria-label="Toggle navigation"></i>
     </div>
 
-    <div class="search-bar">
+    {% block header_search %}<div class="search-bar">
       <form class="search-form d-flex align-items-center" method="get" action="{% url 'workflow_dashboard' %}">
         <input type="text" name="enquiry_q" value="{{ enquiry_query|default:'' }}" placeholder="Search enquiries" title="Search enquiry, client or estimator">
         <button type="submit" title="Search"><i class="bi bi-search"></i></button>
       </form>
-    </div>
+    </div>{% endblock %}
 
     <nav class="header-nav ms-auto">
       <ul class="d-flex align-items-center">

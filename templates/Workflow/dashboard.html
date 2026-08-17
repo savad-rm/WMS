@@ -1,4 +1,5 @@
 {% extends 'Workflow/base.html' %}
+{% block header_search %}{% endblock %}
 {% block body %}
 <div class="pagetitle">
   <h1>Dashboard</h1>
@@ -13,7 +14,7 @@
 <section class="section dashboard">
   <div class="row">
     <div class="col-lg-3 col-md-6">
-      <div class="card info-card sales-card">
+      <a class="card info-card sales-card text-decoration-none" href="?view=open#enquiry-history" aria-label="View open enquiries awaiting assignment">
         <div class="card-body">
           <h5 class="card-title">Open Enquiries</h5>
           <div class="d-flex align-items-center">
@@ -21,10 +22,10 @@
             <div class="ps-3"><h6>{{ summary.open }}</h6><span class="text-muted small pt-2">Awaiting assignment</span></div>
           </div>
         </div>
-      </div>
+      </a>
     </div>
     <div class="col-lg-3 col-md-6">
-      <div class="card info-card revenue-card">
+      <a class="card info-card revenue-card text-decoration-none" href="?view=assigned#enquiry-history" aria-label="View enquiries assigned to estimators">
         <div class="card-body">
           <h5 class="card-title">Assigned</h5>
           <div class="d-flex align-items-center">
@@ -32,10 +33,10 @@
             <div class="ps-3"><h6>{{ summary.assigned }}</h6><span class="text-muted small pt-2">With estimators</span></div>
           </div>
         </div>
-      </div>
+      </a>
     </div>
     <div class="col-lg-3 col-md-6">
-      <div class="card info-card customers-card">
+      <a class="card info-card customers-card text-decoration-none" href="?view=awaiting_approval#quotation-register" aria-label="View quotations awaiting internal approval">
         <div class="card-body">
           <h5 class="card-title">Awaiting Approval</h5>
           <div class="d-flex align-items-center">
@@ -43,10 +44,10 @@
             <div class="ps-3"><h6>{{ summary.awaiting_approval }}</h6><span class="text-muted small pt-2">Quotation reviews</span></div>
           </div>
         </div>
-      </div>
+      </a>
     </div>
     <div class="col-lg-3 col-md-6">
-      <div class="card info-card revenue-card">
+      <a class="card info-card revenue-card text-decoration-none" href="?view=awarded#quotation-register" aria-label="View awarded quotations">
         <div class="card-body">
           <h5 class="card-title">Awarded</h5>
           <div class="d-flex align-items-center">
@@ -54,13 +55,19 @@
             <div class="ps-3"><h6>{{ summary.awarded }}</h6><span class="text-muted small pt-2">Accepted by clients</span></div>
           </div>
         </div>
-      </div>
+      </a>
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" id="enquiry-history">
     <div class="card-body">
       <h5 class="card-title">Enquiry History</h5>
+      {% if dashboard_view_target == 'enquiries' %}
+      <div class="alert alert-info d-flex flex-wrap justify-content-between align-items-center gap-2 py-2" role="status">
+        <span>Showing: {{ dashboard_view_label }}</span>
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'workflow_dashboard' %}#enquiry-history">Clear filter</a>
+      </div>
+      {% endif %}
       <div class="dataTable-top d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <div>
           {% if can_add %}
@@ -71,6 +78,7 @@
           <input class="form-control" type="search" name="enquiry_q" value="{{ enquiry_query }}" placeholder="Search enquiries" aria-label="Search enquiries">
           <input type="hidden" name="quotation_q" value="{{ quotation_query }}">
           <input type="hidden" name="quotation_sort" value="{{ quotation_sort }}">
+          {% if dashboard_view %}<input type="hidden" name="view" value="{{ dashboard_view }}">{% endif %}
           <select class="form-select" name="enquiry_sort" aria-label="Sort enquiries">
             <option value="-date" {% if enquiry_sort == '-date' %}selected{% endif %}>Newest first</option>
             <option value="date" {% if enquiry_sort == 'date' %}selected{% endif %}>Oldest first</option>
@@ -107,15 +115,22 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" id="quotation-register">
     <div class="card-body">
       <h5 class="card-title">Quotation Register</h5>
+      {% if dashboard_view_target == 'quotations' %}
+      <div class="alert alert-info d-flex flex-wrap justify-content-between align-items-center gap-2 py-2" role="status">
+        <span>Showing: {{ dashboard_view_label }}</span>
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'workflow_dashboard' %}#quotation-register">Clear filter</a>
+      </div>
+      {% endif %}
       <div class="dataTable-top d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <p class="text-muted small mb-0">Open Discussion to review internal messages and client responses. The badge shows unread activity.</p>
         <form class="workflow-filter-form" method="get">
           <input class="form-control" type="search" name="quotation_q" value="{{ quotation_query }}" placeholder="Search quotations" aria-label="Search quotations">
           <input type="hidden" name="enquiry_q" value="{{ enquiry_query }}">
           <input type="hidden" name="enquiry_sort" value="{{ enquiry_sort }}">
+          {% if dashboard_view %}<input type="hidden" name="view" value="{{ dashboard_view }}">{% endif %}
           <select class="form-select" name="quotation_sort" aria-label="Sort quotations">
             <option value="-date" {% if quotation_sort == '-date' %}selected{% endif %}>Newest first</option>
             <option value="date" {% if quotation_sort == 'date' %}selected{% endif %}>Oldest first</option>
@@ -128,7 +143,7 @@
         </form>
       </div>
       <div class="table-responsive">
-        <table class="table table-hover table-sm align-middle workflow-table" data-wms-table-enhanced="true">
+        <table class="table table-hover table-sm align-middle workflow-table">
           <thead>
             <tr><th colspan="6" class="text-center">Internal</th><th colspan="2" class="text-center">Submittal Details</th><th rowspan="2">Action</th></tr>
             <tr><th>Date</th><th>QTN. No.</th><th>Client Name</th><th>Marketing Executive</th><th>1st Approval</th><th>Final Approval</th><th>Submitted Date</th><th>Client Status</th></tr>

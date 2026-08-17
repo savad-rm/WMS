@@ -3,7 +3,7 @@
 
   function enhanceTables() {
     if (!window.simpleDatatables || !window.simpleDatatables.DataTable) return;
-    document.querySelectorAll('table.table-striped, table.workflow-table').forEach(function (table) {
+    document.querySelectorAll('table[data-wms-table="client"]').forEach(function (table) {
       if (table.dataset.wmsTableEnhanced || table.classList.contains('datatable') || !table.tHead) return;
       if (!table.tBodies.length || table.tBodies[0].rows.length < 2) return;
       table.dataset.wmsTableEnhanced = 'true';

@@ -135,12 +135,6 @@
           </thead>
           <tbody>
             {% for quote in quotations %}
-            {% if quote.restricted_for_marketing %}
-            <tr class="table-light">
-              <td colspan="8"><span class="text-muted">Quotation pending internal approval</span></td>
-              <td><span class="badge bg-warning text-dark">{{ quote.get_status_display }}</span></td>
-            </tr>
-            {% else %}
             <tr>
               <td class="text-nowrap">{{ quote.issue_date|date:'d M Y' }}</td>
               <td class="text-nowrap"><strong>{{ quote.display_number }}</strong></td>
@@ -150,9 +144,8 @@
               <td>{% if quote.accountant_approved_at %}<span class="badge bg-success">Approved</span>{% else %}<span class="badge bg-warning text-dark">Pending</span>{% endif %}</td>
               <td class="text-nowrap">{% if quote.status == 'submitted' or quote.status == 'accepted' or quote.status == 'rejected' or quote.status == 'under_revision' %}{{ quote.submitted_at_display|default:quote.updated_at|date:'d M Y' }}{% else %}-{% endif %}</td>
               <td>{% if quote.status == 'submitted' or quote.status == 'accepted' or quote.status == 'rejected' or quote.status == 'under_revision' %}<span class="badge {% if quote.client_status == 'approved' %}bg-success{% elif quote.client_status == 'rejected' %}bg-danger{% elif quote.client_status == 'under_revision' %}bg-info text-dark{% else %}bg-warning text-dark{% endif %}">{{ quote.client_status_label }}</span>{% else %}<span class="badge bg-secondary">Not Submitted</span>{% endif %}{% if quote.unread_comment_count %}<span class="badge rounded-pill bg-danger ms-1" title="Unread discussion or client response">{{ quote.unread_comment_count }} new</span>{% endif %}</td>
-              <td><div class="d-flex flex-column gap-1"><a class="btn btn-sm btn-outline-primary text-nowrap" href="{% url 'workflow_view_quotation' quote.id %}">View Quote</a><a class="btn btn-sm btn-outline-secondary text-nowrap position-relative" href="{% url 'workflow_quotation_discussion' quote.id %}"><i class="bi bi-chat-dots"></i> Discussion{% if quote.unread_comment_count %}<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{ quote.unread_comment_count }}</span>{% endif %}</a><a class="btn btn-sm btn-outline-secondary text-nowrap" href="{% url 'workflow_detail' quote.ENQUIRY_id %}">View Enquiry</a></div></td>
+              <td><div class="d-flex flex-column gap-1">{% if quote.restricted_for_marketing %}<button class="btn btn-sm btn-outline-secondary text-nowrap" type="button" disabled title="Available after final internal approval"><i class="bi bi-lock"></i> Awaiting Final Approval</button>{% else %}<a class="btn btn-sm btn-outline-primary text-nowrap" href="{% url 'workflow_view_quotation' quote.id %}">View Quote</a><a class="btn btn-sm btn-outline-secondary text-nowrap position-relative" href="{% url 'workflow_quotation_discussion' quote.id %}"><i class="bi bi-chat-dots"></i> Discussion{% if quote.unread_comment_count %}<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{ quote.unread_comment_count }}</span>{% endif %}</a>{% endif %}<a class="btn btn-sm btn-outline-secondary text-nowrap" href="{% url 'workflow_detail' quote.ENQUIRY_id %}">View Enquiry</a></div></td>
             </tr>
-            {% endif %}
             {% empty %}<tr><td colspan="9" class="text-center text-muted py-4">No quotations are available for your role.</td></tr>{% endfor %}
           </tbody>
         </table>

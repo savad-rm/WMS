@@ -21,19 +21,25 @@ def publish_client_response(quote, author, client_status, remarks=''):
     )
 
 
-def publish_quotation_message(quote, author, value, notification_message=None):
+def publish_quotation_message(quote, author, value, notification_message=None, recipient_ids=None):
+    if recipient_ids is not None:
+        recipient_ids = set(recipient_ids) - {author.pk}
+        recipient_prefix = f'[TO:{",".join(str(value) for value in sorted(recipient_ids))}] '
+    else:
+        recipient_prefix = ''
     item = enquiry_comment.objects.create(
         ENQUIRY=quote.ENQUIRY,
         author=author,
-        comment=f'[QID:{quote.pk}] {value}',
+        comment=f'[QID:{quote.pk}] {recipient_prefix}{value}',
     )
-    recipient_ids = {quote.ENQUIRY.created_by_id}
-    if quote.ENQUIRY.assigned_to_id and quote.ENQUIRY.assigned_to.LOGIN_id:
-        recipient_ids.add(quote.ENQUIRY.assigned_to.LOGIN_id)
-    recipient_ids.update(login.objects.filter(
-        usertype__in=('Marketing Manager', 'Accountant'),
-    ).values_list('id', flat=True))
-    recipient_ids.discard(author.pk)
+    if recipient_ids is None:
+        recipient_ids = {quote.ENQUIRY.created_by_id}
+        if quote.ENQUIRY.assigned_to_id and quote.ENQUIRY.assigned_to.LOGIN_id:
+            recipient_ids.add(quote.ENQUIRY.assigned_to.LOGIN_id)
+        recipient_ids.update(login.objects.filter(
+            usertype__in=('Marketing Manager', 'Accountant'),
+        ).values_list('id', flat=True))
+        recipient_ids.discard(author.pk)
     discussion_url = reverse('workflow_quotation_discussion', args=(quote.pk,))
     workflow_notification.objects.bulk_create([
         workflow_notification(

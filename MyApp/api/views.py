@@ -199,9 +199,12 @@ def _enquiry_payload(record, detailed=False, account=None):
     }
     if account and account.usertype == 'Marketing Executive':
         payload['quotation_statuses'] = [
-            {'id': quote.pk, 'status': quote.status}
+            {
+                'id': quote.pk, 'number': quote.display_number,
+                'issue_date': _iso(quote.issue_date), 'status': quote.status,
+            }
             for quote in record.quotations.all()
-            if quote.status in ('manager_review', 'accountant_review')
+            if quote.status in ('manager_review', 'accountant_review', 'under_revision')
         ]
     if detailed:
         quotations = record.quotations.all()
@@ -737,7 +740,7 @@ class EnquiryActionView(APIView):
                         raise ValidationError({'remarks': ['Explain what the estimator must correct.']})
                     if len(remarks) > 2000:
                         raise ValidationError({'remarks': ['Revision request cannot exceed 2,000 characters.']})
-                    latest.status = 'draft'
+                    latest.status = 'under_revision'
                     latest.manager_approved_by = None
                     latest.manager_approved_at = None
                     latest.accountant_approved_by = None
@@ -746,7 +749,7 @@ class EnquiryActionView(APIView):
                         'status', 'manager_approved_by', 'manager_approved_at',
                         'accountant_approved_by', 'accountant_approved_at', 'updated_at',
                     ))
-                    record.status = 'assigned'
+                    record.status = 'under_revision'
                     record.save(update_fields=('status', 'updated_at'))
                     publish_quotation_message(
                         latest, request.user,

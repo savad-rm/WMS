@@ -303,8 +303,8 @@ class WorkflowTests(TestCase):
         self.assertRedirects(response, reverse('workflow_dashboard'), fetch_redirect_response=False)
         quote.refresh_from_db()
         record.refresh_from_db()
-        self.assertEqual(quote.status, 'draft')
-        self.assertEqual(record.status, 'assigned')
+        self.assertEqual(quote.status, 'under_revision')
+        self.assertEqual(record.status, 'under_revision')
         self.assertTrue(record.comments.filter(
             comment__contains='Marketing Manager requested quotation revision',
         ).exists())
@@ -621,7 +621,10 @@ class WorkflowTests(TestCase):
             self.assertEqual(rendered_rows[-1]['amount'], 250)
             self.assertEqual(self.client.post(
                 reverse('workflow_add_quotation_comment', args=(quote.pk,)),
-                {'comment': 'Please confirm the finish.'},
+                {
+                    'comment': 'Please confirm the finish.',
+                    'recipient_ids': [self.manager[0].pk],
+                },
             ).status_code, 302)
             self.assertTrue(record.comments.filter(comment__contains='Please confirm').exists())
             self.assertTrue(workflow_notification.objects.filter(

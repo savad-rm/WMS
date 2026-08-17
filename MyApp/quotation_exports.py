@@ -447,7 +447,9 @@ def build_quotation_pdf(quote):
         table_data[group['start']][5] = Paragraph(f'{group["total"]:,.2f}', money)
     line_table = Table(
         table_data,
-        colWidths=[14 * mm, 70 * mm, 15 * mm, 14 * mm, 20 * mm, 23 * mm],
+        # Retain a wide, readable description column while reserving enough
+        # room for six-figure rates and amounts without breaking digits.
+        colWidths=[12 * mm, 66 * mm, 14 * mm, 12 * mm, 23 * mm, 27 * mm],
         repeatRows=1,
         splitByRow=1,
         splitInRow=0,
@@ -468,6 +470,10 @@ def build_quotation_pdf(quote):
         if group['end'] > group['start']:
             for column in (4, 5):
                 table_style.append(('SPAN', (column, group['start']), (column, group['end'])))
+            # A vertical span cannot be split cleanly by ReportLab. Keep a
+            # normal-size lump-sum group on one page instead of cutting its
+            # item rows and the merged price cell across pages.
+            table_style.append(('NOSPLIT', (0, group['start']), (5, group['end'])))
     for row_index in bold_rows:
         table_style.append(('FONTNAME', (0, row_index), (-1, row_index), 'Helvetica-Bold'))
     for row_index, entry in enumerate(quotation_entries, start=1):
@@ -494,7 +500,7 @@ def build_quotation_pdf(quote):
             grand_total_style,
         ),
         '', '', '', '', Paragraph(f'<b>{quote.amount:,.2f}</b>', money),
-    ]], colWidths=[14 * mm, 70 * mm, 15 * mm, 14 * mm, 20 * mm, 23 * mm])
+    ]], colWidths=[12 * mm, 66 * mm, 14 * mm, 12 * mm, 23 * mm, 27 * mm])
     grand_total_table.setStyle(TableStyle([
         ('GRID', (0, 0), (-1, -1), .55, colors.black),
         ('SPAN', (0, 0), (4, 0)),

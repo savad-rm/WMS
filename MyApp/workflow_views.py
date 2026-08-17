@@ -141,13 +141,20 @@ def _can_view_quotation(request, quote):
     if quote.status != 'draft':
         if (
             _workflow_role(request.workflow_account.usertype) == 'Marketing Executive'
-            and quote.status in ('manager_review', 'accountant_review')
+            and _is_marketing_restricted_quotation(quote)
         ):
             return False
         return True
     return (
         _workflow_role(request.workflow_account.usertype) == 'Estimator'
         and quote.created_by_id == getattr(request.workflow_staff, 'id', None)
+    )
+
+
+def _is_marketing_restricted_quotation(quote):
+    """Marketing can track internal work, but cannot open it before final approval."""
+    return quote.status in ('manager_review', 'accountant_review') or (
+        quote.status == 'under_revision' and not quote.accountant_approved_at
     )
 
 
@@ -165,7 +172,7 @@ def _quotation_comment_prefix(quote):
     return f'[QID:{quote.pk}] '
 
 
-def _quotation_comment_threads(quote):
+def _quotation_comment_threads(quote, viewer=None):
     prefixes = (_quotation_comment_prefix(quote), f'[{quote.display_number}] ')
     comments = list(quote.ENQUIRY.comments.filter(
         Q(comment__startswith=prefixes[0]) | Q(comment__startswith=prefixes[1]),
@@ -179,9 +186,20 @@ def _quotation_comment_threads(quote):
                 value = value[len(prefix):]
                 break
         reply_match = re.match(r'^\[REPLY:(\d+)\]\s*(.*)$', value, re.DOTALL)
-        item.display_comment = reply_match.group(2) if reply_match else value
+        value = reply_match.group(2) if reply_match else value
+        recipient_match = re.match(r'^\[TO:([0-9,]+)\]\s*(.*)$', value, re.DOTALL)
+        item.recipient_ids = {
+            int(value) for value in recipient_match.group(1).split(',') if value.isdigit()
+        } if recipient_match else set()
+        item.display_comment = recipient_match.group(2) if recipient_match else value
         item.is_client_response = item.display_comment.startswith('Client response updated to ')
         item.replies = []
+        marketing_private = (
+            viewer is not None and viewer.usertype == 'Marketing Executive'
+            and _is_marketing_restricted_quotation(quote)
+        )
+        if marketing_private and item.author_id != viewer.id and viewer.id not in item.recipient_ids:
+            continue
         if reply_match and int(reply_match.group(1)) in by_id:
             by_id[int(reply_match.group(1))].replies.append(item)
         else:
@@ -327,7 +345,6 @@ def _detail_context(request, record, extra=None):
         'visible_quotations': [
             quote for quote in record.quotations.all()
             if quote.status != 'draft'
-            and not (role == 'Marketing Executive' and quote.status in ('manager_review', 'accountant_review'))
             or (role == 'Estimator' and quote.created_by_id == getattr(request.workflow_staff, 'id', None))
         ],
         # This flag now only controls editing an estimator-owned draft. New
@@ -514,8 +531,7 @@ def dashboard(request):
         quote.submitted_at_display = parse_datetime(tracking['submitted_at']) if tracking['submitted_at'] else None
         quote.client_response_editable = quote.status in ('submitted', 'rejected', 'under_revision')
         quote.restricted_for_marketing = (
-            role == 'Marketing Executive'
-            and quote.status in ('manager_review', 'accountant_review')
+            role == 'Marketing Executive' and _is_marketing_restricted_quotation(quote)
         )
         quote.marketing_executive_name = marketing_names.get(
             quote.ENQUIRY.created_by_id, quote.ENQUIRY.created_by.username,
@@ -1318,7 +1334,12 @@ def quotation_discussion(request, quote_id):
             'ENQUIRY', 'ENQUIRY__assigned_to__LOGIN', 'created_by',
         ), pk=quote_id,
     )
-    if not _can_view_quotation(request, quote):
+    restricted_marketing = (
+        request.workflow_account.usertype == 'Marketing Executive'
+        and _is_marketing_restricted_quotation(quote)
+    )
+    mentioned_threads = _quotation_comment_threads(quote, request.workflow_account)
+    if not _can_view_quotation(request, quote) and not (restricted_marketing and mentioned_threads):
         return HttpResponseForbidden('You do not have permission to view this discussion.')
     workflow_notification.objects.filter(
         recipient=request.workflow_account, event='quotation_comment',
@@ -1327,7 +1348,13 @@ def quotation_discussion(request, quote_id):
     return _render(request, 'Workflow/quotation_discussion.html', {
         'quote': quote,
         'enquiry': quote.ENQUIRY,
-        'discussion_threads': _quotation_comment_threads(quote),
+        'discussion_threads': mentioned_threads,
+        'discussion_recipients': [
+            account for account in login.objects.filter(
+                pk__in=_quotation_discussion_recipient_ids(quote),
+            ).order_by('usertype', 'username') if account.pk != request.workflow_account.pk
+        ],
+        'restricted_marketing_discussion': restricted_marketing,
     })
 
 
@@ -1356,24 +1383,45 @@ def add_quotation_comment(request, quote_id):
     if value:
         parent_id = request.POST.get('parent_id', '').strip()
         parent_prefix = ''
+        parent_recipients = set()
         if parent_id:
-            valid_parent_ids = {
-                item.pk for item in quote.ENQUIRY.comments.filter(
+            valid_parents = list(quote.ENQUIRY.comments.filter(
                     Q(comment__startswith=_quotation_comment_prefix(quote))
                     | Q(comment__startswith=f'[{quote.display_number}] ')
-                )
-            }
+                ))
+            valid_parent_ids = {item.pk for item in valid_parents}
             if not parent_id.isdigit() or int(parent_id) not in valid_parent_ids:
                 messages.error(request, 'The message you are replying to is no longer available.')
                 return redirect('workflow_quotation_discussion', quote_id=quote.pk)
             parent_prefix = f'[REPLY:{parent_id}] '
+            parent_comment = next(item for item in valid_parents if item.pk == int(parent_id)).comment
+            inherited_match = re.search(r'\[TO:([0-9,]+)\]', parent_comment)
+            if inherited_match:
+                parent_recipients = {
+                    int(value) for value in inherited_match.group(1).split(',') if value.isdigit()
+                }
+        valid_recipient_ids = _quotation_discussion_recipient_ids(quote) - {request.workflow_account.id}
+        selected_recipient_ids = {
+            int(value) for value in request.POST.getlist('recipient_ids') if value.isdigit()
+        }
+        if not selected_recipient_ids and parent_recipients:
+            selected_recipient_ids = parent_recipients - {request.workflow_account.id}
+        if not selected_recipient_ids:
+            selected_recipient_ids = valid_recipient_ids
+        if not selected_recipient_ids.issubset(valid_recipient_ids):
+            messages.error(request, 'Select only valid quotation discussion recipients.')
+            return redirect('workflow_quotation_discussion', quote_id=quote.pk)
+        if _is_marketing_restricted_quotation(quote) and not request.POST.getlist('recipient_ids') and not parent_recipients:
+            messages.error(request, 'Select at least one recipient for an internal discussion message.')
+            return redirect('workflow_quotation_discussion', quote_id=quote.pk)
+        recipient_prefix = f'[TO:{",".join(str(value) for value in sorted(selected_recipient_ids))}] '
         item = enquiry_comment.objects.create(
             ENQUIRY=quote.ENQUIRY,
             author=request.workflow_account,
-            comment=f'{_quotation_comment_prefix(quote)}{parent_prefix}{value}',
+            comment=f'{_quotation_comment_prefix(quote)}{parent_prefix}{recipient_prefix}{value}',
         )
         discussion_url = _quotation_discussion_url(quote)
-        for recipient_id in _quotation_discussion_recipient_ids(quote) - {request.workflow_account.id}:
+        for recipient_id in selected_recipient_ids:
             workflow_notification.objects.get_or_create(
                 dedupe_key=f'quotation-comment:{item.pk}:{recipient_id}',
                 defaults={
@@ -1451,7 +1499,7 @@ def request_quotation_revision(request, quote_id):
         if len(remarks) > 2000:
             messages.error(request, 'Revision request cannot exceed 2,000 characters.')
             return redirect('workflow_view_quotation', quote_id=quote.pk)
-        quote.status = 'draft'
+        quote.status = 'under_revision'
         quote.manager_approved_by = None
         quote.manager_approved_at = None
         quote.accountant_approved_by = None
@@ -1461,13 +1509,17 @@ def request_quotation_revision(request, quote_id):
             'accountant_approved_by', 'accountant_approved_at', 'updated_at',
         ))
         if quote.ENQUIRY.status not in ('closed', 'awarded'):
-            quote.ENQUIRY.status = 'assigned'
+            quote.ENQUIRY.status = 'under_revision'
             quote.ENQUIRY.save(update_fields=('status', 'updated_at'))
         publish_quotation_message(
             quote, request.workflow_account,
             f'{role} requested quotation revision.\nRevision request: {remarks}',
+            recipient_ids=(
+                _quotation_discussion_recipient_ids(quote)
+                - {quote.ENQUIRY.created_by_id}
+            ),
         )
-    messages.success(request, 'Revision request sent to the estimator. The quotation is editable again.')
+    messages.success(request, 'Revision request sent to the estimator and marked as Under Revision.')
     return redirect('workflow_dashboard')
 
 

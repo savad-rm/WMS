@@ -1526,6 +1526,7 @@ def submit_quotation(request, quote_id):
                 return HttpResponseForbidden('You do not have permission to submit this quotation.')
             recipient = send_quotation_to_client(
                 quote,
+                to=request.POST.get('to', ''),
                 cc=request.POST.get('cc', ''),
                 subject=request.POST.get('subject'),
                 body=request.POST.get('body'),

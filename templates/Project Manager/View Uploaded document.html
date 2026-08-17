@@ -36,6 +36,24 @@
       <td><a href="/WMS/Delete_document/{{ i.id }}/{{ i.PROJECT.id }}" class="btn btn-outline-danger btn-sm">Delete</a></td>
     </tr>
         {% endfor %}
+        {% for i in workflow_document_rows %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ i.created_at|date:'Y-m-d' }}</td>
+      <td>{{ i.get_document_type_display }}</td>
+      <td><a href="{{ i.file.url }}" target="_blank" rel="noopener">Download</a></td>
+      <td colspan="2"><span class="badge bg-info text-dark">Transferred from enquiry</span></td>
+    </tr>
+        {% endfor %}
+        {% for quote in quotation_rows %}
+    <tr>
+      <td>Q</td>
+      <td>{{ quote.issue_date|date:'Y-m-d' }}</td>
+      <td>{{ quote.display_number }} - Awarded quotation</td>
+      <td><a href="{% url 'workflow_download_quotation' quote.id 'pdf' %}" target="_blank" rel="noopener">PDF</a> &middot; <a href="{% url 'workflow_download_quotation' quote.id 'xlsx' %}" target="_blank" rel="noopener">Excel</a></td>
+      <td colspan="2"><span class="badge bg-success">Awarded</span></td>
+    </tr>
+        {% endfor %}
    </tbody>
   </table>
 </form>

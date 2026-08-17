@@ -47,32 +47,38 @@ def quotation_email_content(quote):
     return subject, body
 
 
-def _parse_cc(value):
+def _parse_addresses(value, label):
     addresses = [item.strip().lower() for item in re.split(r'[,;\s]+', value or '') if item.strip()]
     for address in addresses:
         try:
             validate_email(address)
         except ValidationError as exc:
-            raise QuotationDeliveryError(f'Correct the CC email address: {address}.') from exc
+            raise QuotationDeliveryError(f'Correct the {label} email address: {address}.') from exc
     return addresses
 
 
-def send_quotation_to_client(quote, *, cc='', subject=None, body=None):
+def send_quotation_to_client(quote, *, to='', cc='', subject=None, body=None):
     """Email the generated client PDF and return the confirmed recipient address."""
-    recipient = quotation_recipient_email(quote)
+    recipients = (
+        _parse_addresses(to, 'To')
+        if str(to or '').strip()
+        else [quotation_recipient_email(quote)]
+    )
+    if not recipients:
+        raise QuotationDeliveryError('Enter at least one recipient email address.')
     default_subject, default_body = quotation_email_content(quote)
     subject = (subject or default_subject).strip()[:255]
     body = (body or default_body).strip()
     if not subject or not body:
         raise QuotationDeliveryError('Enter both an email subject and message before sending.')
-    cc_addresses = _parse_cc(cc)
+    cc_addresses = _parse_addresses(cc, 'CC')
     try:
         pdf = build_quotation_pdf(quote).getvalue()
         message = EmailMessage(
             subject=subject,
             body=body,
             from_email=settings.DEFAULT_FROM_EMAIL,
-            to=[recipient],
+            to=recipients,
             cc=cc_addresses,
         )
         message.attach(f'{quote.display_number.replace("/", "-")}.pdf', pdf, 'application/pdf')
@@ -85,4 +91,4 @@ def send_quotation_to_client(quote, *, cc='', subject=None, body=None):
         raise QuotationDeliveryError(
             'The quotation email could not be sent. Check the mail configuration and try again.'
         ) from exc
-    return recipient
+    return ', '.join(recipients)

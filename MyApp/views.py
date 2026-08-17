@@ -40,8 +40,10 @@ from MyApp.models import (
     payemnt_entry,
     photo,
     project,
+    project_document,
     project_manager_allocation,
     purchaser_project_allocation,
+    quotation,
     schedule,
     staff,
     subcotractor_project_allocation,
@@ -2660,7 +2662,13 @@ def search_sbr(request):
 def View_uploaded_document(request,id):
     res=documents.objects.filter(PROJECT=id)
     res2 = project_manager_allocation.objects.get(PROJECT=id, STAFF=request.session["sid"], PROJECT__status='ongoing')
-    return render(request, 'Project Manager/View Uploaded document.html',{'data':res2,'data1':res,'id':id})
+    return render(request, 'Project Manager/View Uploaded document.html',{
+        'data': res2, 'data1': res, 'id': id,
+        'workflow_document_rows': project_document.objects.filter(transferred_to_id=id),
+        'quotation_rows': quotation.objects.filter(
+            ENQUIRY__PROJECT_id=id, status='accepted',
+        ).select_related('ENQUIRY'),
+    })
 
 def search_udcms(request):
     id = request.POST['pid']
@@ -2669,7 +2677,13 @@ def search_udcms(request):
     to = request.POST['to']
     res = documents.objects.filter(PROJECT=p,date__range=[frm,to])
     res2 = project_manager_allocation.objects.get(PROJECT=id, STAFF=request.session["sid"], PROJECT__status='ongoing')
-    return render(request, 'Project Manager/View Uploaded document.html', {'data': res2,'data1':res, 'id': id})
+    return render(request, 'Project Manager/View Uploaded document.html', {
+        'data': res2, 'data1': res, 'id': id,
+        'workflow_document_rows': project_document.objects.filter(transferred_to_id=id),
+        'quotation_rows': quotation.objects.filter(
+            ENQUIRY__PROJECT_id=id, status='accepted',
+        ).select_related('ENQUIRY'),
+    })
 
 def View_uploaded_drawings(request,id):
     res=drawing.objects.filter(PROJECT=id)
@@ -3806,9 +3820,29 @@ def search_prjtsac(request):
         res = project.objects.filter(status='ongoing',date__range=[frm,to])
         return render(request, 'Accountant/View Projects.html', {'data': res})
 
+@legacy_role_required('Accountant')
 def View_projects_functionsac(request,id):
-    res=project.objects.get(id=id,status='ongoing')
-    return render(request,'Accountant/View Projects Functions.html',{'data':res})
+    selected = get_object_or_404(project, id=id, status='ongoing')
+    return render(request, 'Accountant/View Projects Functions.html', {
+        'data': selected,
+        'project_managers': project_manager_allocation.objects.filter(PROJECT=selected).select_related('STAFF'),
+        'scope_rows': work.objects.filter(PROJECT=selected),
+        'material_rows': material_required.objects.filter(PROJECT=selected).select_related('MATERIAL'),
+        'estimate_rows': estimate.objects.filter(PROJECT=selected),
+        'subcontractor_rows': subcotractor_project_allocation.objects.filter(PROJECT=selected).select_related('SUBCONTRACTOR'),
+        'schedule_rows': schedule.objects.filter(PROJECT=selected).select_related('WORK'),
+        'material_request_rows': material_request.objects.filter(PROJECT=selected).select_related('MATERIAL'),
+        'payment_rows': payemnt_entry.objects.filter(PROJECT=selected),
+        'inspection_rows': inspection.objects.filter(PROJECT=selected),
+        'issued_rows': material_issued.objects.filter(PROJECT=selected).select_related('MATERIAL', 'STAFF'),
+        'drawing_rows': drawing.objects.filter(PROJECT=selected),
+        'document_rows': documents.objects.filter(PROJECT=selected),
+        'workflow_document_rows': project_document.objects.filter(transferred_to=selected),
+        'quotation_rows': quotation.objects.filter(ENQUIRY__PROJECT=selected, status='accepted').select_related('ENQUIRY'),
+        'purchaser_rows': purchaser_project_allocation.objects.filter(PROJECT=selected).select_related('STAFF'),
+        'progress_rows': work_progress.objects.filter(PROJECT=selected).select_related('WORK'),
+        'usage_rows': material_usage.objects.filter(PROJECT=selected).select_related('MATERIAL', 'STAFF'),
+    })
 
 def View_Completed_projects(request):
     res=project.objects.filter(status='Completed')

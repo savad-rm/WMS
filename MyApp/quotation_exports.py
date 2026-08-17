@@ -439,14 +439,6 @@ def build_quotation_pdf(quote):
                     group_id, {'start': row_index, 'end': row_index, 'total': group_total},
                 )
                 group['end'] = row_index
-    grand_row = len(table_data)
-    table_data.append([
-        Paragraph(
-            f'<b>Grand Total (QAR - {quotation_amount_words(quote.amount).capitalize()} only)</b>',
-            normal,
-        ),
-        '', '', '', '', Paragraph(f'<b>{quote.amount:,.2f}</b>', money),
-    ])
     # Populate the lump-sum cells before constructing the ReportLab table.
     # Table copies its input data, so assigning these values afterwards leaves
     # the rendered (vertically merged) cells blank.
@@ -466,8 +458,6 @@ def build_quotation_pdf(quote):
         ('ALIGN', (0, 0), (0, -1), 'CENTER'),
         ('ALIGN', (1, 0), (-1, 0), 'CENTER'),
         ('ALIGN', (2, 1), (-1, -1), 'CENTER'),
-        ('SPAN', (0, grand_row), (4, grand_row)),
-        ('ALIGN', (0, grand_row), (4, grand_row), 'CENTER'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3),
         ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
@@ -494,7 +484,35 @@ def build_quotation_pdf(quote):
                 ('BOTTOMPADDING', (0, row_index), (-1, row_index), 1),
             ])
     line_table.setStyle(TableStyle(table_style))
-    story.extend([line_table, Paragraph('<u><b>Specification/Clarification</b></u>', heading)])
+    grand_total_style = ParagraphStyle(
+        'QuotationGrandTotal', parent=normal, fontName='Helvetica-Bold',
+        fontSize=10, leading=11, alignment=TA_CENTER,
+    )
+    grand_total_table = Table([[
+        Paragraph(
+            f'Grand Total (QAR - {quotation_amount_words(quote.amount).capitalize()} only)',
+            grand_total_style,
+        ),
+        '', '', '', '', Paragraph(f'<b>{quote.amount:,.2f}</b>', money),
+    ]], colWidths=[14 * mm, 70 * mm, 15 * mm, 14 * mm, 20 * mm, 23 * mm])
+    grand_total_table.setStyle(TableStyle([
+        ('GRID', (0, 0), (-1, -1), .55, colors.black),
+        ('SPAN', (0, 0), (4, 0)),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (0, 0), (4, 0), 'CENTER'),
+        ('ALIGN', (5, 0), (5, 0), 'CENTER'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 3),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+    ]))
+    # Keep the total outside the repeating line-item table. If it genuinely
+    # needs a continuation page, it appears as a standalone total without a
+    # misleading repeated ITEMS/DESCRIPTION header.
+    story.extend([
+        line_table, grand_total_table,
+        Paragraph('<u><b>Specification/Clarification</b></u>', heading),
+    ])
 
     for index, term in enumerate(document['terms'], start=1):
         term_flowables = [Paragraph(f'<u>{index}. {term["title"]}</u>', heading)]

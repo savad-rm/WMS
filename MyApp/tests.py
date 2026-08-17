@@ -105,6 +105,21 @@ class WorkflowTests(TestCase):
         document.refresh_from_db()
         self.assertEqual(document.transferred_to_id, created.pk)
         self.assertEqual(quote.ENQUIRY_id, record.pk)
+        accountant_workspace = self.client.get(
+            reverse('View_projects_functionsac', args=(created.pk,))
+        )
+        self.assertContains(accountant_workspace, 'Complete Project Workspace')
+        self.assertContains(accountant_workspace, 'Awarded quotation')
+        self.assertContains(accountant_workspace, quote.display_number)
+
+        self.sign_in_as(*self.project_manager)
+        project_documents = self.client.get(
+            reverse('View_uploaded_document', args=(created.pk,))
+        )
+        self.assertContains(project_documents, quote.display_number)
+        self.assertContains(project_documents, 'Awarded quotation')
+        self.assertContains(project_documents, 'Transferred from enquiry')
+        self.sign_in_as(*self.accountant)
 
         self.client.post(reverse('Add_project_post'), {
             'project_no': 'P-AWARD-2', 't1': 'Duplicate Project',
@@ -190,12 +205,16 @@ class WorkflowTests(TestCase):
         self.sign_in_as(*self.controller)
         self.client.post(
             reverse('workflow_submit_quotation', args=(quote.pk,)),
-            {'cc': 'copy@example.com', 'subject': 'Custom client subject', 'body': 'Please review the attached quotation.'},
+            {
+                'to': 'alternate-client@example.com', 'cc': 'copy@example.com',
+                'subject': 'Custom client subject',
+                'body': 'Please review the attached quotation.',
+            },
         )
         quote.refresh_from_db()
         self.assertEqual(quote.status, 'submitted')
         self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].to, ['client@example.com'])
+        self.assertEqual(mail.outbox[0].to, ['alternate-client@example.com'])
         self.assertEqual(mail.outbox[0].cc, ['copy@example.com'])
         self.assertEqual(mail.outbox[0].subject, 'Custom client subject')
         self.assertEqual(mail.outbox[0].attachments[0][2], 'application/pdf')

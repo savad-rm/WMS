@@ -492,31 +492,22 @@
      <div align="center" style="color: blue"><h3>{{ data.project_name }}</h3></div>
     <br>
     <br>
-    <div class="row" >
-{#        <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Project_allocated_to_project_manager/{{ data.id }}#myid" ><b>Project Manager</b></a>#}
-{#                </p>#}
-{#            </div>#}
-{#        </div>#}
-              <div class="col-lg-6">
-            <div class="card" style="height: 60px">
-                <p></p>
-                <p align="center" >
-                       <a href="/WMS/View_project_payment_entry_ac/{{ data.id }}#myid" ><b>Payments</b></a>
-                </p>
-            </div>
-        </div>
-        <div class="col-lg-6" >
-            <div class="card" style="height: 60px">
-                <p></p>
-                <p align="center" >
-                       <a href="/WMS/View_Project_statusac/{{ data.id }}#myid" ><b>Work Progress</b></a>
-                </p>
-            </div>
-        </div>
+    <div class="row g-3 mb-3">
+      <div class="col-6 col-md-4 col-xl-2"><a class="card h-100 text-center p-3 fw-bold" href="{% url 'View_projects_functionsac' data.id %}#scope">Scope of Work</a></div>
+      <div class="col-6 col-md-4 col-xl-2"><a class="card h-100 text-center p-3 fw-bold" href="{% url 'View_projects_functionsac' data.id %}#materials">Material List</a></div>
+      <div class="col-6 col-md-4 col-xl-2"><a class="card h-100 text-center p-3 fw-bold" href="{% url 'View_projects_functionsac' data.id %}#estimates">Estimate</a></div>
+      <div class="col-6 col-md-4 col-xl-2"><a class="card h-100 text-center p-3 fw-bold" href="{% url 'View_projects_functionsac' data.id %}#subcontractors">Subcontractor</a></div>
+      <div class="col-6 col-md-4 col-xl-2"><a class="card h-100 text-center p-3 fw-bold" href="{% url 'View_projects_functionsac' data.id %}#schedule">Schedule</a></div>
+      <div class="col-6 col-md-4 col-xl-2"><a class="card h-100 text-center p-3 fw-bold" href="{% url 'View_projects_functionsac' data.id %}#requests">Material Requests</a></div>
+      <div class="col-6 col-md-4 col-xl-2"><a class="card h-100 text-center p-3 fw-bold" href="{% url 'View_project_payment_entry_ac' data.id %}#myid">Payments</a></div>
+      <div class="col-6 col-md-4 col-xl-2"><a class="card h-100 text-center p-3 fw-bold" href="{% url 'View_projects_functionsac' data.id %}#inspection">Inspection</a></div>
+      <div class="col-6 col-md-4 col-xl-2"><a class="card h-100 text-center p-3 fw-bold" href="{% url 'View_projects_functionsac' data.id %}#issued">Materials Issued</a></div>
+      <div class="col-6 col-md-4 col-xl-2"><a class="card h-100 text-center p-3 fw-bold" href="{% url 'View_projects_functionsac' data.id %}#drawings">Drawings</a></div>
+      <div class="col-6 col-md-4 col-xl-2"><a class="card h-100 text-center p-3 fw-bold" href="{% url 'View_projects_functionsac' data.id %}#documents">Documents</a></div>
+      <div class="col-6 col-md-4 col-xl-2"><a class="card h-100 text-center p-3 fw-bold" href="{% url 'View_projects_functionsac' data.id %}#purchaser">Purchaser</a></div>
+      <div class="col-6 col-md-4 col-xl-2"><a class="card h-100 text-center p-3 fw-bold" href="{% url 'View_Project_statusac' data.id %}#myid">Work Progress</a></div>
+      <div class="col-6 col-md-4 col-xl-2"><a class="card h-100 text-center p-3 fw-bold" href="{% url 'View_projects_functionsac' data.id %}#usage">Materials Report</a></div>
+      <div class="col-6 col-md-4 col-xl-2"><a class="card h-100 text-center p-3 fw-bold" href="{% url 'View_projects_functionsac' data.id %}#manager">Project Manager</a></div>
     </div>
         <div><a href="/WMS/chatac/{{ data.id }}">Chat</a></div>
   <table width="741" border="1" class="table table-striped">
@@ -528,30 +519,15 @@
       <td width="500">Project No</td>
         <td ><label for="textfield">{{ data.project_no }}</label></td>
     </tr>
-{#    <tr>#}
-{#      <td width="500">Client Name</td>#}
-{#      <td>{{ data.client_name }}</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#        <td width="500">Phone</td>#}
-{#        <td>{{ data.phone }}</td>#}
-{#   </tr>#}
-{#    <tr>#}
-{#        <td width="500">Email</td>#}
-{#        <td>{{ data.email}}</td>#}
-{#    </tr>#}
+    <tr><td width="500">Client Name</td><td>{{ data.client_name|default:'-' }}</td></tr>
+    <tr><td width="500">Phone</td><td>{{ data.phone|default:'-' }}</td></tr>
+    <tr><td width="500">Email</td><td>{{ data.email|default:'-' }}</td></tr>
     <tr>
         <td >Project Location</td>
         <td>{{ data.place }}</td>
     </tr>
-{#    <tr>#}
-{#        <td >Unit No</td>#}
-{#        <td>{{ data.unit_no }}</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#        <td width="61">Project Value</td>#}
-{#        <td>{{ data.project_value}}</td>#}
-{#    </tr>#}
+    <tr><td>Unit No</td><td>{{ data.unit_no|default:'-' }}</td></tr>
+    <tr><td width="61">Project Value</td><td>{{ data.project_value|default:'-' }}</td></tr>
     <tr>
         <td width="50">Starting Date</td>
         <td>{{ data.start_date }}</td>

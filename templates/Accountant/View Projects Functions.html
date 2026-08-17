@@ -1,186 +1,72 @@
 {% extends "Accountant/acindex2.html" %}
 {% block body %}
-<form id="form1" name="form1" method="post" action="/WMS/search_prjcts/">
-    {% csrf_token %}
-{#<div align="center" style="color: blue"><h3>{{ data.project_name }}</h3></div>#}
-{#    <br>#}
-{#    <br>#}
-{#    <div class="row" >#}
-{#        <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Project_allocated_to_project_manager/{{ data.id }}#myid" ><b>Project Manager</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#              <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Project_allocated_to_supervisor/{{ data.id }}" ><b>Supervisor</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#              <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Subcontractor_datails_of_project/{{ data.id }}" ><b>Subcontractor</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#              <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Payment_Entry/{{ data.id }}" ><b>Payments</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#              <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Worksite_photos/{{ data.id }}"  ><b>Site Photos</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#              <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{##}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Material_required/{{ data.id }}" ><b>Materials Required</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#        <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Total_material_request/{{ data.id }}" ><b>Material Requests</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#        <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px;color: cyan">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Total_worker_report/{{ data.id }}" ><b>Workers Report</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div> <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Schedule/{{ data.id }}" ><b>Schedule</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#        <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Estimatead/{{ data.id }}" ><b>Estimate</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#        <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Work_management/{{ data.id }}" ><b>Scope of Work</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#        <div class="col-lg-2" >#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Work_progress/{{ data.id }}" ><b>Work Progress</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#    </div>#}
-{#  <table width="741" border="1" class="table table-striped">#}
-{#    <tr>#}
-{#      <td width="29">Date</td>#}
-{#        <td><label for="textfield">{{ data.date }}</label></td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#      <td width="48">Project Name</td>#}
-{#        <td>{{ data.project_name }}</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#      <td width="39">Client Name</td>#}
-{#      <td>{{ data.client_name }}</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#        <td width="38">Phone</td>#}
-{#        <td>{{ data.phone }}</td>#}
-{#   </tr>#}
-{#    <tr>#}
-{#        <td width="33">Email</td>#}
-{#        <td>{{ data.email}}</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#        <td >Place</td>#}
-{#        <td>{{ data.place }}</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#        <td >Unit No</td>#}
-{#        <td>{{ data.unit_no }}</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#        <td width="61">Project Value</td>#}
-{#        <td>{{ data.project_value}}</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#        <td width="50">Starting Date</td>#}
-{#        <td>{{ data.start_date }}</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#        <td width="50">Handout Date</td>#}
-{#        <td>{{ data.handout_date }}</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#        <td width="61">Project Duration</td>#}
-{#        <td>{{ data.project_duration }}</td>#}
-{#   </tr>#}
-{#    <tr>#}
-{#        <td width="61">Project Type</td>#}
-{#        <td>{{ data.project_type }}</td>#}
-{#  </tr>#}
-{#    <tr>#}
-{#        <td width="69">Description</td>#}
-{#        <td>{{ data.description }}</td>#}
-{#  </tr>#}
-{#    <tr>#}
-{#        <td width="55">Estimate Status</td>#}
-{#        <td>{{ data.estimate_status }}</td>#}
-{#  </tr>#}
-{#    <tr>#}
-{#        <td width="86">&nbsp;</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#      <td><p>#}
-{#          <a href="/WMS/View_Project_allocated_to_project_manager/{{ data.id }}" class="nav-link">Project Manager</a><br><br>#}
-{#          <a href="/WMS/View_Project_allocated_to_supervisor/{{ data.id }}" class="nav-link">Supervisor</a><br><br>#}
-{#           <a href="/WMS/View_Subcontractor_datails_of_project/{{ data.id }}">Subcontractor</a></p><br/>#}
-{#        <p><a href="/WMS/View_Payment_Entry/{{ data.id }}">Payment</a></p><br />#}
-{#        <p><a href="/WMS/View_Worksite_photos/{{ data.id }}">SitePhotos</a></p><br />#}
-{#          <a href="/WMS/View_Material_required/{{ data.id }}" class="nav-link">View Material required</a><br>#}
-{#        <p><a href="/WMS/View_Total_material_request/{{ data.id }}">Total Material Request</a></p><br />#}
-{#        <p><a href="/WMS/View_Total_worker_report/{{ data.id }}">Workers Report</a></p><br />#}
-{#        <p><a href="/WMS/View_Schedule/{{ data.id }}">Schedule</a></p><br />#}
-{#      <p><a href="/WMS/View_Estimatead/{{ data.id }}">Estimate</a></p>#}
-{#      <p><a href="/WMS/View_Work_management/{{ data.id }}">Scope of Work</a></p>#}
-{#      <p><a href="/WMS/View_Work_progress/{{ data.id }}">Work Progress</a></p></td><br />#}
-{#    </tr>#}
-{#  </tbody>#}
-{#  </table>#}
+<style>
+  .project-module { scroll-margin-top: 90px; }
+  .project-module .card-title { color: #012970; }
+  .project-module thead th { background: #00a0dc; color: #fff; white-space: nowrap; }
+</style>
 
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0 text-primary">Complete Project Workspace</h4>
+  <span class="badge bg-primary">Accountant view</span>
+</div>
+<p class="text-muted">Financial and operational project information is available here as a read-only consolidated view. Payment management remains available from the Payments card.</p>
 
-</form>
+<div class="card project-module" id="manager"><div class="card-body">
+  <h5 class="card-title">Project Manager</h5>
+  {% for item in project_managers %}<p class="mb-1"><strong>{{ item.STAFF.name }}</strong> &middot; {{ item.STAFF.email }} &middot; {{ item.STAFF.phone }}</p>{% empty %}<p class="text-muted">No Project Manager allocated.</p>{% endfor %}
+</div></div>
+
+<div class="card project-module" id="scope"><div class="card-body">
+  <h5 class="card-title">Scope of Work</h5><div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>#</th><th>Category</th><th>Work</th></tr></thead><tbody>{% for item in scope_rows %}<tr><td>{{ forloop.counter }}</td><td>{{ item.category }}</td><td>{{ item.workname }}</td></tr>{% empty %}<tr><td colspan="3" class="text-muted">No scope items.</td></tr>{% endfor %}</tbody></table></div>
+</div></div>
+
+<div class="card project-module" id="materials"><div class="card-body">
+  <h5 class="card-title">Material List</h5><div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>#</th><th>Category</th><th>Material</th><th>Quantity</th><th>Price</th></tr></thead><tbody>{% for item in material_rows %}<tr><td>{{ forloop.counter }}</td><td>{{ item.category }}</td><td>{{ item.MATERIAL.name }}</td><td>{{ item.quantity }} {{ item.MATERIAL.unit }}</td><td>{{ item.price }}</td></tr>{% empty %}<tr><td colspan="5" class="text-muted">No materials added.</td></tr>{% endfor %}</tbody></table></div>
+</div></div>
+
+<div class="card project-module" id="estimates"><div class="card-body">
+  <h5 class="card-title">Estimates</h5><div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>#</th><th>Date</th><th>Estimate No.</th></tr></thead><tbody>{% for item in estimate_rows %}<tr><td>{{ forloop.counter }}</td><td>{{ item.date }}</td><td>{{ item.est_no }}</td></tr>{% empty %}<tr><td colspan="3" class="text-muted">No estimates.</td></tr>{% endfor %}</tbody></table></div>
+</div></div>
+
+<div class="card project-module" id="subcontractors"><div class="card-body">
+  <h5 class="card-title">Subcontractors</h5><div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>#</th><th>Name</th><th>Work</th><th>Amount</th></tr></thead><tbody>{% for item in subcontractor_rows %}<tr><td>{{ forloop.counter }}</td><td>{{ item.SUBCONTRACTOR.name }}</td><td>{{ item.WORK.workname }}</td><td>{{ item.amount }}</td></tr>{% empty %}<tr><td colspan="4" class="text-muted">No subcontractors allocated.</td></tr>{% endfor %}</tbody></table></div>
+</div></div>
+
+<div class="card project-module" id="schedule"><div class="card-body">
+  <h5 class="card-title">Work Schedule</h5><div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>#</th><th>Work</th><th>From</th><th>To</th></tr></thead><tbody>{% for item in schedule_rows %}<tr><td>{{ forloop.counter }}</td><td>{{ item.WORK.workname }}</td><td>{{ item.from_date }}</td><td>{{ item.to_date }}</td></tr>{% empty %}<tr><td colspan="4" class="text-muted">No schedules.</td></tr>{% endfor %}</tbody></table></div>
+</div></div>
+
+<div class="card project-module" id="requests"><div class="card-body">
+  <h5 class="card-title">Material Requests</h5><div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>#</th><th>Date</th><th>Material</th><th>Quantity</th><th>Status</th></tr></thead><tbody>{% for item in material_request_rows %}<tr><td>{{ forloop.counter }}</td><td>{{ item.date }}</td><td>{{ item.MATERIAL.name }}</td><td>{{ item.quantity }}</td><td>{{ item.status }}</td></tr>{% empty %}<tr><td colspan="5" class="text-muted">No material requests.</td></tr>{% endfor %}</tbody></table></div>
+</div></div>
+
+<div class="card project-module" id="inspection"><div class="card-body">
+  <h5 class="card-title">Inspections</h5><div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>#</th><th>Date</th><th>Type</th><th>Report</th></tr></thead><tbody>{% for item in inspection_rows %}<tr><td>{{ forloop.counter }}</td><td>{{ item.date }}</td><td>{{ item.type }}</td><td>{{ item.report }}</td></tr>{% empty %}<tr><td colspan="4" class="text-muted">No inspections.</td></tr>{% endfor %}</tbody></table></div>
+</div></div>
+
+<div class="card project-module" id="issued"><div class="card-body">
+  <h5 class="card-title">Materials Issued</h5><div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>#</th><th>Date</th><th>Material</th><th>Quantity</th><th>Status</th></tr></thead><tbody>{% for item in issued_rows %}<tr><td>{{ forloop.counter }}</td><td>{{ item.date }}</td><td>{{ item.MATERIAL.name }}</td><td>{{ item.quantity_issued }}</td><td>{{ item.status }}</td></tr>{% empty %}<tr><td colspan="5" class="text-muted">No materials issued.</td></tr>{% endfor %}</tbody></table></div>
+</div></div>
+
+<div class="card project-module" id="drawings"><div class="card-body">
+  <h5 class="card-title">Drawings</h5>{% for item in drawing_rows %}<div class="border-top py-2 d-flex justify-content-between"><span>{{ item.date }}</span><a href="{{ item.file }}" target="_blank" rel="noopener">Open drawing</a></div>{% empty %}<p class="text-muted">No drawings.</p>{% endfor %}
+</div></div>
+
+<div class="card project-module" id="documents"><div class="card-body">
+  <h5 class="card-title">Documents and Awarded Quotation</h5>
+  <div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>#</th><th>Date</th><th>Name</th><th>Document</th></tr></thead><tbody>
+    {% for item in document_rows %}<tr><td>{{ forloop.counter }}</td><td>{{ item.date }}</td><td>{{ item.name }}</td><td><a class="btn btn-sm btn-outline-primary" href="{{ item.file }}" target="_blank" rel="noopener">Open</a></td></tr>{% empty %}<tr><td colspan="4" class="text-muted">No legacy project documents.</td></tr>{% endfor %}
+    {% for item in workflow_document_rows %}<tr><td>D</td><td>{{ item.created_at|date:'Y-m-d' }}</td><td>{{ item.get_document_type_display }} &mdash; Transferred from enquiry</td><td><a class="btn btn-sm btn-outline-primary" href="{{ item.file.url }}" target="_blank" rel="noopener">Open</a></td></tr>{% endfor %}
+    {% for quote in quotation_rows %}<tr><td>Q</td><td>{{ quote.issue_date }}</td><td>{{ quote.display_number }} &mdash; Awarded quotation</td><td><a class="btn btn-sm btn-outline-danger" href="{% url 'workflow_download_quotation' quote.id 'pdf' %}" target="_blank" rel="noopener">PDF</a> <a class="btn btn-sm btn-outline-success" href="{% url 'workflow_download_quotation' quote.id 'xlsx' %}" target="_blank" rel="noopener">Excel</a></td></tr>{% endfor %}
+  </tbody></table></div>
+</div></div>
+
+<div class="card project-module" id="purchaser"><div class="card-body">
+  <h5 class="card-title">Purchaser Allocation</h5>{% for item in purchaser_rows %}<p class="mb-1"><strong>{{ item.STAFF.name }}</strong> &middot; allocated {{ item.allocated_date }}</p>{% empty %}<p class="text-muted">No purchaser allocated.</p>{% endfor %}
+</div></div>
+
+<div class="card project-module" id="usage"><div class="card-body">
+  <h5 class="card-title">Materials Usage Report</h5><div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>#</th><th>Date</th><th>Material</th><th>Quantity</th><th>Recorded By</th></tr></thead><tbody>{% for item in usage_rows %}<tr><td>{{ forloop.counter }}</td><td>{{ item.date }}</td><td>{{ item.MATERIAL.name }}</td><td>{{ item.quantity }}</td><td>{{ item.STAFF.name }}</td></tr>{% empty %}<tr><td colspan="5" class="text-muted">No material usage records.</td></tr>{% endfor %}</tbody></table></div>
+</div></div>
 {% endblock %}
-

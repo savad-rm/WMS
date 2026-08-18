@@ -340,7 +340,9 @@ class WorkflowTests(TestCase):
             link=reverse('workflow_quotation_discussion', args=(quote.pk,)),
             read_at__isnull=True,
         ).exists())
-        dashboard = self.client.get(reverse('workflow_dashboard'))
+        dashboard = self.client.get(
+            reverse('workflow_dashboard'), {'view': 'quotations'},
+        )
         self.assertContains(dashboard, 'Under Revision')
         self.assertContains(dashboard, 'Not Submitted')
 
@@ -385,10 +387,12 @@ class WorkflowTests(TestCase):
         self.sign_in_as(*self.manager)
 
         dashboard = self.client.get(reverse('workflow_dashboard'))
-        self.assertContains(dashboard, '?view=open#enquiry-history')
-        self.assertContains(dashboard, '?view=assigned#enquiry-history')
-        self.assertContains(dashboard, '?view=awaiting_approval#quotation-register')
-        self.assertContains(dashboard, '?view=awarded#quotation-register')
+        self.assertContains(dashboard, '?view=enquiries')
+        self.assertContains(dashboard, '?view=open')
+        self.assertContains(dashboard, '?view=assigned')
+        self.assertContains(dashboard, '?view=quotations')
+        self.assertContains(dashboard, '?view=awaiting_approval')
+        self.assertContains(dashboard, '?view=awarded')
 
         open_view = self.client.get(reverse('workflow_dashboard'), {'view': 'open'})
         self.assertContains(open_view, 'Showing: Open enquiries awaiting assignment')
@@ -424,11 +428,14 @@ class WorkflowTests(TestCase):
         self.sign_in_as(*self.executive)
 
         dashboard = self.client.get(reverse('workflow_dashboard'))
-        self.assertContains(dashboard, 'Enquiry History')
-        self.assertContains(dashboard, 'Quotation Register')
-        self.assertContains(dashboard, 'Original enquiry scope must remain unchanged.')
-        self.assertContains(dashboard, 'QTN/TEST/001')
-        self.assertContains(dashboard, 'Quotation Prepared')
+        self.assertContains(dashboard, 'Select a dashboard card to open its dedicated list.')
+        enquiry_view = self.client.get(reverse('workflow_dashboard'), {'view': 'enquiries'})
+        self.assertContains(enquiry_view, 'Enquiry History')
+        self.assertContains(enquiry_view, 'Original enquiry scope must remain unchanged.')
+        self.assertContains(enquiry_view, 'Quotation Prepared')
+        quotation_view = self.client.get(reverse('workflow_dashboard'), {'view': 'quotations'})
+        self.assertContains(quotation_view, 'Quotation Register')
+        self.assertContains(quotation_view, 'QTN/TEST/001')
 
         response = self.client.post(
             reverse('workflow_update_client_response', args=(quote.pk,)),

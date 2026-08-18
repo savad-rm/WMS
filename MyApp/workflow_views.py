@@ -479,6 +479,10 @@ def dashboard(request):
     accessible_records = records
     dashboard_view = request.GET.get('view', '').strip()
     dashboard_views = {
+        'enquiries': {
+            'label': 'Enquiry history',
+            'target': 'enquiries',
+        },
         'open': {
             'label': 'Open enquiries awaiting assignment',
             'target': 'enquiries',
@@ -493,6 +497,10 @@ def dashboard(request):
         },
         'awarded': {
             'label': 'Awarded quotations',
+            'target': 'quotations',
+        },
+        'quotations': {
+            'label': 'Quotation register',
             'target': 'quotations',
         },
     }
@@ -536,8 +544,14 @@ def dashboard(request):
             | Q(created_by__name__icontains=quotation_query)
         )
     if dashboard_view == 'awaiting_approval':
+        internal_return_ids = [
+            item.pk for item in quote_records.filter(status='under_revision').select_related(None).only(
+                'pk', 'details', 'validity_days',
+            ) if quotation_internal_review(item.details, item.validity_days)
+        ]
         quote_records = quote_records.filter(
-            status__in=('manager_review', 'accountant_review'),
+            Q(status__in=('manager_review', 'accountant_review'))
+            | Q(pk__in=internal_return_ids),
         )
     elif dashboard_view == 'awarded':
         quote_records = quote_records.filter(status='accepted')
@@ -555,6 +569,11 @@ def dashboard(request):
         latest_quote_ids.setdefault(enquiry_id, quote_id)
     quote_records = list(quote_records.filter(pk__in=latest_quote_ids.values()).order_by(*quotation_ordering)[:100])
     enquiry_records = list(records[:100])
+    for item in enquiry_records:
+        # The enquiry register must not advertise a quotation while the
+        # estimator is still working on a draft.  Drafts are excluded by the
+        # prefetch above, so this is an inexpensive, explicit readiness flag.
+        item.quotation_prepared = bool(item.quotations.all())
     creator_ids = {
         item.created_by_id for item in enquiry_records
     } | {
@@ -597,6 +616,20 @@ def dashboard(request):
         )
         quote.unread_comment_count = unread_by_link.get(_quotation_discussion_url(quote), 0)
 
+    internal_review_quotes = quotation.objects.filter(
+        ENQUIRY__in=accessible_records, status='under_revision',
+    ).only('details', 'validity_days')
+    awaiting_approval_count = quotation.objects.filter(
+        ENQUIRY__in=accessible_records,
+        status__in=('manager_review', 'accountant_review'),
+    ).count() + sum(
+        1 for item in internal_review_quotes
+        if quotation_internal_review(item.details, item.validity_days)
+    )
+    quotation_count = quotation.objects.filter(
+        ENQUIRY__in=accessible_records,
+    ).exclude(status='draft').values('ENQUIRY_id').distinct().count()
+
     return _render(request, 'Workflow/dashboard.html', {
         'enquiries': enquiry_records,
         'quotations': quote_records,
@@ -612,12 +645,11 @@ def dashboard(request):
         'dashboard_view_target': dashboard_views.get(dashboard_view, {}).get('target', ''),
         'client_response_statuses': CLIENT_RESPONSE_STATUSES,
         'summary': {
+            'enquiries': accessible_records.count(),
+            'quotations': quotation_count,
             'open': accessible_records.filter(status='open').count(),
             'assigned': accessible_records.filter(status='assigned').count(),
-            'awaiting_approval': quotation.objects.filter(
-                ENQUIRY__in=accessible_records,
-                status__in=('manager_review', 'accountant_review'),
-            ).count(),
+            'awaiting_approval': awaiting_approval_count,
             'awarded': accessible_records.filter(status='awarded').count(),
         },
     })
@@ -1345,6 +1377,9 @@ def view_quotation(request, quote_id):
     )
     internal_revision_stage = quotation_internal_review(quote.details, quote.validity_days)
     is_current_quote = _is_current_quotation(quote)
+    current_quotation_id = quote.ENQUIRY.quotations.order_by('-version', '-id').values_list(
+        'id', flat=True,
+    ).first()
     role = _workflow_role(request.workflow_account.usertype)
     discussion_url = _quotation_discussion_url(quote)
     quote_costing = getattr(quote, 'costing', None)
@@ -1367,6 +1402,7 @@ def view_quotation(request, quote_id):
             item for item in quotation.objects.filter(ENQUIRY=quote.ENQUIRY).order_by('-version')
             if _can_view_quotation(request, item)
         ],
+        'current_quotation_id': current_quotation_id,
         'is_current_quote': is_current_quote,
         'email_subject': email_subject,
         'email_body': email_body,

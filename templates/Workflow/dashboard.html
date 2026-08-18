@@ -68,26 +68,34 @@
         <a class="btn btn-sm btn-outline-primary" href="{% url 'workflow_dashboard' %}#enquiry-history">Clear filter</a>
       </div>
       {% endif %}
-      <div class="dataTable-top d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <div>
+      <div class="workflow-toolbar">
+        <div class="toolbar-left">
           {% if can_add %}
           <a class="btn btn-primary" href="{% url 'workflow_add_enquiry' %}"><i class="bi bi-plus-lg"></i> Add Enquiry</a>
           {% endif %}
+          {% if dashboard_view_target == 'enquiries' %}
+          <span class="toolbar-badge"><i class="bi bi-funnel"></i> {{ dashboard_view_label }}</span>
+          {% endif %}
         </div>
         <form class="workflow-filter-form" method="get">
-          <input class="form-control" type="search" name="enquiry_q" value="{{ enquiry_query }}" placeholder="Search enquiries" aria-label="Search enquiries">
+          <div class="workflow-filter-field">
+            <input class="form-control" type="search" name="enquiry_q" value="{{ enquiry_query }}" placeholder="Search enquiries" aria-label="Search enquiries">
+            <i class="bi bi-search filter-icon"></i>
+          </div>
           <input type="hidden" name="quotation_q" value="{{ quotation_query }}">
           <input type="hidden" name="quotation_sort" value="{{ quotation_sort }}">
           {% if dashboard_view %}<input type="hidden" name="view" value="{{ dashboard_view }}">{% endif %}
-          <select class="form-select" name="enquiry_sort" aria-label="Sort enquiries">
-            <option value="-date" {% if enquiry_sort == '-date' %}selected{% endif %}>Newest first</option>
-            <option value="date" {% if enquiry_sort == 'date' %}selected{% endif %}>Oldest first</option>
-            <option value="client" {% if enquiry_sort == 'client' %}selected{% endif %}>Client A–Z</option>
-            <option value="-client" {% if enquiry_sort == '-client' %}selected{% endif %}>Client Z–A</option>
-            <option value="deadline" {% if enquiry_sort == 'deadline' %}selected{% endif %}>Deadline earliest</option>
-            <option value="-deadline" {% if enquiry_sort == '-deadline' %}selected{% endif %}>Deadline latest</option>
-          </select>
-          <button class="btn btn-outline-primary" type="submit"><i class="bi bi-search"></i></button>
+          <div class="workflow-filter-field" style="flex: 0 0 210px; min-width: 180px;">
+            <select class="form-select" name="enquiry_sort" aria-label="Sort enquiries">
+              <option value="-date" {% if enquiry_sort == '-date' %}selected{% endif %}>Newest first</option>
+              <option value="date" {% if enquiry_sort == 'date' %}selected{% endif %}>Oldest first</option>
+              <option value="client" {% if enquiry_sort == 'client' %}selected{% endif %}>Client A–Z</option>
+              <option value="-client" {% if enquiry_sort == '-client' %}selected{% endif %}>Client Z–A</option>
+              <option value="deadline" {% if enquiry_sort == 'deadline' %}selected{% endif %}>Deadline earliest</option>
+              <option value="-deadline" {% if enquiry_sort == '-deadline' %}selected{% endif %}>Deadline latest</option>
+            </select>
+          </div>
+          <button class="btn btn-outline-primary" type="submit"><i class="bi bi-search"></i> Search</button>
         </form>
       </div>
       <div class="table-responsive">
@@ -124,22 +132,32 @@
         <a class="btn btn-sm btn-outline-primary" href="{% url 'workflow_dashboard' %}#quotation-register">Clear filter</a>
       </div>
       {% endif %}
-      <div class="dataTable-top d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <p class="text-muted small mb-0">Open Discussion to review internal messages and client responses. The badge shows unread activity.</p>
+      <div class="workflow-toolbar">
+        <div class="toolbar-left">
+          <span class="toolbar-badge"><i class="bi bi-chat-dots"></i> Discussion-ready</span>
+          {% if dashboard_view_target == 'quotations' %}
+          <span class="toolbar-badge"><i class="bi bi-funnel"></i> {{ dashboard_view_label }}</span>
+          {% endif %}
+        </div>
         <form class="workflow-filter-form" method="get">
-          <input class="form-control" type="search" name="quotation_q" value="{{ quotation_query }}" placeholder="Search quotations" aria-label="Search quotations">
+          <div class="workflow-filter-field">
+            <input class="form-control" type="search" name="quotation_q" value="{{ quotation_query }}" placeholder="Search quotations" aria-label="Search quotations">
+            <i class="bi bi-search filter-icon"></i>
+          </div>
           <input type="hidden" name="enquiry_q" value="{{ enquiry_query }}">
           <input type="hidden" name="enquiry_sort" value="{{ enquiry_sort }}">
           {% if dashboard_view %}<input type="hidden" name="view" value="{{ dashboard_view }}">{% endif %}
-          <select class="form-select" name="quotation_sort" aria-label="Sort quotations">
-            <option value="-date" {% if quotation_sort == '-date' %}selected{% endif %}>Newest first</option>
-            <option value="date" {% if quotation_sort == 'date' %}selected{% endif %}>Oldest first</option>
-            <option value="number" {% if quotation_sort == 'number' %}selected{% endif %}>QTN number A–Z</option>
-            <option value="-number" {% if quotation_sort == '-number' %}selected{% endif %}>QTN number Z–A</option>
-            <option value="client" {% if quotation_sort == 'client' %}selected{% endif %}>Client A–Z</option>
-            <option value="-client" {% if quotation_sort == '-client' %}selected{% endif %}>Client Z–A</option>
-          </select>
-          <button class="btn btn-outline-primary" type="submit"><i class="bi bi-search"></i></button>
+          <div class="workflow-filter-field" style="flex: 0 0 210px; min-width: 180px;">
+            <select class="form-select" name="quotation_sort" aria-label="Sort quotations">
+              <option value="-date" {% if quotation_sort == '-date' %}selected{% endif %}>Newest first</option>
+              <option value="date" {% if quotation_sort == 'date' %}selected{% endif %}>Oldest first</option>
+              <option value="number" {% if quotation_sort == 'number' %}selected{% endif %}>QTN number A–Z</option>
+              <option value="-number" {% if quotation_sort == '-number' %}selected{% endif %}>QTN number Z–A</option>
+              <option value="client" {% if quotation_sort == 'client' %}selected{% endif %}>Client A–Z</option>
+              <option value="-client" {% if quotation_sort == '-client' %}selected{% endif %}>Client Z–A</option>
+            </select>
+          </div>
+          <button class="btn btn-outline-primary" type="submit"><i class="bi bi-search"></i> Search</button>
         </form>
       </div>
       <div class="table-responsive">

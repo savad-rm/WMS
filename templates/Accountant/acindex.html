@@ -54,19 +54,18 @@
     <div class="search-bar">
       <form class="search-form d-flex align-items-center" method="POST" action="{% url 'achome' %}">
           {% csrf_token %}
-        <input type="text" name="query" placeholder="Search" title="Enter search keyword">
+        <input type="text" name="query" placeholder="Search accounts and records" title="Search accounts and records">
         <button type="submit" title="Search"><i class="bi bi-search"></i></button>
       </form>
-    </div><!-- End Search Bar -->
+    </div>
 
     <nav class="header-nav ms-auto">
       <ul class="d-flex align-items-center">
-
         <li class="nav-item d-block d-lg-none">
-          <a class="nav-link nav-icon search-bar-toggle " href="{% url 'achome' %}">
+          <a class="nav-link nav-icon search-bar-toggle" href="{% url 'achome' %}" aria-label="Open search">
             <i class="bi bi-search"></i>
           </a>
-        </li><!-- End Search Icon-->
+        </li>
 
 {#        <li class="nav-item dropdown">#}
 {##}

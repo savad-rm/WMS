@@ -75,10 +75,10 @@
     </td></tr>
     <tr><td>Awarded Enquiry</td><td><select name="enquiry" class="form-control"><option value="">No enquiry transfer</option>{% for item in awarded_enquiries %}<option value="{{ item.id }}">{{ item.title }} — {{ item.client_name }}</option>{% endfor %}</select><div class="form-text">Transfers the enquiry, quotation and collected project documents to this project.</div></td></tr>
 
-    <tr><td>Project Manager</td><td>{% if default_project_manager %}<input class="form-control" value="{{ default_project_manager.name }}" readonly><div class="form-text">Automatically assigned when the project is created.</div>{% else %}<div class="alert alert-danger mb-0">{{ project_manager_error }}</div>{% endif %}</td></tr>
+    <tr><td>Project Manager</td><td>{% if can_create %}{% if pm_message_type == 'auto' %}<input class=\"form-control\" value=\"{{ auto_project_manager.name }}\" readonly><div class=\"form-text\">Automatically assigned when the project is created.</div>{% else %}<input class=\"form-control\" value=\"{{ auto_project_manager.name }}\" readonly><div class=\"form-text\">Auto-assigned for now. Future: Operation Manager will select when multiple Project Managers exist.</div>{% endif %}{% else %}<div class=\"alert alert-danger mb-0\">{{ pm_error_message }}</div>{% endif %}</td></tr>
 
-    <tr align="center">
-      <td height="31" colspan="2"><input type="submit" name="button" id="button" value="Add" class="btn btn-primary" {% if project_manager_error %}disabled{% endif %}/></td>
+    <tr align=\"center\">
+      <td height=\"31\" colspan=\"2\"><input type=\"submit\" name=\"button\" id=\"button\" value=\"Add\" class=\"btn btn-primary\" {% if not can_create %}disabled{% endif %}/></td>
     </tr>
   </table>
 </form>

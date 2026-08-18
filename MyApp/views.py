@@ -217,35 +217,48 @@ def login_post(request):
 def Admin_home(request):
     return render(request,'Admin/index.html')
 
-def _single_project_manager():
-    candidates = list(
+def _project_manager_options():
+    """
+    Returns (auto_manager, managers_list, can_create, message).
+    - auto_manager: single PM if exactly one exists, else None
+    - managers_list: all available PMs (for future OM selection when multiple exist)
+    - can_create: True if PM scenario is valid
+    - message: user-facing guidance or error
+    """
+    pms = list(
         staff.objects.filter(designation='Project Manager')
-        .select_related('LOGIN').order_by('id')[:2]
+        .select_related('LOGIN').order_by('id')
     )
-    if len(candidates) == 1:
-        return candidates[0], ''
-    if not candidates:
-        return None, 'Create one Project Manager staff account before creating a project.'
-    return None, 'Automatic assignment requires exactly one Project Manager staff account.'
+    if len(pms) == 1:
+        return pms[0], pms, True, 'auto'
+    if len(pms) == 0:
+        return None, [], False, 'Create one Project Manager staff account before creating a project.'
+    # Multiple PMs: in future, OM will select; for now, auto-assign the first
+    return pms[0], pms, True, 'multi'
 
 
 @legacy_role_required('Accountant')
 def Add_project(request):
-    default_project_manager, project_manager_error = _single_project_manager()
-    return render(request,'Admin/Add Project.html', {
-        'default_project_manager': default_project_manager,
-        'project_manager_error': project_manager_error,
+    auto_manager, managers_list, can_create, msg_type = _project_manager_options()
+    context = {
         'source_projects': project.objects.all().only('id', 'project_no', 'project_name').order_by('project_name'),
         'awarded_enquiries': enquiry.objects.filter(status='awarded', PROJECT__isnull=True).only('id', 'title', 'client_name'),
-    })
+        'auto_project_manager': auto_manager,
+        'pm_list': managers_list,
+        'can_create': can_create,
+        'pm_message_type': msg_type,
+    }
+    if not can_create:
+        context['pm_error_message'] = msg_type
+    return render(request,'Admin/Add Project.html', context)
 
 @require_POST
 @legacy_role_required('Accountant')
 @db_transaction.atomic
 def Add_project_post(request):
-    default_project_manager, project_manager_error = _single_project_manager()
-    if project_manager_error:
-        messages.error(request, project_manager_error)
+    auto_manager, managers_list, can_create, msg_type = _project_manager_options()
+    if not can_create:
+        messages.error(request, msg_type)
         return redirect('Add_project')
     pno=request.POST['project_no']
     pname=request.POST['t1']
@@ -290,14 +303,13 @@ def Add_project_post(request):
     pobj.project_type=project_type
     pobj.description=description
     pobj.estimate_status='pending'
-    # Automatic Project Manager assignment replaces the former manual step,
-    # which also moved a newly-created project into the ongoing portfolio.
     pobj.status='ongoing'
     pobj.save()
+    # Auto-assign the single PM if available; future: OM will select when multiple exist
     project_manager_allocation.objects.create(
         allocated_date=pobj.date,
         PROJECT=pobj,
-        STAFF=default_project_manager,
+        STAFF=auto_manager,
     )
 
     # Optionally reuse an existing project's planning data without sharing rows.
@@ -340,10 +352,11 @@ def Add_project_post(request):
         selected_enquiry.save(update_fields=('PROJECT', 'updated_at'))
         selected_enquiry.project_documents.update(transferred_to=pobj)
 
-    messages.success(
-        request,
-        f'Project added successfully and assigned to {default_project_manager.name}.',
-    )
+    if msg_type == 'auto':
+        msg = f'Project added successfully and assigned to {auto_manager.name}.'
+    else:
+        msg = f'Project added successfully and assigned to {auto_manager.name}. (Future: OM will select when multiple Project Managers exist.)'
+    messages.success(request, msg)
     return redirect('View_all_projects')
 
 @legacy_role_required('Admin')

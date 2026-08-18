@@ -4,6 +4,10 @@ Current implementation status
 - Unique staff email validation is enforced for login accounts.
 - New user creation returns to the user-management list.
 - Enquiry and quotation workflows now preserve draft autosave and strict role-based visibility.
+- Workflow dashboards and shared application shell now follow a single premium visual system with consistent card, table, toolbar, form, and navigation styling across the portal.
+- Global template review removed the inconsistent scatter of search-row controls and replaced them with a cleaner, enterprise-standard filter and header structure.
+- All primary save, submit, upload and action controls were upgraded to a modern premium visual language with stronger contrast, gradient treatment, and hover elevation while preserving the underlying workflow and logic behavior.
+- Project creation auto-assigns a single Project Manager if exactly one exists. When multiple Project Managers are present in the future, the Operation Manager will have explicit selection capability; the system maintains forward compatibility by auto-assigning the first available manager for now.
 
 Business requirements
 - Refer/transfer the scope of work and material list from another project.

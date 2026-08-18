@@ -37,7 +37,7 @@ flowchart LR
   S --> U["Client status: Under Review"]
   U --> W["Marketing Executive/Manager records Awarded"]
   W --> R["Accountant creates project and transfers documents"]
-  R --> P["System assigns the single Project Manager"]
+  R --> P[\"System assigns the Project Manager (auto-assign if single PM exists, future: OM selects if multiple exist)\"]
 ```
 
 Enquiry states are `open → assigned → quoted → approved → submitted → awarded`. `closed` is terminal for an enquiry that does not proceed. A draft is not `quoted`: the enquiry becomes `Quotation Prepared` only when the estimator submits the quotation for approval. Accountant approval makes the quotation client-ready; Project Manager costing approval is an independent project-control step and is not a prerequisite for client submission. A successful submission sends the generated PDF by email and sets client status to `Under Review`; Marketing Executive or Marketing Manager can then mark it `Awarded` (`Approved`). Awarded quotations are final and cannot be revised or have their client status changed.
@@ -46,7 +46,7 @@ Draft quotations remain private to their estimator. Other roles cannot view, dow
 
 ## Project execution
 
-1. Accountant creates the project. The awarded enquiry, quotation history and collected documents remain linked/transferred, and the system assigns the single configured Project Manager automatically.
+1. Accountant creates the project. The awarded enquiry, quotation history and collected documents remain linked/transferred, and the system assigns the Project Manager automatically (if exactly one exists) or the Operation Manager will assign one from available Project Managers (when multiple exist).
 2. Project Manager defines scope, required materials, and schedules. Lists support bulk entry and copying from another project.
 3. Supervisor reports workers, usage, progress, site photos, and requests.
 4. Project Manager approves or rejects pending material requests.

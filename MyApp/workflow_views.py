@@ -8,6 +8,7 @@ from django.contrib import messages
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Max, Prefetch, Q
 from django.http import FileResponse, Http404, HttpResponseForbidden, JsonResponse
@@ -616,6 +617,19 @@ def dashboard(request):
         )
         quote.unread_comment_count = unread_by_link.get(_quotation_discussion_url(quote), 0)
 
+    try:
+        page_size = int(request.GET.get('page_size', '10'))
+    except (TypeError, ValueError):
+        page_size = 10
+    if page_size not in (10, 25, 50, 100):
+        page_size = 10
+    enquiry_page = Paginator(enquiry_records, page_size).get_page(request.GET.get('enquiry_page', 1))
+    quotation_page = Paginator(quote_records, page_size).get_page(request.GET.get('quotation_page', 1))
+    pagination_params = request.GET.copy()
+    pagination_params.pop('enquiry_page', None)
+    pagination_params.pop('quotation_page', None)
+    pagination_query = pagination_params.urlencode()
+
     internal_review_quotes = quotation.objects.filter(
         ENQUIRY__in=accessible_records, status='under_revision',
     ).only('details', 'validity_days')
@@ -631,8 +645,10 @@ def dashboard(request):
     ).exclude(status='draft').values('ENQUIRY_id').distinct().count()
 
     return _render(request, 'Workflow/dashboard.html', {
-        'enquiries': enquiry_records,
-        'quotations': quote_records,
+        'enquiries': enquiry_page,
+        'quotations': quotation_page,
+        'page_size': page_size,
+        'pagination_query': pagination_query,
         'can_add': role in ('Marketing Executive', 'Marketing Manager'),
         'can_manage_client_response': role in ('Admin', 'Marketing Executive', 'Marketing Manager'),
         'query': enquiry_query,

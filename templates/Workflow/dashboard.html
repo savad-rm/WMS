@@ -1,5 +1,35 @@
 {% extends 'Workflow/base.html' %}
 {% block header_search %}{% endblock %}
+{% block extra_head %}
+<style>
+  /* Keep dashboard registers usable with the sidebar open. Long text wraps;
+     the table only falls back to horizontal scrolling at narrow breakpoints. */
+  .dashboard .workflow-table { min-width: 0; width: 100%; table-layout: fixed; font-size: .84rem; }
+  .dashboard .workflow-table th, .dashboard .workflow-table td { overflow-wrap: anywhere; }
+  .dashboard #enquiry-history .workflow-table th:nth-child(1) { width: 9%; }
+  .dashboard #enquiry-history .workflow-table th:nth-child(2) { width: 12%; }
+  .dashboard #enquiry-history .workflow-table th:nth-child(3) { width: 13%; }
+  .dashboard #enquiry-history .workflow-table th:nth-child(4) { width: 14%; }
+  .dashboard #enquiry-history .workflow-table th:nth-child(5) { width: 12%; }
+  .dashboard #enquiry-history .workflow-table th:nth-child(6) { width: 9%; }
+  .dashboard #enquiry-history .workflow-table th:nth-child(7) { width: 15%; }
+  .dashboard #enquiry-history .workflow-table th:nth-child(8) { width: 8%; }
+  .dashboard #enquiry-history .workflow-table th:nth-child(9) { width: 8%; }
+  .dashboard #quotation-register .workflow-table th:nth-child(1) { width: 8%; }
+  .dashboard #quotation-register .workflow-table th:nth-child(2) { width: 13%; }
+  .dashboard #quotation-register .workflow-table th:nth-child(3) { width: 13%; }
+  .dashboard #quotation-register .workflow-table th:nth-child(4) { width: 13%; }
+  .dashboard #quotation-register .workflow-table th:nth-child(5),
+  .dashboard #quotation-register .workflow-table th:nth-child(6) { width: 10%; }
+  .dashboard #quotation-register .workflow-table th:nth-child(7) { width: 10%; }
+  .dashboard #quotation-register .workflow-table th:nth-child(8) { width: 11%; }
+  .dashboard #quotation-register .workflow-table th:nth-child(9) { width: 12%; }
+  .dashboard .workflow-page-size { font-size: .875rem; }
+  @media (max-width: 1199px) {
+    .dashboard .workflow-table { min-width: 980px; table-layout: auto; }
+  }
+</style>
+{% endblock %}
 {% block body %}
 <div class="pagetitle">
   <h1>Dashboard</h1>
@@ -147,6 +177,16 @@
           </tbody>
         </table>
       </div>
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3 workflow-page-size">
+        <form method="get" class="d-flex align-items-center gap-2">
+          <input type="hidden" name="view" value="{{ dashboard_view }}"><input type="hidden" name="enquiry_q" value="{{ enquiry_query }}"><input type="hidden" name="quotation_q" value="{{ quotation_query }}"><input type="hidden" name="enquiry_sort" value="{{ enquiry_sort }}"><input type="hidden" name="quotation_sort" value="{{ quotation_sort }}">
+          <label for="enquiryPageSize" class="text-muted mb-0">Entries per page</label>
+          <select id="enquiryPageSize" name="page_size" class="form-select form-select-sm" onchange="this.form.submit()" style="width: auto;">
+            <option value="10" {% if page_size == 10 %}selected{% endif %}>10</option><option value="25" {% if page_size == 25 %}selected{% endif %}>25</option><option value="50" {% if page_size == 50 %}selected{% endif %}>50</option><option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+          </select>
+        </form>
+        {% if enquiries.has_other_pages %}<nav aria-label="Enquiry pages"><ul class="pagination pagination-sm mb-0">{% if enquiries.has_previous %}<li class="page-item"><a class="page-link" href="?{{ pagination_query }}&enquiry_page={{ enquiries.previous_page_number }}">Previous</a></li>{% endif %}<li class="page-item active"><span class="page-link">Page {{ enquiries.number }} of {{ enquiries.paginator.num_pages }}</span></li>{% if enquiries.has_next %}<li class="page-item"><a class="page-link" href="?{{ pagination_query }}&enquiry_page={{ enquiries.next_page_number }}">Next</a></li>{% endif %}</ul></nav>{% endif %}
+      </div>
     </div>
   </div>
 
@@ -210,6 +250,14 @@
             {% empty %}<tr><td colspan="9" class="text-center text-muted py-4">No quotations are available for your role.</td></tr>{% endfor %}
           </tbody>
         </table>
+      </div>
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3 workflow-page-size">
+        <form method="get" class="d-flex align-items-center gap-2">
+          <input type="hidden" name="view" value="{{ dashboard_view }}"><input type="hidden" name="enquiry_q" value="{{ enquiry_query }}"><input type="hidden" name="quotation_q" value="{{ quotation_query }}"><input type="hidden" name="enquiry_sort" value="{{ enquiry_sort }}"><input type="hidden" name="quotation_sort" value="{{ quotation_sort }}">
+          <label for="quotationPageSize" class="text-muted mb-0">Entries per page</label>
+          <select id="quotationPageSize" name="page_size" class="form-select form-select-sm" onchange="this.form.submit()" style="width: auto;"><option value="10" {% if page_size == 10 %}selected{% endif %}>10</option><option value="25" {% if page_size == 25 %}selected{% endif %}>25</option><option value="50" {% if page_size == 50 %}selected{% endif %}>50</option><option value="100" {% if page_size == 100 %}selected{% endif %}>100</option></select>
+        </form>
+        {% if quotations.has_other_pages %}<nav aria-label="Quotation pages"><ul class="pagination pagination-sm mb-0">{% if quotations.has_previous %}<li class="page-item"><a class="page-link" href="?{{ pagination_query }}&quotation_page={{ quotations.previous_page_number }}">Previous</a></li>{% endif %}<li class="page-item active"><span class="page-link">Page {{ quotations.number }} of {{ quotations.paginator.num_pages }}</span></li>{% if quotations.has_next %}<li class="page-item"><a class="page-link" href="?{{ pagination_query }}&quotation_page={{ quotations.next_page_number }}">Next</a></li>{% endif %}</ul></nav>{% endif %}
       </div>
     </div>
   </div>

@@ -547,8 +547,18 @@ def dashboard(request):
     ).exclude(status='draft').select_related(
         'ENQUIRY', 'ENQUIRY__created_by', 'created_by',
     )
+    # Cards and registers must use the same current-version rule: one latest
+    # quotation per enquiry, with historical R1/R2 records excluded.
+    current_quote_ids_by_enquiry = {}
+    for quote_id, enquiry_id in quote_records.order_by(
+        'ENQUIRY_id', '-version', '-id',
+    ).values_list('id', 'ENQUIRY_id'):
+        current_quote_ids_by_enquiry.setdefault(enquiry_id, quote_id)
+    current_quote_ids = set(current_quote_ids_by_enquiry.values())
     client_pending_ids = [
-        item.pk for item in quote_records.filter(status='submitted').select_related(None).only(
+        item.pk for item in quote_records.filter(
+            pk__in=current_quote_ids, status='submitted',
+        ).select_related(None).only(
             'pk', 'details', 'validity_days',
         ) if quotation_tracking(item.details, item.validity_days).get('client_status') == 'under_review'
     ]
@@ -645,13 +655,13 @@ def dashboard(request):
 
     internal_approval_count = quotation.objects.filter(
         ENQUIRY__in=accessible_records,
-        status__in=('manager_review', 'accountant_review'),
+        pk__in=current_quote_ids, status__in=('manager_review', 'accountant_review'),
     ).count()
     client_pending_enquiries = set(
         quotation.objects.filter(pk__in=client_pending_ids).values_list('ENQUIRY_id', flat=True)
     )
     revision_count = quotation.objects.filter(
-        ENQUIRY__in=accessible_records, status='under_revision',
+        pk__in=current_quote_ids, status='under_revision',
     ).count()
     quotation_count = quotation.objects.filter(
         ENQUIRY__in=accessible_records,

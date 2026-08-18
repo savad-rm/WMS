@@ -43,7 +43,8 @@ from MyApp.models import (
     workflow_notification,
 )
 from MyApp.quotation_document import (
-    quotation_tracking, unpack_document, update_quotation_tracking,
+    quotation_internal_review, quotation_tracking, unpack_document,
+    update_quotation_internal_review, update_quotation_tracking,
 )
 from MyApp.quotation_activity import publish_client_response, publish_quotation_message
 from MyApp.quotation_email import QuotationDeliveryError, send_quotation_to_client
@@ -703,27 +704,44 @@ class EnquiryActionView(APIView):
                 if amount <= 0:
                     raise ValidationError({'amount': ['Quotation amount must be greater than zero.']})
                 existing_quotes = quotation.objects.select_for_update().filter(ENQUIRY=record)
-                version = (existing_quotes.aggregate(value=Max('version'))['value'] or 0) + 1
-                first_quote = existing_quotes.order_by('version', 'id').first()
-                revision = (existing_quotes.aggregate(value=Max('revision'))['value'] or 0) + 1 if first_quote else 0
-                quote = quotation.objects.create(
-                    ENQUIRY=record, version=version, revision=revision, amount=amount,
-                    subject=str(request.data.get('subject', '')).strip() or f'Quotation for {record.title}',
-                    details=str(request.data.get('details', '')).strip(), created_by=person,
-                    status='draft',
+                latest = existing_quotes.order_by('-version').first()
+                is_internal_return = bool(
+                    latest and latest.status == 'under_revision'
+                    and latest.created_by_id == getattr(person, 'pk', None)
+                    and quotation_internal_review(latest.details, latest.validity_days)
                 )
-                assign_quotation_reference(quote, first_quote)
+                if is_internal_return:
+                    quote = latest
+                    quote.amount = amount
+                    quote.subject = str(request.data.get('subject', '')).strip() or f'Quotation for {record.title}'
+                    quote.details = str(request.data.get('details', '')).strip()
+                    quote.status = 'draft'
+                    quote.save(update_fields=('amount', 'subject', 'details', 'status', 'updated_at'))
+                    quote.lines.all().delete()
+                else:
+                    version = (existing_quotes.aggregate(value=Max('version'))['value'] or 0) + 1
+                    first_quote = existing_quotes.order_by('version', 'id').first()
+                    revision = (existing_quotes.aggregate(value=Max('revision'))['value'] or 0) + 1 if first_quote else 0
+                    quote = quotation.objects.create(
+                        ENQUIRY=record, version=version, revision=revision, amount=amount,
+                        subject=str(request.data.get('subject', '')).strip() or f'Quotation for {record.title}',
+                        details=str(request.data.get('details', '')).strip(), created_by=person,
+                        status='draft',
+                    )
+                    assign_quotation_reference(quote, first_quote)
                 quotation_line.objects.create(
                     QUOTATION=quote,
                     description=quote.details or 'Quotation total',
                     unit='lot', quantity=1, unit_rate=amount, amount=amount, position=1,
                 )
-                costing.objects.create(
+                costing.objects.update_or_create(
                     QUOTATION=quote,
-                    material_cost=_decimal(request.data, 'material_cost'),
-                    labour_cost=_decimal(request.data, 'labour_cost'),
-                    other_cost=_decimal(request.data, 'other_cost'),
-                    notes=str(request.data.get('costing_notes', '')).strip(),
+                    defaults={
+                        'material_cost': _decimal(request.data, 'material_cost'),
+                        'labour_cost': _decimal(request.data, 'labour_cost'),
+                        'other_cost': _decimal(request.data, 'other_cost'),
+                        'notes': str(request.data.get('costing_notes', '')).strip(),
+                    },
                 )
             else:
                 latest = quotation.objects.select_for_update().filter(ENQUIRY=record).order_by('-version').first()
@@ -741,15 +759,21 @@ class EnquiryActionView(APIView):
                     if len(remarks) > 2000:
                         raise ValidationError({'remarks': ['Revision request cannot exceed 2,000 characters.']})
                     latest.status = 'under_revision'
-                    latest.manager_approved_by = None
-                    latest.manager_approved_at = None
-                    latest.accountant_approved_by = None
-                    latest.accountant_approved_at = None
-                    latest.save(update_fields=(
-                        'status', 'manager_approved_by', 'manager_approved_at',
-                        'accountant_approved_by', 'accountant_approved_at', 'updated_at',
-                    ))
-                    record.status = 'under_revision'
+                    latest.details = update_quotation_internal_review(
+                        latest.details, latest.validity_days,
+                        stage='manager' if request.user.usertype == 'Marketing Manager' else 'accountant',
+                    )
+                    update_fields = ['status', 'details', 'updated_at']
+                    if request.user.usertype == 'Marketing Manager':
+                        latest.manager_approved_by = None
+                        latest.manager_approved_at = None
+                        update_fields.extend(['manager_approved_by', 'manager_approved_at'])
+                    else:
+                        latest.accountant_approved_by = None
+                        latest.accountant_approved_at = None
+                        update_fields.extend(['accountant_approved_by', 'accountant_approved_at'])
+                    latest.save(update_fields=update_fields)
+                    record.status = 'quoted'
                     record.save(update_fields=('status', 'updated_at'))
                     publish_quotation_message(
                         latest, request.user,
@@ -793,6 +817,10 @@ class EnquiryActionView(APIView):
                         'client status is now Under Review.'
                     )
                 elif action == 'client_response' and request.user.usertype in ('Admin', 'Marketing Executive', 'Marketing Manager') and latest.status in ('submitted', 'rejected', 'under_revision'):
+                    if latest.status == 'under_revision' and quotation_internal_review(
+                        latest.details, latest.validity_days,
+                    ):
+                        raise ValidationError({'action': ['Internal revisions do not change client response details.']})
                     client_status = str(request.data.get('client_status', 'under_review')).strip()
                     if client_status not in CLIENT_RESPONSE_STATUSES:
                         raise ValidationError({'client_status': ['Select a valid client response status.']})

@@ -98,6 +98,30 @@ def update_quotation_tracking(value, validity_days=14, **updates):
     )
 
 
+def quotation_internal_review(value, validity_days=14):
+    """Return the internal approval stage that asked the estimator to correct a quote."""
+    stage = (unpack_document(value, validity_days).get('draft_state') or {}).get(
+        'internal_revision_stage', ''
+    )
+    return stage if stage in ('manager', 'accountant') else ''
+
+
+def update_quotation_internal_review(value, validity_days=14, stage=''):
+    """Record internal rework without creating or changing client-submittal tracking."""
+    document = unpack_document(value, validity_days)
+    draft_state = dict(document.get('draft_state') or {})
+    if stage in ('manager', 'accountant'):
+        draft_state['internal_revision_stage'] = stage
+    else:
+        draft_state.pop('internal_revision_stage', None)
+    # Keep tracking absent until the quotation has actually been submitted to the client.
+    tracking = document.get('tracking') or None
+    return pack_document(
+        document['terms'], document.get('remarks', ''), tracking,
+        client_details=document.get('client'), draft_state=draft_state,
+    )
+
+
 def line_kind(line):
     return {
         SECTION_UNIT: 'section',

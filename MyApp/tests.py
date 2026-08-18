@@ -27,8 +27,8 @@ from .models import (
 )
 from .deadline_notifications import ensure_quotation_deadline_notifications
 from .quotation_document import (
-    SECTION_UNIT, default_terms, pack_document, presentation_rows, quotation_tracking,
-    unpack_document,
+    SECTION_UNIT, default_terms, pack_document, presentation_rows, quotation_internal_review,
+    quotation_tracking, unpack_document,
 )
 from .quotation_exports import (
     _lump_sum_display_on_page,
@@ -330,7 +330,8 @@ class WorkflowTests(TestCase):
         quote.refresh_from_db()
         record.refresh_from_db()
         self.assertEqual(quote.status, 'under_revision')
-        self.assertEqual(record.status, 'under_revision')
+        self.assertEqual(record.status, 'quoted')
+        self.assertEqual(quotation_internal_review(quote.details), 'manager')
         self.assertTrue(record.comments.filter(
             comment__contains='Marketing Manager requested quotation revision',
         ).exists())
@@ -339,6 +340,20 @@ class WorkflowTests(TestCase):
             link=reverse('workflow_quotation_discussion', args=(quote.pk,)),
             read_at__isnull=True,
         ).exists())
+        dashboard = self.client.get(reverse('workflow_dashboard'))
+        self.assertContains(dashboard, 'Under Revision')
+        self.assertContains(dashboard, 'Not Submitted')
+
+        self.sign_in_as(*self.estimator)
+        response = self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), {
+            'draft_id': quote.pk, 'amount': '1250', 'details': 'Corrected internal scope',
+            'material_cost': '100', 'labour_cost': '100', 'other_cost': '0',
+        })
+        self.assertEqual(response.status_code, 302)
+        quote.refresh_from_db()
+        self.assertEqual(quotation.objects.filter(ENQUIRY=record).count(), 1)
+        self.assertEqual(quote.status, 'draft')
+        self.assertEqual(quotation_internal_review(quote.details), '')
 
     def test_dashboard_metric_cards_open_the_matching_filtered_register(self):
         open_record = enquiry.objects.create(

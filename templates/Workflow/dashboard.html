@@ -1,5 +1,19 @@
 {% extends 'Workflow/base.html' %}
 {% block header_search %}{% endblock %}
+{% block extra_head %}
+<style>
+  .dashboard .dashboard-card { order: 0; }
+  .dashboard .dashboard-card:nth-child(1) { order: 6; }
+  .dashboard .dashboard-card:nth-child(2) { order: 5; }
+  .dashboard .dashboard-card:nth-child(3) { order: 1; }
+  .dashboard .dashboard-card:nth-child(4) { order: 2; }
+  .dashboard .dashboard-card:nth-child(5) { order: 3; }
+  .dashboard .dashboard-card:nth-child(6) { order: 4; }
+  .dashboard .dashboard-card:nth-child(7) { order: 7; }
+  .dashboard .dashboard-card:nth-child(8) { order: 8; }
+  .dashboard a.quotation-card { background: #f8fbff; }
+</style>
+{% endblock %}
 {% block body %}
 <div class="pagetitle">
   <h1>Dashboard</h1>
@@ -13,18 +27,18 @@
 
 <section class="section dashboard">
   <div class="row">
-    <div class="col-lg-4 col-md-6">
-      <a class="card info-card customers-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=under_revision" aria-label="View quotations under revision">
+    <div class="col-lg-4 col-md-6 dashboard-card">
+      <a class="card info-card customers-card quotation-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=under_revision#quotation-register" aria-label="View quotations under revision">
         <div class="card-body"><h5 class="card-title">Under Revision</h5><div class="d-flex align-items-center"><div class="card-icon rounded-circle d-flex align-items-center justify-content-center"><i class="bi bi-arrow-counterclockwise"></i></div><div class="ps-3"><h6>{{ summary.under_revision }}</h6><span class="text-muted small pt-2">Internal or client changes</span></div></div></div>
       </a>
     </div>
-    <div class="col-lg-4 col-md-6">
-      <a class="card info-card customers-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=awaiting_approval" aria-label="View quotations awaiting internal approval">
+    <div class="col-lg-4 col-md-6 dashboard-card">
+      <a class="card info-card customers-card quotation-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=awaiting_approval#quotation-register" aria-label="View quotations awaiting internal approval">
         <div class="card-body"><h5 class="card-title">Internal Approval Waiting</h5><div class="d-flex align-items-center"><div class="card-icon rounded-circle d-flex align-items-center justify-content-center"><i class="bi bi-hourglass-split"></i></div><div class="ps-3"><h6>{{ summary.internal_approval }}</h6><span class="text-muted small pt-2">Manager or accountant review</span></div></div></div>
       </a>
     </div>
-    <div class="col-lg-4 col-md-6">
-      <a class="card info-card sales-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=enquiries" aria-label="View enquiry history">
+    <div class="col-lg-4 col-md-6 dashboard-card">
+      <a class="card info-card sales-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=enquiries#enquiry-history" aria-label="View enquiry history">
         <div class="card-body">
           <h5 class="card-title">Enquiry History</h5>
           <div class="d-flex align-items-center">
@@ -34,8 +48,8 @@
         </div>
       </a>
     </div>
-    <div class="col-lg-4 col-md-6">
-      <a class="card info-card revenue-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=open" aria-label="View open enquiries awaiting assignment">
+    <div class="col-lg-4 col-md-6 dashboard-card">
+      <a class="card info-card revenue-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=open#enquiry-history" aria-label="View open enquiries awaiting assignment">
         <div class="card-body">
           <h5 class="card-title">Open Enquiries</h5>
           <div class="d-flex align-items-center">
@@ -45,8 +59,8 @@
         </div>
       </a>
     </div>
-    <div class="col-lg-4 col-md-6">
-      <a class="card info-card revenue-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=assigned" aria-label="View enquiries assigned to estimators">
+    <div class="col-lg-4 col-md-6 dashboard-card">
+      <a class="card info-card revenue-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=assigned#enquiry-history" aria-label="View enquiries assigned to estimators">
         <div class="card-body">
           <h5 class="card-title">Assigned Enquiries</h5>
           <div class="d-flex align-items-center">
@@ -56,8 +70,8 @@
         </div>
       </a>
     </div>
-    <div class="col-lg-4 col-md-6">
-      <a class="card info-card customers-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=quotations" aria-label="View quotation register">
+    <div class="col-lg-4 col-md-6 dashboard-card">
+      <a class="card info-card customers-card quotation-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=quotations#quotation-register" aria-label="View quotation register">
         <div class="card-body">
           <h5 class="card-title">Quotation Register</h5>
           <div class="d-flex align-items-center">
@@ -67,8 +81,8 @@
         </div>
       </a>
     </div>
-    <div class="col-lg-4 col-md-6">
-      <a class="card info-card customers-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=client_approval" aria-label="View quotations awaiting client response">
+    <div class="col-lg-4 col-md-6 dashboard-card">
+      <a class="card info-card customers-card quotation-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=client_approval#quotation-register" aria-label="View quotations awaiting client response">
         <div class="card-body">
           <h5 class="card-title">Client Approval Waiting</h5>
           <div class="d-flex align-items-center">
@@ -78,8 +92,8 @@
         </div>
       </a>
     </div>
-    <div class="col-lg-4 col-md-6">
-      <a class="card info-card revenue-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=awarded" aria-label="View awarded quotations">
+    <div class="col-lg-4 col-md-6 dashboard-card">
+      <a class="card info-card revenue-card quotation-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=awarded#quotation-register" aria-label="View awarded quotations">
         <div class="card-body">
           <h5 class="card-title">Awarded Quotations</h5>
           <div class="d-flex align-items-center">

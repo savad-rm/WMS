@@ -1,57 +1,58 @@
 WMS
 
+Current implementation status
+- Unique staff email validation is enforced for login accounts.
+- New user creation returns to the user-management list.
+- Enquiry and quotation workflows now preserve draft autosave and strict role-based visibility.
 
-Coding logic:-
--implement uniqu email for user, 
--after add user navigate to user list 
+Business requirements
+- Refer/transfer the scope of work and material list from another project.
+- Change materials, scope of work and schedule entries directly in the table form with date entry only where required.
+- Keep draft quotation data protected and recover automatically without forcing a resume prompt on the next visit.
+- When a section is split across a page break in the quotation output, the displayed lump-sum amount stays with the fragment that contains the larger section body so the value stays visually attached to the correct part of the quotation.
+- Rate and amount cells auto-expand to fit larger numeric values while the quotation is being edited.
+- Revision requests by the Marketing Manager or Accountant move the quotation to Under Revision for the estimator while preserving the approval trail and internal discussion notifications.
+- Before final internal approval, the quotation number remains visible in the register, but the quotation itself remains locked from viewing for the Marketing Executive until internal approval is completed.
+- A quotation sent to the estimator before final internal approval must not be counted as a revision number increase and should remain visible on the assigned card count.
 
+Workflow roles
+- Admin
+- Project Manager
+- Supervisor
+- Accountant
+- Purchaser
+- Marketing Executive
+- Marketing Manager
+- Estimator
+- Document Controller
 
-Business requirements:-
--reffer/transfer scope of work,material list from another project 
--change material,scope of work,schedule(scope of work sheet directly in this, only date need to be added) addition to list form from table form
-
-
-
-Existing Roles:-
--Admin
--Project Manager
--Supervisor
--Accountant
--Purchaser
-
-
-
-New Roles:-
--Marketing Executive
--Marketing Manager
--Estimator
--Document Controller
-
-
-New Functions:-
-->Marketing Executive:
-  -Add project enquiry (FIles:Excel, Photos, Pdf, CAD, Word)
-  -View Enquiry (Add comments, Remark)
-  -Update Project Award (Acceptance of Quatation from client)
-  -Collect Project documents from client
-->Marketing Manager:
-  -View Enquiry (Add comments, Remark)
-  -Assign Enquiry to Estimator
-  -Approve Quatation (1 in approval order)
-->Estimator:
-  -View Enquiry (Add comments, Remark)
-  -Add Quatation
-  -Add Costing
-->Document Controller:
-  -Submit Quatation to Client
-  -View Quatation
-  -Verify Project documents collected from client
-->Admin:
-  -Transfer Enquiry,Quatation,other project related documents of project while creating project
-->Project Manager:
-  -Assign Enquiry to Estimator
-  -View Enquiry (Add comments, Remark)
-  -Approve Costing
-->Accountant:
-  -View Enquiry (Add comments, Remark)
-  -Approve Quatation (2nd approval)
+Role functions
+- Marketing Executive:
+  - Add project enquiry (files: Excel, photos, PDF, CAD, Word)
+  - View enquiry and add comments or remarks
+  - Update project award / client acceptance of quotation
+  - Collect project documents from client
+  - View quotation number and status in the register without opening restricted internal approval quotations
+- Marketing Manager:
+  - View enquiry and add comments or remarks
+  - Assign enquiry to estimator
+  - Approve quotation in the first approval stage
+  - Request revision from estimator before final approval
+- Estimator:
+  - View enquiry and add comments or remarks
+  - Add quotation draft and revise under-revision quotations
+  - Add costing and submit quotation for approval
+- Document Controller:
+  - Submit quotation to client
+  - View quotation
+  - Verify project documents collected from client
+- Admin:
+  - Transfer enquiry, quotation and project-related documents while creating projects
+- Project Manager:
+  - Assign enquiry to estimator
+  - View enquiry and add comments or remarks
+  - Approve costing
+- Accountant:
+  - View enquiry and add comments or remarks
+  - Approve quotation in the second approval stage
+  - Request revision when the quotation is pending second approval

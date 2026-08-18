@@ -9,7 +9,9 @@
   .quotation-entry-table .line-description { min-height: 76px; resize: vertical; overflow-y: hidden; }
   .quotation-entry-table .quotation-row.table-light .line-description { min-height: 42px; }
   .quotation-entry-table .quotation-row[data-kind="subheading"] .line-description { min-height: 38px; }
-  .quotation-entry-table .direct-line-amount { min-width: 95px; text-align: right; }
+  .quotation-entry-table .line-quantity,
+  .quotation-entry-table .line-rate,
+  .quotation-entry-table .direct-line-amount { min-width: 72px; width: 100%; text-align: right; }
   .quotation-entry-table .direct-line-amount::placeholder { color: #6c757d; font-size: .8rem; }
   .quotation-entry-table .quotation-row:not([data-kind="item"]) .line-description { font-weight: 600; }
   .quotation-entry-table .quotation-row[data-kind="section"] .line-description { text-align: center; }
@@ -199,6 +201,12 @@
     input.style.height = 'auto';
     input.style.height = `${Math.max(input.closest('tr').dataset.kind === 'subheading' ? 38 : 48, input.scrollHeight)}px`;
   }
+  function autoFitNumericInput(input) {
+    if (!input || !['line-quantity', 'line-rate', 'direct-line-amount'].includes(input.classList.value.split(/\s+/).find(cls => ['line-quantity', 'line-rate', 'direct-line-amount'].includes(cls)))) return;
+    const digits = Math.max(3, (input.value || '').replace(/[^\d.]/g, '').length);
+    const width = Math.min(170, Math.max(72, digits * 9 + 18));
+    input.style.width = `${width}px`;
+  }
   function updateTotals() {
     let total = 0, sectionTotal = 0;
     let activeLumpSum = false, sectionDirectTotal = null;
@@ -261,11 +269,15 @@
     updateTotals();
     scheduleAutosave();
     row.querySelector('.line-description').focus();
+    row.querySelectorAll('.line-rate, .line-quantity, .direct-line-amount').forEach(autoFitNumericInput);
     row.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
   document.querySelectorAll('.add-quotation-row').forEach(button => button.addEventListener('click', () => addRow(button.dataset.kind)));
   rows.addEventListener('input', updateTotals);
-  rows.addEventListener('input', event => { if (event.target.classList.contains('line-description')) autoSizeDescription(event.target); });
+  rows.addEventListener('input', event => {
+    if (event.target.classList.contains('line-description')) autoSizeDescription(event.target);
+    if (['line-quantity', 'line-rate', 'direct-line-amount'].some(className => event.target.classList.contains(className))) autoFitNumericInput(event.target);
+  });
   rows.addEventListener('focusin', event => { if (event.target.classList.contains('line-description')) activeDescription = event.target; });
   rows.addEventListener('change', event => { if (event.target.classList.contains('row-type')) updateTotals(); });
   rows.addEventListener('click', event => {
@@ -384,12 +396,9 @@
   try {
     const saved = JSON.parse(localStorage.getItem(autosaveKey) || 'null');
     if (saved && saved.values) {
-      const banner = document.createElement('div');
-      banner.className = 'alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2';
-      banner.innerHTML = `<span><i class="bi bi-cloud-arrow-down"></i> A browser backup from ${new Date(saved.savedAt).toLocaleString()} is available.</span><span><button type="button" class="btn btn-sm btn-primary restore-local-draft">Restore</button> <button type="button" class="btn btn-sm btn-outline-secondary discard-local-draft">Discard</button></span>`;
-      quotationForm.prepend(banner);
-      banner.querySelector('.restore-local-draft').addEventListener('click', () => { restoreDraft(saved); banner.remove(); quotationChanged = true; });
-      banner.querySelector('.discard-local-draft').addEventListener('click', () => { localStorage.removeItem(autosaveKey); banner.remove(); });
+      restoreDraft(saved);
+      quotationChanged = true;
+      autosaveStatus.innerHTML = `<i class="bi bi-cloud-arrow-down"></i> Restored the last saved draft from ${new Date(saved.savedAt).toLocaleString()}.`;
     }
   } catch (error) { localStorage.removeItem(autosaveKey); }
   window.setInterval(function () { if (quotationChanged && !formSubmitting) serverAutosave(); }, 15000);

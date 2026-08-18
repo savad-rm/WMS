@@ -30,7 +30,12 @@ from .quotation_document import (
     SECTION_UNIT, default_terms, pack_document, presentation_rows, quotation_tracking,
     unpack_document,
 )
-from .quotation_exports import build_quotation_excel, build_quotation_pdf, quotation_amount_words
+from .quotation_exports import (
+    _lump_sum_display_on_page,
+    build_quotation_excel,
+    build_quotation_pdf,
+    quotation_amount_words,
+)
 
 
 @override_settings(
@@ -284,6 +289,12 @@ class WorkflowTests(TestCase):
         self.assertEqual(quote.status, 'approved')
         self.assertEqual(record.status, 'approved')
         self.assertContains(response, 'remains approved and was not submitted')
+
+    def test_lump_sum_total_stays_with_the_heavier_page_fragment(self):
+        self.assertTrue(_lump_sum_display_on_page(3, 12, 3, 8))
+        self.assertFalse(_lump_sum_display_on_page(3, 12, 9, 12))
+        self.assertTrue(_lump_sum_display_on_page(5, 10, 5, 7))
+        self.assertTrue(_lump_sum_display_on_page(5, 10, 5, 10))
 
     def test_manager_can_request_revision_before_approval(self):
         record = enquiry.objects.create(

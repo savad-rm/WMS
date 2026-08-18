@@ -70,6 +70,23 @@ class _PaginatedQuotationTable(Flowable):
         # Platypus will move this continuation to the next page.
         return []
 
+
+def _lump_sum_display_on_page(group_start, group_end, page_start, page_end):
+    """Keep the lump-sum total with the heavier fragment on a split section.
+
+    When a section is broken across pages, the total must remain with the
+    fragment that carries more rows so the visual section amount stays attached
+    to the dominant part of the table.
+    """
+    if group_end <= group_start:
+        return True
+    group_rows = group_end - group_start + 1
+    fragment_rows = max(
+        0,
+        min(group_end, page_end) - max(group_start, page_start) + 1,
+    )
+    return fragment_rows >= (group_rows - fragment_rows)
+
 def quotation_amount_words(value):
     ones = (
         'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight',
@@ -541,16 +558,16 @@ def build_quotation_pdf(quote):
             local_start = max(group_start, first_row) - start_index
             local_end = min(group_end, last_row) - start_index
             if group_end > group_start:
-                # A cross-page lump sum is visually merged within each page
-                # fragment.  The amount is printed only in the final fragment
-                # so it is never duplicated in the quotation total.
+                should_display_here = _lump_sum_display_on_page(
+                    group_start, group_end, first_row, last_row,
+                )
                 for column in (4, 5):
                     fragment_style.append(
                         ('SPAN', (column, local_start), (column, local_end))
                     )
                     fragment_data[local_start][column] = (
                         Paragraph(f'{group["total"]:,.2f}', money)
-                        if group_end <= last_row else ''
+                        if should_display_here else ''
                     )
 
         fragment = Table(

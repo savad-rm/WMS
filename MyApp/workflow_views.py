@@ -301,6 +301,8 @@ def _detail_context(request, record, extra=None):
         revision_source = record.quotations.filter(
             pk=revision_id, status='under_revision',
         ).first()
+        if revision_source and not _is_current_quotation(revision_source):
+            revision_source = None
     edit_id = request.GET.get('edit', '').strip()
     if role == 'Estimator' and edit_id:
         editing_quote = record.quotations.filter(
@@ -1429,6 +1431,9 @@ def start_quotation_revision(request, quote_id):
     )
     if quote.ENQUIRY.status == 'awarded' or quote.ENQUIRY.quotations.filter(status='accepted').exists():
         messages.error(request, 'An awarded quotation cannot be revised.')
+        return redirect('workflow_view_quotation', quote_id=quote.pk)
+    if not _is_current_quotation(quote):
+        messages.error(request, 'Only the current quotation can be revised.')
         return redirect('workflow_view_quotation', quote_id=quote.pk)
     if quotation_internal_review(quote.details, quote.validity_days):
         messages.error(request, 'This is an internal revision. Edit the same quotation; no new revision number is created.')

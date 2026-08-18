@@ -1579,6 +1579,37 @@ class MobileApiTests(TestCase):
         )
         self.assertEqual(response.status_code, 201)
 
+    def test_mobile_quotation_payload_does_not_report_client_status_before_submission(self):
+        record = enquiry.objects.create(
+            title='Mobile quotation review', client_name='Mobile Client',
+            created_by=self.marketing[0], assigned_to=self.manager[1], status='quoted',
+        )
+        quote = quotation.objects.create(
+            ENQUIRY=record, version=1, amount=Decimal('2500.00'),
+            details=pack_document(default_terms()), status='manager_review',
+            created_by=self.manager[1],
+        )
+        response = self.client.get(
+            reverse('mobile_api:enquiry-detail', args=(record.pk,)),
+            **self.api_headers(self.manager[0]),
+        )
+        self.assertEqual(response.status_code, 200)
+        mobile_quote = next(
+            item for item in response.json()['enquiry']['quotations'] if item['id'] == quote.pk
+        )
+        self.assertIsNone(mobile_quote['client_status'])
+        self.assertIsNone(mobile_quote['submitted_at'])
+        self.assertEqual(mobile_quote['internal_revision_stage'], None)
+
+        marketing_response = self.client.get(
+            reverse('mobile_api:enquiry-detail', args=(record.pk,)),
+            **self.api_headers(self.marketing[0]),
+        )
+        self.assertEqual(marketing_response.status_code, 200)
+        marketing_quote = marketing_response.json()['enquiry']['quotations'][0]
+        self.assertFalse(marketing_quote['content_available'])
+        self.assertEqual(marketing_quote['details'], '')
+
 
 class BackupCommandTests(TransactionTestCase):
     def test_sqlite_database_and_media_backup_include_verified_manifest(self):

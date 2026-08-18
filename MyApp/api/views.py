@@ -160,10 +160,19 @@ def _enquiry_allowed(account, record):
     return True
 
 
-def _quotation_payload(quote):
+def _quotation_payload(quote, account=None):
     tracking = quotation_tracking(quote.details, quote.validity_days)
     document = unpack_document(quote.details, quote.validity_days)
     client = document.get('client') or {}
+    submitted = bool(tracking['submitted_at'])
+    internal_stage = quotation_internal_review(quote.details, quote.validity_days)
+    restricted_for_marketing = bool(
+        account and account.usertype == 'Marketing Executive'
+        and (
+            quote.status in ('manager_review', 'accountant_review')
+            or (quote.status == 'under_revision' and not quote.accountant_approved_at)
+        )
+    )
     return {
         'id': quote.pk,
         'version': quote.version,
@@ -171,10 +180,12 @@ def _quotation_payload(quote):
         'revision': quote.revision,
         'amount': str(quote.amount),
         'status': quote.status,
-        'details': quote.details,
+        'details': '' if restricted_for_marketing else quote.details,
+        'content_available': not restricted_for_marketing,
         'submitted_at': tracking['submitted_at'] or None,
-        'client_remarks': tracking['client_remarks'],
-        'client_status': tracking['client_status'],
+        'client_remarks': tracking['client_remarks'] if submitted else '',
+        'client_status': tracking['client_status'] if submitted else None,
+        'internal_revision_stage': internal_stage or None,
         'client': {
             'name': client.get('name', quote.ENQUIRY.client_name),
             'phone': client.get('phone', quote.ENQUIRY.client_phone),
@@ -211,7 +222,10 @@ def _enquiry_payload(record, detailed=False, account=None):
         quotations = record.quotations.all()
         if account and account.usertype == 'Marketing Executive':
             quotations = quotations.filter(
-                status__in=('approved', 'submitted', 'accepted', 'rejected', 'under_revision')
+                status__in=(
+                    'manager_review', 'accountant_review', 'approved', 'submitted',
+                    'accepted', 'rejected', 'under_revision',
+                )
             )
         payload.update({
             'description': record.description,
@@ -228,7 +242,7 @@ def _enquiry_payload(record, detailed=False, account=None):
                 'comment': item.comment,
                 'created_at': _iso(item.created_at),
             } for item in record.comments.select_related('author')],
-            'quotations': [_quotation_payload(quote) for quote in quotations],
+            'quotations': [_quotation_payload(quote, account=account) for quote in quotations],
         })
     return payload
 

@@ -496,6 +496,18 @@ def dashboard(request):
             'label': 'Quotations awaiting internal approval',
             'target': 'quotations',
         },
+        'client_approval': {
+            'label': 'Quotations awaiting client response',
+            'target': 'quotations',
+        },
+        'internal_approval': {
+            'label': 'Quotations awaiting internal approval',
+            'target': 'quotations',
+        },
+        'under_revision': {
+            'label': 'Quotations under revision',
+            'target': 'quotations',
+        },
         'awarded': {
             'label': 'Awarded quotations',
             'target': 'quotations',
@@ -535,6 +547,11 @@ def dashboard(request):
     ).exclude(status='draft').select_related(
         'ENQUIRY', 'ENQUIRY__created_by', 'created_by',
     )
+    client_pending_ids = [
+        item.pk for item in quote_records.filter(status='submitted').select_related(None).only(
+            'pk', 'details', 'validity_days',
+        ) if quotation_tracking(item.details, item.validity_days).get('client_status') == 'under_review'
+    ]
     quotation_query = request.GET.get('quotation_q', '').strip()
     if quotation_query:
         quote_records = quote_records.filter(
@@ -544,16 +561,12 @@ def dashboard(request):
             | Q(ENQUIRY__created_by__username__icontains=quotation_query)
             | Q(created_by__name__icontains=quotation_query)
         )
-    if dashboard_view == 'awaiting_approval':
-        internal_return_ids = [
-            item.pk for item in quote_records.filter(status='under_revision').select_related(None).only(
-                'pk', 'details', 'validity_days',
-            ) if quotation_internal_review(item.details, item.validity_days)
-        ]
-        quote_records = quote_records.filter(
-            Q(status__in=('manager_review', 'accountant_review'))
-            | Q(pk__in=internal_return_ids),
-        )
+    if dashboard_view in ('awaiting_approval', 'internal_approval'):
+        quote_records = quote_records.filter(status__in=('manager_review', 'accountant_review'))
+    elif dashboard_view == 'client_approval':
+        quote_records = quote_records.filter(pk__in=client_pending_ids)
+    elif dashboard_view == 'under_revision':
+        quote_records = quote_records.filter(status='under_revision')
     elif dashboard_view == 'awarded':
         quote_records = quote_records.filter(status='accepted')
     quotation_sort = request.GET.get('quotation_sort', '-date')
@@ -630,16 +643,16 @@ def dashboard(request):
     pagination_params.pop('quotation_page', None)
     pagination_query = pagination_params.urlencode()
 
-    internal_review_quotes = quotation.objects.filter(
-        ENQUIRY__in=accessible_records, status='under_revision',
-    ).only('details', 'validity_days')
-    awaiting_approval_count = quotation.objects.filter(
+    internal_approval_count = quotation.objects.filter(
         ENQUIRY__in=accessible_records,
         status__in=('manager_review', 'accountant_review'),
-    ).count() + sum(
-        1 for item in internal_review_quotes
-        if quotation_internal_review(item.details, item.validity_days)
+    ).count()
+    client_pending_enquiries = set(
+        quotation.objects.filter(pk__in=client_pending_ids).values_list('ENQUIRY_id', flat=True)
     )
+    revision_count = quotation.objects.filter(
+        ENQUIRY__in=accessible_records, status='under_revision',
+    ).count()
     quotation_count = quotation.objects.filter(
         ENQUIRY__in=accessible_records,
     ).exclude(status='draft').values('ENQUIRY_id').distinct().count()
@@ -665,7 +678,10 @@ def dashboard(request):
             'quotations': quotation_count,
             'open': accessible_records.filter(status='open').count(),
             'assigned': accessible_records.filter(status='assigned').count(),
-            'awaiting_approval': awaiting_approval_count,
+            'awaiting_approval': internal_approval_count,
+            'client_approval': len(client_pending_enquiries),
+            'internal_approval': internal_approval_count,
+            'under_revision': revision_count,
             'awarded': accessible_records.filter(status='awarded').count(),
         },
     })

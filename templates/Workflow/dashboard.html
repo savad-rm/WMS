@@ -1,35 +1,5 @@
 {% extends 'Workflow/base.html' %}
 {% block header_search %}{% endblock %}
-{% block extra_head %}
-<style>
-  /* Keep dashboard registers usable with the sidebar open. Long text wraps;
-     the table only falls back to horizontal scrolling at narrow breakpoints. */
-  .dashboard .workflow-table { min-width: 0; width: 100%; table-layout: fixed; font-size: .84rem; }
-  .dashboard .workflow-table th, .dashboard .workflow-table td { overflow-wrap: anywhere; }
-  .dashboard #enquiry-history .workflow-table th:nth-child(1) { width: 9%; }
-  .dashboard #enquiry-history .workflow-table th:nth-child(2) { width: 12%; }
-  .dashboard #enquiry-history .workflow-table th:nth-child(3) { width: 13%; }
-  .dashboard #enquiry-history .workflow-table th:nth-child(4) { width: 14%; }
-  .dashboard #enquiry-history .workflow-table th:nth-child(5) { width: 12%; }
-  .dashboard #enquiry-history .workflow-table th:nth-child(6) { width: 9%; }
-  .dashboard #enquiry-history .workflow-table th:nth-child(7) { width: 15%; }
-  .dashboard #enquiry-history .workflow-table th:nth-child(8) { width: 8%; }
-  .dashboard #enquiry-history .workflow-table th:nth-child(9) { width: 8%; }
-  .dashboard #quotation-register .workflow-table th:nth-child(1) { width: 8%; }
-  .dashboard #quotation-register .workflow-table th:nth-child(2) { width: 13%; }
-  .dashboard #quotation-register .workflow-table th:nth-child(3) { width: 13%; }
-  .dashboard #quotation-register .workflow-table th:nth-child(4) { width: 13%; }
-  .dashboard #quotation-register .workflow-table th:nth-child(5),
-  .dashboard #quotation-register .workflow-table th:nth-child(6) { width: 10%; }
-  .dashboard #quotation-register .workflow-table th:nth-child(7) { width: 10%; }
-  .dashboard #quotation-register .workflow-table th:nth-child(8) { width: 11%; }
-  .dashboard #quotation-register .workflow-table th:nth-child(9) { width: 12%; }
-  .dashboard .workflow-page-size { font-size: .875rem; }
-  @media (max-width: 1199px) {
-    .dashboard .workflow-table { min-width: 980px; table-layout: auto; }
-  }
-</style>
-{% endblock %}
 {% block body %}
 <div class="pagetitle">
   <h1>Dashboard</h1>
@@ -43,6 +13,16 @@
 
 <section class="section dashboard">
   <div class="row">
+    <div class="col-lg-4 col-md-6">
+      <a class="card info-card customers-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=under_revision" aria-label="View quotations under revision">
+        <div class="card-body"><h5 class="card-title">Under Revision</h5><div class="d-flex align-items-center"><div class="card-icon rounded-circle d-flex align-items-center justify-content-center"><i class="bi bi-arrow-counterclockwise"></i></div><div class="ps-3"><h6>{{ summary.under_revision }}</h6><span class="text-muted small pt-2">Internal or client changes</span></div></div></div>
+      </a>
+    </div>
+    <div class="col-lg-4 col-md-6">
+      <a class="card info-card customers-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=awaiting_approval" aria-label="View quotations awaiting internal approval">
+        <div class="card-body"><h5 class="card-title">Internal Approval Waiting</h5><div class="d-flex align-items-center"><div class="card-icon rounded-circle d-flex align-items-center justify-content-center"><i class="bi bi-hourglass-split"></i></div><div class="ps-3"><h6>{{ summary.internal_approval }}</h6><span class="text-muted small pt-2">Manager or accountant review</span></div></div></div>
+      </a>
+    </div>
     <div class="col-lg-4 col-md-6">
       <a class="card info-card sales-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=enquiries" aria-label="View enquiry history">
         <div class="card-body">
@@ -88,12 +68,12 @@
       </a>
     </div>
     <div class="col-lg-4 col-md-6">
-      <a class="card info-card customers-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=awaiting_approval" aria-label="View quotations awaiting internal approval">
+      <a class="card info-card customers-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=client_approval" aria-label="View quotations awaiting client response">
         <div class="card-body">
-          <h5 class="card-title">Awaiting Approval</h5>
+          <h5 class="card-title">Client Approval Waiting</h5>
           <div class="d-flex align-items-center">
             <div class="card-icon rounded-circle d-flex align-items-center justify-content-center"><i class="bi bi-hourglass-split"></i></div>
-            <div class="ps-3"><h6>{{ summary.awaiting_approval }}</h6><span class="text-muted small pt-2">Quotation reviews</span></div>
+            <div class="ps-3"><h6>{{ summary.client_approval }}</h6><span class="text-muted small pt-2">Awaiting client response</span></div>
           </div>
         </div>
       </a>

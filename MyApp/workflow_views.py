@@ -199,6 +199,9 @@ def _quotation_comment_threads(quote, viewer=None):
         item.recipient_ids = {
             int(value) for value in recipient_match.group(1).split(',') if value.isdigit()
         } if recipient_match else set()
+        item.mentioned_names = list(staff.objects.filter(
+            LOGIN_id__in=item.recipient_ids
+        ).values_list('name', flat=True)) if item.recipient_ids else []
         item.display_comment = recipient_match.group(2) if recipient_match else value
         item.is_client_response = item.display_comment.startswith('Client response updated to ')
         item.replies = []
@@ -667,6 +670,34 @@ def dashboard(request):
         ENQUIRY__in=accessible_records,
     ).exclude(status='draft').values('ENQUIRY_id').distinct().count()
 
+    submittal_pending_count = quotation.objects.filter(
+        ENQUIRY__in=accessible_records,
+        pk__in=current_quote_ids, status='approved',
+    ).count()
+
+    # Calculate employee-specific pending tasks
+    my_pending_tasks = 0
+    if role == 'Estimator':
+        my_pending_tasks = accessible_records.filter(
+            status='assigned', assigned_to=request.workflow_staff
+        ).count() + quotation.objects.filter(
+            created_by=request.workflow_staff, status='under_revision'
+        ).count()
+    elif role == 'Marketing Manager':
+        my_pending_tasks = accessible_records.filter(status='open').count() + quotation.objects.filter(
+            pk__in=current_quote_ids, status='manager_review'
+        ).count()
+    elif role == 'Accountant':
+        my_pending_tasks = quotation.objects.filter(
+            pk__in=current_quote_ids, status='accountant_review'
+        ).count()
+    elif role == 'Document Controller':
+        my_pending_tasks = submittal_pending_count
+    elif role == 'Marketing Executive':
+        my_pending_tasks = accessible_records.filter(
+            created_by=request.workflow_account, status='approved'
+        ).count()
+
     return _render(request, 'Workflow/dashboard.html', {
         'enquiries': enquiry_page,
         'quotations': quotation_page,
@@ -693,6 +724,8 @@ def dashboard(request):
             'internal_approval': internal_approval_count,
             'under_revision': revision_count,
             'awarded': accessible_records.filter(status='awarded').count(),
+            'submittal_pending': submittal_pending_count,
+            'my_pending_tasks': my_pending_tasks,
         },
     })
 
@@ -1669,7 +1702,9 @@ def submit_quotation_for_approval(request, quote_id):
         if not quote.lines.filter(amount__gt=0).exists():
             messages.error(request, 'Add at least one priced item or heading total before submitting for approval.')
             return redirect('workflow_view_quotation', quote_id=quote.pk)
-        quote.status = 'accountant_review' if internal_stage == 'accountant' else 'manager_review'
+        # After internal revision (whether from manager or accountant), always route back to Marketing Manager first
+        # This ensures the full approval chain: Marketing Manager -> Accountant
+        quote.status = 'manager_review'
         if internal_stage:
             quote.details = update_quotation_internal_review(
                 quote.details, quote.validity_days,
@@ -1677,7 +1712,7 @@ def submit_quotation_for_approval(request, quote_id):
         quote.save(update_fields=('status', 'details', 'updated_at'))
         quote.ENQUIRY.status = 'quoted'
         quote.ENQUIRY.save(update_fields=('status', 'updated_at'))
-    next_reviewer = 'Accountant' if quote.status == 'accountant_review' else 'Marketing Manager'
+    next_reviewer = 'Marketing Manager'
     messages.success(
         request,
         f'{quote.display_number} submitted to the {next_reviewer} for approval.',

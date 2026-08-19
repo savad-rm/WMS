@@ -28,6 +28,22 @@
 <section class="section dashboard">
   <div class="row">
     <div class="col-lg-4 col-md-6 dashboard-card">
+      <div class="card info-card sales-card text-decoration-none">
+        <div class="card-body">
+          <h5 class="card-title">My Pending Tasks</h5>
+          <div class="d-flex align-items-center">
+            <div class="card-icon rounded-circle d-flex align-items-center justify-content-center bg-warning text-dark"><i class="bi bi-list-task"></i></div>
+            <div class="ps-3"><h6>{{ summary.my_pending_tasks }}</h6><span class="text-muted small pt-2">Tasks needing your action</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4 col-md-6 dashboard-card">
+      <a class="card info-card customers-card quotation-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=quotations#quotation-register" aria-label="View quotations pending client submittal">
+        <div class="card-body"><h5 class="card-title">Submittal Pending</h5><div class="d-flex align-items-center"><div class="card-icon rounded-circle d-flex align-items-center justify-content-center bg-info text-white"><i class="bi bi-send"></i></div><div class="ps-3"><h6>{{ summary.submittal_pending }}</h6><span class="text-muted small pt-2">Internally approved, waiting client submission</span></div></div></div>
+      </a>
+    </div>
+    <div class="col-lg-4 col-md-6 dashboard-card">
       <a class="card info-card customers-card quotation-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=under_revision#quotation-register" aria-label="View quotations under revision">
         <div class="card-body"><h5 class="card-title">Under Revision</h5><div class="d-flex align-items-center"><div class="card-icon rounded-circle d-flex align-items-center justify-content-center"><i class="bi bi-arrow-counterclockwise"></i></div><div class="ps-3"><h6>{{ summary.under_revision }}</h6><span class="text-muted small pt-2">Internal or client changes</span></div></div></div>
       </a>

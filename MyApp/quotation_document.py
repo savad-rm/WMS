@@ -1,5 +1,6 @@
 import json
 import re
+from decimal import Decimal, InvalidOperation
 from html import escape
 
 
@@ -48,6 +49,11 @@ def pack_document(terms, remarks='', tracking=None, client_details=None, draft_s
             'submitted_at': str(tracking.get('submitted_at', '')).strip(),
             'client_remarks': str(tracking.get('client_remarks', '')).strip(),
             'client_status': str(tracking.get('client_status', 'under_review')).strip(),
+            'submitted_to': str(tracking.get('submitted_to', '')).strip(),
+            'submitted_cc': str(tracking.get('submitted_cc', '')).strip(),
+            'submitted_subject': str(tracking.get('submitted_subject', '')).strip(),
+            'delivery_status': str(tracking.get('delivery_status', '')).strip(),
+            'delivery_at': str(tracking.get('delivery_at', '')).strip(),
         }
     if client_details:
         payload['client'] = {
@@ -84,7 +90,22 @@ def quotation_tracking(value, validity_days=14):
         'submitted_at': str(tracking.get('submitted_at', '')).strip(),
         'client_remarks': str(tracking.get('client_remarks', '')).strip(),
         'client_status': str(tracking.get('client_status', 'under_review')).strip() or 'under_review',
+        'submitted_to': str(tracking.get('submitted_to', '')).strip(),
+        'submitted_cc': str(tracking.get('submitted_cc', '')).strip(),
+        'submitted_subject': str(tracking.get('submitted_subject', '')).strip(),
+        'delivery_status': str(tracking.get('delivery_status', '')).strip(),
+        'delivery_at': str(tracking.get('delivery_at', '')).strip(),
     }
+
+
+def quotation_discount(value, validity_days=14):
+    """Return the saved quotation discount amount from the document payload."""
+    raw = (unpack_document(value, validity_days).get('draft_state') or {}).get('discount', '0')
+    try:
+        discount = Decimal(str(raw or '0'))
+    except (InvalidOperation, TypeError, ValueError):
+        return Decimal('0.00')
+    return max(Decimal('0.00'), discount).quantize(Decimal('0.01'))
 
 
 def update_quotation_tracking(value, validity_days=14, **updates):

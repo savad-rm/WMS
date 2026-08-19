@@ -20,7 +20,7 @@ from reportlab.platypus import (
 
 from .quotation_document import (
     DEFAULT_INTRODUCTION, plain_rich_text, presentation_rows, rich_text_to_html,
-    unpack_document,
+    quotation_discount, unpack_document,
 )
 
 
@@ -176,6 +176,8 @@ def build_quotation_excel(quote):
             workbook.remove(extra_sheet)
     enquiry = quote.ENQUIRY
     document = unpack_document(quote.details, quote.validity_days)
+    discount = min(quote.amount, quotation_discount(quote.details, quote.validity_days))
+    grand_total = quote.amount - discount
     client = document.get('client') or {}
     client_name = client.get('name', enquiry.client_name)
     client_phone = client.get('phone', enquiry.client_phone)
@@ -228,9 +230,9 @@ def build_quotation_excel(quote):
                 line.item_code if kind in ('section', 'subheading') else '',
             )
             sheet.cell(current_row, 3, plain_rich_text(line.description))
-            heading_end_column = (
-                6 if kind in ('section', 'subheading') else 7
-            )
+            # Notes occupy the descriptive area through Rate; Amount remains
+            # an independent column for totals and visual consistency.
+            heading_end_column = 6
             sheet.merge_cells(
                 start_row=current_row, start_column=3,
                 end_row=current_row, end_column=heading_end_column,
@@ -310,11 +312,19 @@ def build_quotation_excel(quote):
             cell.alignment = Alignment(horizontal='center', vertical='center')
 
     sheet.merge_cells(start_row=current_row, start_column=2, end_row=current_row, end_column=6)
+    sheet.cell(current_row, 2, 'Discount')
+    sheet.cell(current_row, 7, float(discount))
+    for column in range(2, 8):
+        sheet.cell(current_row, column).border = grid
+        sheet.cell(current_row, column).font = bold_font if column != 7 else Font(name='Helvetica', size=11)
+    sheet.cell(current_row, 7).number_format = '#,##0.00'
+    current_row += 1
+    sheet.merge_cells(start_row=current_row, start_column=2, end_row=current_row, end_column=6)
     sheet.cell(
         current_row, 2,
-        f'Grand Total (QAR - {quotation_amount_words(quote.amount).capitalize()} only)',
+        f'Grand Total (QAR - {quotation_amount_words(grand_total).capitalize()} only)',
     )
-    sheet.cell(current_row, 7, float(quote.amount))
+    sheet.cell(current_row, 7, float(grand_total))
     for column in range(2, 8):
         sheet.cell(current_row, column).border = grid
         sheet.cell(current_row, column).font = bold_font if column != 7 else Font(name='Helvetica', size=11, bold=True)
@@ -410,6 +420,8 @@ def build_quotation_pdf(quote):
 
     record = quote.ENQUIRY
     document = unpack_document(quote.details, quote.validity_days)
+    discount = min(quote.amount, quotation_discount(quote.details, quote.validity_days))
+    grand_total = quote.amount - discount
     client = document.get('client') or {}
     client_name = client.get('name', record.client_name)
     client_phone = client.get('phone', record.client_phone)
@@ -583,12 +595,20 @@ def build_quotation_pdf(quote):
         'QuotationGrandTotal', parent=normal, fontName='Helvetica-Bold',
         fontSize=10, leading=11, alignment=TA_CENTER,
     )
+    discount_table = Table([[
+        Paragraph('<b>Discount</b>', grand_total_style), '', '', '', '', Paragraph(f'<b>{discount:,.2f}</b>', money),
+    ]], colWidths=[12 * mm, 66 * mm, 14 * mm, 12 * mm, 23 * mm, 27 * mm])
+    discount_table.setStyle(TableStyle([
+        ('GRID', (0, 0), (-1, -1), .55, colors.black),
+        ('SPAN', (0, 0), (4, 0)), ('ALIGN', (0, 0), (4, 0), 'CENTER'),
+        ('ALIGN', (5, 0), (5, 0), 'CENTER'), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
     grand_total_table = Table([[
         Paragraph(
-            f'Grand Total (QAR - {quotation_amount_words(quote.amount).capitalize()} only)',
+            f'Grand Total (QAR - {quotation_amount_words(grand_total).capitalize()} only)',
             grand_total_style,
         ),
-        '', '', '', '', Paragraph(f'<b>{quote.amount:,.2f}</b>', money),
+        '', '', '', '', Paragraph(f'<b>{grand_total:,.2f}</b>', money),
     ]], colWidths=[12 * mm, 66 * mm, 14 * mm, 12 * mm, 23 * mm, 27 * mm])
     grand_total_table.setStyle(TableStyle([
         ('GRID', (0, 0), (-1, -1), .55, colors.black),
@@ -605,7 +625,7 @@ def build_quotation_pdf(quote):
     # needs a continuation page, it appears as a standalone total without a
     # misleading repeated ITEMS/DESCRIPTION header.
     story.extend([
-        line_table, grand_total_table,
+        line_table, discount_table, grand_total_table,
         Paragraph('<u><b>Specification/Clarification</b></u>', heading),
     ])
 

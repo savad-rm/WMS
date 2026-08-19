@@ -32,7 +32,7 @@ from .quotation_document import (
     DEFAULT_CLOSING_TEXT, DEFAULT_INTRODUCTION, NOTE_UNIT, SECTION_UNIT,
     SUBHEADING_UNIT, default_terms, line_kind, pack_document, presentation_rows,
     quotation_internal_review, quotation_tracking, unpack_document,
-    update_quotation_internal_review, update_quotation_tracking,
+    quotation_discount, update_quotation_internal_review, update_quotation_tracking,
 )
 from .quotation_numbers import assign_quotation_reference
 from .quotation_activity import publish_client_response, publish_quotation_message
@@ -185,6 +185,12 @@ def _quotation_comment_threads(quote, viewer=None):
     comments = list(quote.ENQUIRY.comments.filter(
         Q(comment__startswith=prefixes[0]) | Q(comment__startswith=prefixes[1]),
     ).select_related('author'))
+    recipient_ids = set()
+    for comment in comments:
+        match = re.search(r'^\[TO:([0-9,]+)\]', comment.comment)
+        if match:
+            recipient_ids.update(int(value) for value in match.group(1).split(',') if value.isdigit())
+    recipient_names = dict(login.objects.filter(pk__in=recipient_ids).values_list('id', 'username'))
     roots = []
     by_id = {}
     for item in comments:
@@ -199,7 +205,16 @@ def _quotation_comment_threads(quote, viewer=None):
         item.recipient_ids = {
             int(value) for value in recipient_match.group(1).split(',') if value.isdigit()
         } if recipient_match else set()
+        item.mentioned_recipients = [
+            recipient_names[recipient_id]
+            for recipient_id in sorted(item.recipient_ids)
+            if recipient_id in recipient_names
+        ]
         item.display_comment = recipient_match.group(2) if recipient_match else value
+        if item.mentioned_recipients:
+            item.display_comment = (
+                f"Mentioned: {', '.join(item.mentioned_recipients)}\n{item.display_comment}"
+            )
         item.is_client_response = item.display_comment.startswith('Client response updated to ')
         item.replies = []
         marketing_private = (
@@ -433,6 +448,7 @@ def _detail_context(request, record, extra=None):
             'labour_cost': quote_costing.labour_cost if quote_costing else '',
             'other_cost': quote_costing.other_cost if quote_costing else '',
             'costing_notes': quote_costing.notes if quote_costing else '',
+            'discount': quotation_discount(form_source.details, form_source.validity_days),
         }
         if saved_form and not imported_quote:
             quote_form.update(saved_form)
@@ -459,6 +475,7 @@ def _detail_context(request, record, extra=None):
             'client_phone': record.client_phone,
             'client_email': record.client_email,
             'client_address': 'Doha - State of Qatar',
+            'discount': '0.00',
         }
     context.update(extra or {})
     return context
@@ -572,11 +589,13 @@ def dashboard(request):
             | Q(created_by__name__icontains=quotation_query)
         )
     if dashboard_view in ('awaiting_approval', 'internal_approval'):
-        quote_records = quote_records.filter(status__in=('manager_review', 'accountant_review'))
+        quote_records = quote_records.filter(
+            pk__in=current_quote_ids, status__in=('manager_review', 'accountant_review'),
+        )
     elif dashboard_view == 'client_approval':
         quote_records = quote_records.filter(pk__in=client_pending_ids)
     elif dashboard_view == 'under_revision':
-        quote_records = quote_records.filter(status='under_revision')
+        quote_records = quote_records.filter(pk__in=current_quote_ids, status='under_revision')
     elif dashboard_view == 'awarded':
         quote_records = quote_records.filter(status='accepted')
     quotation_sort = request.GET.get('quotation_sort', '-date')
@@ -940,12 +959,15 @@ def autosave_quotation(request, enquiry_id):
         'project_duration', 'closing_text', 'signatory_name', 'signatory_title',
         'signatory_phone', 'remarks', 'material_cost', 'labour_cost', 'other_cost',
         'costing_notes', 'quotation_client_name', 'quotation_client_phone',
-        'quotation_client_email',
+        'quotation_client_email', 'discount',
     )
     draft_form = {name: request.POST.get(name, '') for name in draft_form_names}
     details = pack_document(
         draft_terms, request.POST.get('remarks', ''), client_details=client,
-        draft_state={'form': draft_form, 'rows': draft_rows, 'terms': draft_terms},
+        draft_state={
+            'form': draft_form, 'rows': draft_rows, 'terms': draft_terms,
+            'discount': request.POST.get('discount', '0') or '0',
+        },
     )
 
     parsed_lines = []
@@ -1278,13 +1300,27 @@ def add_quotation(request, enquiry_id):
     client_address = request.POST.get('client_address', '').strip()
     if len(client_address) > 255:
         return quotation_error('Client address cannot exceed 255 characters.')
+    try:
+        discount = Decimal(request.POST.get('discount', '0') or '0')
+    except (InvalidOperation, ValueError):
+        return quotation_error('Discount must be a valid amount.')
+    if discount < 0:
+        return quotation_error('Discount cannot be negative.')
+    if discount > amount:
+        return quotation_error('Discount cannot exceed the quotation subtotal.')
+    prior_document = unpack_document(
+        (draft_quote or revision_source).details,
+        (draft_quote or revision_source).validity_days,
+    ) if (draft_quote or revision_source) else {}
+    draft_state = dict(prior_document.get('draft_state') or {})
+    draft_state['discount'] = str(discount.quantize(Decimal('0.01')))
     document_details = pack_document(
         quote_terms, request.POST.get('remarks', ''),
         client_details={
             'name': client_name,
             'phone': client_phone,
             'email': client_email,
-        },
+        }, draft_state=draft_state,
     )
     quote_values = {
         'amount': amount,
@@ -1418,6 +1454,8 @@ def view_quotation(request, quote_id):
         tracking['client_status'], CLIENT_RESPONSE_STATUSES['under_review'],
     )
     internal_revision_stage = quotation_internal_review(quote.details, quote.validity_days)
+    discount_amount = min(quote.amount, quotation_discount(quote.details, quote.validity_days))
+    grand_total = quote.amount - discount_amount
     is_current_quote = _is_current_quotation(quote)
     current_quotation_id = quote.ENQUIRY.quotations.order_by('-version', '-id').values_list(
         'id', flat=True,
@@ -1431,7 +1469,9 @@ def view_quotation(request, quote_id):
         'enquiry': quote.ENQUIRY,
         'document': document,
         'quotation_rows': presentation_rows(quote.lines.all()),
-        'amount_words': quotation_amount_words(quote.amount),
+        'amount_words': quotation_amount_words(grand_total),
+        'discount_amount': discount_amount,
+        'grand_total': grand_total,
         'discussion_unread_count': workflow_notification.objects.filter(
             recipient=request.workflow_account, event='quotation_comment',
             link=discussion_url, read_at__isnull=True,
@@ -1669,7 +1709,11 @@ def submit_quotation_for_approval(request, quote_id):
         if not quote.lines.filter(amount__gt=0).exists():
             messages.error(request, 'Add at least one priced item or heading total before submitting for approval.')
             return redirect('workflow_view_quotation', quote_id=quote.pk)
-        quote.status = 'accountant_review' if internal_stage == 'accountant' else 'manager_review'
+        # Any estimator re-submission is a fresh internal review cycle.  This
+        # deliberately returns to the Marketing Manager first, including after
+        # an Accountant revision request, so the amended quote is re-checked
+        # from the beginning rather than bypassing the first approval.
+        quote.status = 'manager_review'
         if internal_stage:
             quote.details = update_quotation_internal_review(
                 quote.details, quote.validity_days,
@@ -1677,7 +1721,7 @@ def submit_quotation_for_approval(request, quote_id):
         quote.save(update_fields=('status', 'details', 'updated_at'))
         quote.ENQUIRY.status = 'quoted'
         quote.ENQUIRY.save(update_fields=('status', 'updated_at'))
-    next_reviewer = 'Accountant' if quote.status == 'accountant_review' else 'Marketing Manager'
+    next_reviewer = 'Marketing Manager'
     messages.success(
         request,
         f'{quote.display_number} submitted to the {next_reviewer} for approval.',
@@ -1736,9 +1780,16 @@ def request_quotation_revision(request, quote_id):
             quote.manager_approved_at = None
             update_fields.extend(['manager_approved_by', 'manager_approved_at'])
         else:
+            # Accountant feedback invalidates the complete approval chain.  The
+            # manager must see and approve the amended quotation again.
+            quote.manager_approved_by = None
+            quote.manager_approved_at = None
             quote.accountant_approved_by = None
             quote.accountant_approved_at = None
-            update_fields.extend(['accountant_approved_by', 'accountant_approved_at'])
+            update_fields.extend([
+                'manager_approved_by', 'manager_approved_at',
+                'accountant_approved_by', 'accountant_approved_at',
+            ])
         quote.save(update_fields=update_fields)
         if quote.ENQUIRY.status not in ('closed', 'awarded'):
             quote.ENQUIRY.status = 'quoted'
@@ -1819,17 +1870,26 @@ def submit_quotation(request, quote_id):
                 return redirect('workflow_view_quotation', quote_id=quote.pk)
             if not _can_access_enquiry(request, quote.ENQUIRY):
                 return HttpResponseForbidden('You do not have permission to submit this quotation.')
+            requested_to = request.POST.get('to', '')
+            requested_cc = request.POST.get('cc', '')
+            requested_subject = request.POST.get('subject')
+            delivery_at = timezone.now()
             recipient = send_quotation_to_client(
                 quote,
-                to=request.POST.get('to', ''),
-                cc=request.POST.get('cc', ''),
-                subject=request.POST.get('subject'),
+                to=requested_to,
+                cc=requested_cc,
+                subject=requested_subject,
                 body=request.POST.get('body'),
             )
             quote.status = 'submitted'
             quote.details = update_quotation_tracking(
                 quote.details, quote.validity_days,
-                submitted_at=timezone.now().isoformat(), client_status='under_review',
+                submitted_at=delivery_at.isoformat(), client_status='under_review',
+                submitted_to=recipient,
+                submitted_cc=requested_cc,
+                submitted_subject=(requested_subject or quotation_email_content(quote)[0]).strip(),
+                delivery_status='Accepted by mail server',
+                delivery_at=delivery_at.isoformat(),
             )
             quote.save(update_fields=('status', 'details', 'updated_at'))
             quote.ENQUIRY.status = 'submitted'

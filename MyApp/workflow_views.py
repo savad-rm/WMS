@@ -155,7 +155,7 @@ def _can_view_quotation(request, quote):
 
 def _is_marketing_restricted_quotation(quote):
     """Marketing can track internal work, but cannot open it before final approval."""
-    return quote.status in ('manager_review', 'accountant_review') or (
+    return quote.status in ('draft', 'manager_review', 'accountant_review') or (
         quote.status == 'under_revision' and not quote.accountant_approved_at
     )
 
@@ -517,6 +517,10 @@ def dashboard(request):
             'label': 'Quotations awaiting client response',
             'target': 'quotations',
         },
+        'submittal_pending': {
+            'label': 'Quotations pending client submittal',
+            'target': 'quotations',
+        },
         'internal_approval': {
             'label': 'Quotations awaiting internal approval',
             'target': 'quotations',
@@ -594,6 +598,8 @@ def dashboard(request):
         )
     elif dashboard_view == 'client_approval':
         quote_records = quote_records.filter(pk__in=client_pending_ids)
+    elif dashboard_view == 'submittal_pending':
+        quote_records = quote_records.filter(pk__in=current_quote_ids, status='approved')
     elif dashboard_view == 'under_revision':
         quote_records = quote_records.filter(pk__in=current_quote_ids, status='under_revision')
     elif dashboard_view == 'awarded':

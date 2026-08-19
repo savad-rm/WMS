@@ -1,141 +1,44 @@
 {% extends "Accountant/acindex.html" %}
 {% block body %}
-<form id="form1" name="form1" method="post" action="/WMS/Add_project_post/" >
-    {% csrf_token %}
-    <div style="color: blue"><h3>Add Project</h3></div>
-  <table width="200" border="1" class="table table-striped" >
-    <tr>
-      <td>Project No</td>
-      <td>
-        <input type="text" name="project_no" id="textfield" class="form-control" required=""/>
-      </td>
-    </tr>
-    <tr>
-      <td>Project Name</td>
-      <td>
-        <input type="text" name="t1" id="textfield" class="form-control" required=""/>
-      </td>
-    </tr>
-    <tr>
-      <td>Client Name</td>
-      <td><input type="text" name="client_name" id="textfield2" class="form-control"/></td>
-    </tr>
-    <tr>
-      <td>Phone</td>
-      <td><input type="text" name="phone" id="textfield3" class="form-control" required="" pattern="[987][0-9]{9}"/></td>
-    </tr>
-    <tr>
-      <td>Email</td>
-      <td><input type="text" name="email" id="textfield4" class="form-control" required="" pattern="^([a-zA-Z0-9_\-\.]+)@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.)|(([a-zA-Z0-9\-]+\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\]?)$"/></td>
-    </tr>
-    <tr>
-      <td>Project Location</td>
-      <td><input type="text" name="place" id="textfield5" class="form-control" required=""/></td>
-    </tr>
-    <tr>
-      <td>Unit.No</td>
-      <td><input type="text" name="unit_no" id="textfield7" class="form-control"/></td>
-    </tr>
-    <tr>
-      <td>Project Value</td>
-      <td><input type="text" name="project_value" id="yourInputId" class="form-control"/></td>
-    </tr>
-    <tr>
-      <td>Starting Date</td>
-      <td><input type="date" name="starting_date" id="textfield11" onchange="calculateTotalDays()" class="form-control" required=""/></td>
-    </tr>
-    <tr>
-      <td>Handover Date</td>
-      <td><input type="date" name="handout_date" id="textfield12" onchange="calculateTotalDays()" class="form-control" required=""/></td>
-    </tr>
-    <tr>
-      <td>Project Duration</td>
-      <td><input type="hidden"   name="project_duration"  id="total-days" class="form-control" required=""/>
-          <input type="text" disabled  id="total-days2" class="form-control"/>
-      </td>
-    </tr>
-      <tr>
-      <td>Project Area</td>
-      <td><input type="text" name="project_area" id="textfield12" class="form-control"/></td>
-    </tr>
-     <tr>
-      <td>Project Type</td>
-      <td><input type="text" name="project_type" id="textfield12" class="form-control"/></td>
-    </tr>
-    <tr>
-      <td height="31">Description</td>
-      <td><input type="text" name="textfield13" id="description" class="form-control"/></td>
-    </tr>
-    <tr><td colspan="2"><h5 class="text-primary mt-3">Transfer existing project data (optional)</h5></td></tr>
-    <tr><td>Source Project</td><td><select name="source_project" class="form-control"><option value="">Do not copy from a project</option>{% for item in source_projects %}<option value="{{ item.id }}">{{ item.project_no }} — {{ item.project_name }}</option>{% endfor %}</select></td></tr>
-    <tr><td>Planning Data</td><td>
-      <div class="form-check"><input class="form-check-input" type="checkbox" name="copy_scope" value="1" id="copyScope"><label class="form-check-label" for="copyScope">Scope of work</label></div>
-      <div class="form-check"><input class="form-check-input" type="checkbox" name="copy_materials" value="1" id="copyMaterials"><label class="form-check-label" for="copyMaterials">Material list</label></div>
-      <div class="form-check"><input class="form-check-input" type="checkbox" name="copy_schedule" value="1" id="copySchedule"><label class="form-check-label" for="copySchedule">Scope schedule</label></div>
-    </td></tr>
-    <tr><td>Awarded Enquiry</td><td><select name="enquiry" class="form-control"><option value="">No enquiry transfer</option>{% for item in awarded_enquiries %}<option value="{{ item.id }}">{{ item.title }} — {{ item.client_name }}</option>{% endfor %}</select><div class="form-text">Transfers the enquiry, quotation and collected project documents to this project.</div></td></tr>
-
-    <tr><td>Project Manager</td><td>{% if can_create %}{% if pm_message_type == 'auto' %}<input class=\"form-control\" value=\"{{ auto_project_manager.name }}\" readonly><div class=\"form-text\">Automatically assigned when the project is created.</div>{% else %}<input class=\"form-control\" value=\"{{ auto_project_manager.name }}\" readonly><div class=\"form-text\">Auto-assigned for now. Future: Operation Manager will select when multiple Project Managers exist.</div>{% endif %}{% else %}<div class=\"alert alert-danger mb-0\">{{ pm_error_message }}</div>{% endif %}</td></tr>
-
-    <tr align=\"center\">
-      <td height=\"31\" colspan=\"2\"><input type=\"submit\" name=\"button\" id=\"button\" value=\"Add\" class=\"btn btn-primary\" {% if not can_create %}disabled{% endif %}/></td>
-    </tr>
-  {% if pm_message_type == 'multi' %}<div class="alert alert-info mt-2">No Project Manager is assigned yet. The Operation Manager will assign one after creation.</div>{% endif %}
-  </table>
-</form>
-    <script src="/static/jquery.min.js"></script>
+<div class="container-fluid py-3">
+  <div class="pagetitle mb-3"><h1 class="text-primary">Add Project</h1><nav><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'View_all_projects' %}">Projects</a></li><li class="breadcrumb-item active">Add Project</li></ol></nav></div>
+  <div class="card shadow-sm border-0"><div class="card-body">
+    <form method="post" action="{% url 'Add_project_post' %}" id="projectForm">
+      {% csrf_token %}
+      <div class="row g-3">
+        <div class="col-md-6"><label class="form-label" for="projectNo">Project No</label><input id="projectNo" type="text" name="project_no" class="form-control" required></div>
+        <div class="col-md-6"><label class="form-label" for="projectName">Project Name</label><input id="projectName" type="text" name="t1" class="form-control" required></div>
+        <div class="col-md-6"><label class="form-label" for="clientName">Client Name</label><input id="clientName" type="text" name="client_name" class="form-control"></div>
+        <div class="col-md-6"><label class="form-label" for="phone">Phone</label><input id="phone" type="tel" name="phone" class="form-control" required></div>
+        <div class="col-md-6"><label class="form-label" for="email">Email</label><input id="email" type="email" name="email" class="form-control" required></div>
+        <div class="col-md-6"><label class="form-label" for="place">Project Location</label><input id="place" type="text" name="place" class="form-control" required></div>
+        <div class="col-md-4"><label class="form-label" for="unitNo">Unit No.</label><input id="unitNo" type="text" name="unit_no" class="form-control"></div>
+        <div class="col-md-4"><label class="form-label" for="projectValue">Project Value</label><input id="projectValue" type="text" name="project_value" class="form-control"></div>
+        <div class="col-md-4"><label class="form-label" for="projectArea">Project Area</label><input id="projectArea" type="text" name="project_area" class="form-control"></div>
+        <div class="col-md-6"><label class="form-label" for="startDate">Starting Date</label><input id="startDate" type="date" name="starting_date" class="form-control" required></div>
+        <div class="col-md-6"><label class="form-label" for="handoverDate">Handover Date</label><input id="handoverDate" type="date" name="handout_date" class="form-control" required></div>
+        <div class="col-md-4"><label class="form-label" for="durationDisplay">Project Duration</label><input id="duration" type="hidden" name="project_duration"><input id="durationDisplay" type="text" class="form-control" readonly></div>
+        <div class="col-md-4"><label class="form-label" for="projectType">Project Type</label><input id="projectType" type="text" name="project_type" class="form-control"></div>
+        <div class="col-12"><label class="form-label" for="description">Description</label><textarea id="description" name="textfield13" class="form-control" rows="3"></textarea></div>
+      </div>
+      <hr class="my-4"><h5 class="text-primary mb-3">Transfer existing project data <span class="text-muted fw-normal">(optional)</span></h5>
+      <div class="row g-3">
+        <div class="col-md-6"><label class="form-label" for="sourceProject">Source Project</label><select id="sourceProject" name="source_project" class="form-select"><option value="">Do not copy from a project</option>{% for item in source_projects %}<option value="{{ item.id }}">{{ item.project_no }} — {{ item.project_name }}</option>{% endfor %}</select></div>
+        <div class="col-md-6"><label class="form-label" for="enquiry">Awarded Enquiry</label><select id="enquiry" name="enquiry" class="form-select"><option value="">No enquiry transfer</option>{% for item in awarded_enquiries %}<option value="{{ item.id }}">{{ item.title }} — {{ item.client_name }}</option>{% endfor %}</select><div class="form-text">Transfers the enquiry, quotation and collected documents.</div></div>
+        <div class="col-12"><label class="form-label d-block">Planning data to copy</label><div class="d-flex flex-wrap gap-4"><div class="form-check"><input class="form-check-input" type="checkbox" name="copy_scope" value="1" id="copyScope"><label class="form-check-label" for="copyScope">Scope of work</label></div><div class="form-check"><input class="form-check-input" type="checkbox" name="copy_materials" value="1" id="copyMaterials"><label class="form-check-label" for="copyMaterials">Material list</label></div><div class="form-check"><input class="form-check-input" type="checkbox" name="copy_schedule" value="1" id="copySchedule"><label class="form-check-label" for="copySchedule">Work schedule</label></div></div></div>
+        <div class="col-12"><label class="form-label">Project Manager</label>{% if can_create %}{% if pm_message_type == 'auto' %}<input class="form-control" value="{{ auto_project_manager.name }}" readonly><div class="form-text">Automatically assigned because one Project Manager is available.</div>{% else %}<input class="form-control" value="Not assigned yet" readonly><div class="form-text">The Operation Manager will assign a Project Manager after creation.</div>{% endif %}{% else %}<div class="alert alert-danger mb-0">{{ pm_error_message }}</div>{% endif %}</div>
+      </div>
+      <div class="d-flex justify-content-end gap-2 mt-4"><a href="{% url 'View_all_projects' %}" class="btn btn-outline-secondary">Cancel</a><button type="submit" class="btn btn-primary" {% if not can_create %}disabled{% endif %}><i class="bi bi-plus-lg me-1"></i>Create Project</button></div>
+    </form>
+  </div></div>
+</div>
 <script>
-function updateTextView(_obj){
-  var num = getNumber(_obj.val());
-  if(num == 0){
-    _obj.val('');
-  } else {
-    _obj.val(num.toLocaleString());
-  }
-}
-
-function getNumber(_str){
-  var arr = _str.split('');
-  var out = new Array();
-  for(var cnt = 0; cnt < arr.length; cnt++){
-    if(isNaN(arr[cnt]) == false){
-      out.push(arr[cnt]);
-    }
-  }
-  return Number(out.join(''));
-}
-
-$(document).ready(function(){
-  $('#yourInputId').on('keyup', function(){
-    updateTextView($(this));
-  });
-});
-
-
-
-function calculateTotalDays() {
-      var startDate = new Date(document.getElementById('textfield11').value);
-      var endDate = new Date(document.getElementById('textfield12').value);
-
-      // Calculate the difference in days
-      var timeDiff = Math.abs(endDate.getTime() - startDate.getTime());
-      var totalDays = Math.ceil(timeDiff / (1000 * 3600 * 24));
-
-      // Set the total days in the input field
-      document.getElementById('total-days').value = totalDays+" Days";
-      document.getElementById('total-days2').value = totalDays+" Days";
-    }
-
-
-
-
-
+(function () {
+  const start = document.getElementById('startDate'), end = document.getElementById('handoverDate');
+  const hidden = document.getElementById('duration'), display = document.getElementById('durationDisplay');
+  function updateDuration() { if (!start.value || !end.value) { hidden.value = ''; display.value = ''; return; } const days = Math.max(0, Math.ceil((new Date(end.value) - new Date(start.value)) / 86400000)); hidden.value = days + ' Days'; display.value = days + ' Days'; }
+  start.addEventListener('change', updateDuration); end.addEventListener('change', updateDuration);
+  document.getElementById('projectValue').addEventListener('input', function () { const raw = this.value.replace(/[^0-9.]/g, ''), parts = raw.split('.'); this.value = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (parts[1] !== undefined ? '.' + parts[1].slice(0, 2) : ''); });
+})();
 </script>
-
-
-
-
 {% endblock %}
-
-{#</body>#}
-{#</html>#}

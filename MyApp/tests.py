@@ -151,12 +151,11 @@ class WorkflowTests(TestCase):
         self.assertTrue(check_password('test-password', self.executive[0].password))
 
     def test_project_creation_with_zero_or_multiple_project_managers(self):
-        """Future OM-assignment scenario: multiple PMs exist but auto-assign still works."""
+        """Multiple PMs leave assignment to the Operation Manager."""
         second_manager = self.create_user('Project Manager', 8)[1]
         self.sign_in_as(*self.accountant)
         page = self.client.get(reverse('Add_project'))
-        self.assertContains(page, 'Auto-assigned for now')
-        self.assertContains(page, 'Future: Operation Manager will select')
+        self.assertContains(page, 'Operation Manager')
         response = self.client.post(reverse('Add_project_post'), {
             'project_no': 'P-MULTI-PM-1', 't1': 'Multi-PM Project',
             'client_name': 'Client', 'phone': '0000000', 'email': 'multi@example.com',
@@ -168,9 +167,7 @@ class WorkflowTests(TestCase):
         self.assertRedirects(response, reverse('View_all_projects'))
         created = project.objects.get(project_no='P-MULTI-PM-1')
         self.assertEqual(created.status, 'ongoing')
-        alloc = project_manager_allocation.objects.get(PROJECT=created)
-        self.assertIsNotNone(alloc)
-        self.assertEqual(alloc.STAFF, self.project_manager[1])
+        self.assertFalse(project_manager_allocation.objects.filter(PROJECT=created).exists())
         self.assertTrue(staff.objects.filter(designation='Project Manager').count() >= 2)
 
     def test_complete_quotation_approval_and_award_flow(self):

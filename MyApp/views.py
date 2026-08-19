@@ -233,8 +233,8 @@ def _project_manager_options():
         return pms[0], pms, True, 'auto'
     if len(pms) == 0:
         return None, [], False, 'Create one Project Manager staff account before creating a project.'
-    # Multiple PMs: in future, OM will select; for now, auto-assign the first
-    return pms[0], pms, True, 'multi'
+    # Multiple PMs: leave the allocation unassigned for the Operation Manager.
+    return None, pms, True, 'multi'
 
 
 @legacy_role_required('Accountant')
@@ -306,11 +306,12 @@ def Add_project_post(request):
     pobj.status='ongoing'
     pobj.save()
     # Auto-assign the single PM if available; future: OM will select when multiple exist
-    project_manager_allocation.objects.create(
-        allocated_date=pobj.date,
-        PROJECT=pobj,
-        STAFF=auto_manager,
-    )
+    if auto_manager:
+        project_manager_allocation.objects.create(
+            allocated_date=pobj.date,
+            PROJECT=pobj,
+            STAFF=auto_manager,
+        )
 
     # Optionally reuse an existing project's planning data without sharing rows.
     source_id = request.POST.get('source_project')
@@ -355,7 +356,7 @@ def Add_project_post(request):
     if msg_type == 'auto':
         msg = f'Project added successfully and assigned to {auto_manager.name}.'
     else:
-        msg = f'Project added successfully and assigned to {auto_manager.name}. (Future: OM will select when multiple Project Managers exist.)'
+        msg = 'Project added successfully. Operation Manager assignment is pending.'
     messages.success(request, msg)
     return redirect('View_all_projects')
 

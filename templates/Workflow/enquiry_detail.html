@@ -277,6 +277,8 @@
     row.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
   document.querySelectorAll('.add-quotation-row').forEach(button => button.addEventListener('click', () => addRow(button.dataset.kind)));
+  const discountInput = document.getElementById('quotationDiscount');
+  if (discountInput && discountInput.value === '0.00') discountInput.value = '';
   rows.addEventListener('input', updateTotals);
   document.getElementById('quotationDiscount')?.addEventListener('input', updateTotals);
   rows.addEventListener('input', event => {

@@ -477,11 +477,12 @@ def build_quotation_pdf(quote):
             table_data.append([
                 line.item_code if kind in ('section', 'subheading') else '',
                 Paragraph(rich_text_to_html(line.description), line_style), '', '', '',
-                Paragraph(f'{line.amount:,.2f}', money) if line.amount and not has_group_children else '',
+                Paragraph(f'{line.amount:,.2f}', money)
+                if kind != 'note' and line.amount and not has_group_children else '',
             ])
             row_spans.append((
                 row_index, 1,
-                4 if kind in ('section', 'subheading') else 5,
+                4,
             ))
             if kind != 'note':
                 bold_rows.append(row_index)

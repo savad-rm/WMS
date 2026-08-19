@@ -1,5 +1,6 @@
 import logging
 import re
+import time
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -72,6 +73,11 @@ def send_quotation_to_client(quote, *, to='', cc='', subject=None, body=None):
     if not subject or not body:
         raise QuotationDeliveryError('Enter both an email subject and message before sending.')
     cc_addresses = _parse_addresses(cc, 'CC')
+    started = time.monotonic()
+    logger.info(
+        'Starting quotation email: quote=%s to=%s cc=%s subject=%r',
+        quote.display_number, recipients, cc_addresses, subject,
+    )
     try:
         pdf = build_quotation_pdf(quote).getvalue()
         message = EmailMessage(
@@ -84,10 +90,18 @@ def send_quotation_to_client(quote, *, to='', cc='', subject=None, body=None):
         message.attach(f'{quote.display_number.replace("/", "-")}.pdf', pdf, 'application/pdf')
         if message.send(fail_silently=False) != 1:
             raise RuntimeError('The email backend did not confirm delivery.')
+        logger.info(
+            'Quotation email accepted by SMTP backend: quote=%s elapsed_ms=%d',
+            quote.display_number, round((time.monotonic() - started) * 1000),
+        )
     except QuotationDeliveryError:
         raise
     except Exception as exc:
-        logger.exception('Quotation email delivery failed for quotation %s.', quote.pk)
+        logger.exception(
+            'Quotation email delivery failed: quote=%s to=%s cc=%s elapsed_ms=%d',
+            quote.display_number, recipients, cc_addresses,
+            round((time.monotonic() - started) * 1000),
+        )
         raise QuotationDeliveryError(
             'The quotation email could not be sent. Check the mail configuration and try again.'
         ) from exc

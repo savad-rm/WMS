@@ -211,10 +211,7 @@ def _quotation_comment_threads(quote, viewer=None):
             if recipient_id in recipient_names
         ]
         item.display_comment = recipient_match.group(2) if recipient_match else value
-        if item.mentioned_recipients:
-            item.display_comment = (
-                f"Mentioned: {', '.join(item.mentioned_recipients)}\n{item.display_comment}"
-            )
+        item.mentioned_names = item.mentioned_recipients
         item.is_client_response = item.display_comment.startswith('Client response updated to ')
         item.replies = []
         marketing_private = (
@@ -448,7 +445,7 @@ def _detail_context(request, record, extra=None):
             'labour_cost': quote_costing.labour_cost if quote_costing else '',
             'other_cost': quote_costing.other_cost if quote_costing else '',
             'costing_notes': quote_costing.notes if quote_costing else '',
-            'discount': quotation_discount(form_source.details, form_source.validity_days),
+            'discount': quotation_discount(form_source.details, form_source.validity_days) or '',
         }
         if saved_form and not imported_quote:
             quote_form.update(saved_form)
@@ -475,7 +472,7 @@ def _detail_context(request, record, extra=None):
             'client_phone': record.client_phone,
             'client_email': record.client_email,
             'client_address': 'Doha - State of Qatar',
-            'discount': '0.00',
+            'discount': '',
         }
     context.update(extra or {})
     return context
@@ -523,6 +520,14 @@ def dashboard(request):
         },
         'internal_approval': {
             'label': 'Quotations awaiting internal approval',
+            'target': 'quotations',
+        },
+        'manager_approval': {
+            'label': 'Quotations awaiting Marketing Manager approval',
+            'target': 'quotations',
+        },
+        'accountant_approval': {
+            'label': 'Quotations awaiting Accountant approval',
             'target': 'quotations',
         },
         'under_revision': {
@@ -596,6 +601,10 @@ def dashboard(request):
         quote_records = quote_records.filter(
             pk__in=current_quote_ids, status__in=('manager_review', 'accountant_review'),
         )
+    elif dashboard_view == 'manager_approval':
+        quote_records = quote_records.filter(pk__in=current_quote_ids, status='manager_review')
+    elif dashboard_view == 'accountant_approval':
+        quote_records = quote_records.filter(pk__in=current_quote_ids, status='accountant_review')
     elif dashboard_view == 'client_approval':
         quote_records = quote_records.filter(pk__in=client_pending_ids)
     elif dashboard_view == 'submittal_pending':
@@ -702,8 +711,6 @@ def dashboard(request):
     if role == 'Estimator':
         my_pending_tasks = accessible_records.filter(
             status='assigned', assigned_to=request.workflow_staff
-        ).count() + quotation.objects.filter(
-            created_by=request.workflow_staff, status='under_revision'
         ).count()
     elif role == 'Marketing Manager':
         my_pending_tasks = accessible_records.filter(status='open').count() + quotation.objects.filter(
@@ -720,6 +727,15 @@ def dashboard(request):
             created_by=request.workflow_account, status='approved'
         ).count()
 
+    pending_view = {
+        'Estimator': 'assigned',
+        'Marketing Manager': 'manager_approval',
+        'Accountant': 'accountant_approval',
+        'Document Controller': 'submittal_pending',
+        'Marketing Executive': 'submittal_pending',
+        'Project Manager': 'manager_approval',
+    }.get(role, 'quotations')
+
     return _render(request, 'Workflow/dashboard.html', {
         'enquiries': enquiry_page,
         'quotations': quotation_page,
@@ -735,6 +751,7 @@ def dashboard(request):
         'dashboard_view': dashboard_view,
         'dashboard_view_label': dashboard_views.get(dashboard_view, {}).get('label', ''),
         'dashboard_view_target': dashboard_views.get(dashboard_view, {}).get('target', ''),
+        'pending_view': pending_view,
         'client_response_statuses': CLIENT_RESPONSE_STATUSES,
         'summary': {
             'enquiries': accessible_records.count(),
@@ -1924,7 +1941,7 @@ def submit_quotation(request, quote_id):
                 submitted_to=recipient,
                 submitted_cc=requested_cc,
                 submitted_subject=(requested_subject or quotation_email_content(quote)[0]).strip(),
-                delivery_status='Accepted by mail server',
+                delivery_status='SMTP accepted (EmailMessage.send returned 1)',
                 delivery_at=delivery_at.isoformat(),
             )
             quote.save(update_fields=('status', 'details', 'updated_at'))

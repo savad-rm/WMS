@@ -30,7 +30,7 @@
 <section class="section dashboard">
   <div class="row">
     <div class="col-lg-4 col-md-6 dashboard-card">
-      <div class="card info-card sales-card text-decoration-none">
+      <a class="card info-card sales-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view={{ pending_view }}{% if pending_view == 'assigned' or pending_view == 'open' or pending_view == 'enquiries' %}#enquiry-history{% else %}#quotation-register{% endif %}" aria-label="View my pending tasks">
         <div class="card-body">
           <h5 class="card-title">My Pending Tasks</h5>
           <div class="d-flex align-items-center">
@@ -38,7 +38,7 @@
             <div class="ps-3"><h6>{{ summary.my_pending_tasks }}</h6><span class="text-muted small pt-2">Tasks needing your action</span></div>
           </div>
         </div>
-      </div>
+      </a>
     </div>
     <div class="col-lg-4 col-md-6 dashboard-card">
       <a class="card info-card customers-card quotation-card text-decoration-none" href="{% url 'workflow_dashboard' %}?view=submittal_pending#quotation-register" aria-label="View quotations pending client submittal">

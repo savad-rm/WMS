@@ -189,7 +189,9 @@ class photo(models.Model):
 class project_manager_allocation(models.Model):
     allocated_date=models.CharField(max_length=100)
     PROJECT= models.ForeignKey(project, on_delete=models.CASCADE)
-    STAFF = models.ForeignKey(staff, on_delete=models.CASCADE)
+    # A project may be created before an Operation Manager assigns one of
+    # several available Project Managers.
+    STAFF = models.ForeignKey(staff, on_delete=models.SET_NULL, null=True, blank=True)
 
 class purchaser_project_allocation(models.Model):
     allocated_date=models.CharField(max_length=100)

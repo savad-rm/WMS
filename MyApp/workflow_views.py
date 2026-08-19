@@ -1483,6 +1483,7 @@ def view_quotation(request, quote_id):
         'can_accountant_approve': is_current_quote and role == 'Accountant' and quote.status == 'accountant_review',
         'can_request_revision': (
             is_current_quote and ((role == 'Marketing Manager' and quote.status == 'manager_review')
+            or (role == 'Project Manager' and quote.status == 'manager_review')
             or (role == 'Accountant' and quote.status == 'accountant_review'))
         ),
         'can_approve_costing': (
@@ -1535,8 +1536,19 @@ def quotation_discussion(request, quote_id):
         and _is_marketing_restricted_quotation(quote)
     )
     mentioned_threads = _quotation_comment_threads(quote, request.workflow_account)
-    if not _can_view_quotation(request, quote) and not (restricted_marketing and mentioned_threads):
-        return HttpResponseForbidden('You do not have permission to view this discussion.')
+    has_direct_notification = workflow_notification.objects.filter(
+        recipient=request.workflow_account, event='quotation_comment',
+        link=_quotation_discussion_url(quote),
+    ).exists()
+    if not _can_view_quotation(request, quote) and not (
+        restricted_marketing and (mentioned_threads or has_direct_notification)
+    ):
+        messages.error(
+            request,
+            'This quotation discussion is not available to your role yet. '
+            'You will be notified when a message is addressed to you.',
+        )
+        return redirect('workflow_dashboard')
     workflow_notification.objects.filter(
         recipient=request.workflow_account, event='quotation_comment',
         link=_quotation_discussion_url(quote), read_at__isnull=True,
@@ -1574,7 +1586,8 @@ def add_quotation_comment(request, quote_id):
         pk=quote_id,
     )
     if not _can_view_quotation(request, quote):
-        return HttpResponseForbidden('You do not have permission to comment on this quotation.')
+        messages.error(request, 'You do not have permission to comment on this quotation.')
+        return redirect('workflow_dashboard')
     value = request.POST.get('comment', '').strip()
     if value:
         parent_id = request.POST.get('parent_id', '').strip()
@@ -1640,23 +1653,34 @@ def submit_quotation_for_approval(request, quote_id):
         quote = get_object_or_404(
             quotation.objects.select_for_update().select_related('ENQUIRY'),
             pk=quote_id,
-            status='draft',
             created_by=request.workflow_staff,
             ENQUIRY__assigned_to=request.workflow_staff,
         )
+        internal_stage = quotation_internal_review(quote.details, quote.validity_days)
+        if quote.status != 'draft':
+            messages.error(
+                request,
+                'This quotation was returned for internal correction. Edit and save the quotation before submitting it again.',
+            )
+            return redirect('workflow_view_quotation', quote_id=quote.pk)
         if not _is_current_quotation(quote):
             messages.error(request, 'Only the current quotation version can be submitted for approval.')
             return redirect('workflow_view_quotation', quote_id=quote.pk)
         if not quote.lines.filter(amount__gt=0).exists():
             messages.error(request, 'Add at least one priced item or heading total before submitting for approval.')
             return redirect('workflow_view_quotation', quote_id=quote.pk)
-        quote.status = 'manager_review'
-        quote.save(update_fields=('status', 'updated_at'))
+        quote.status = 'accountant_review' if internal_stage == 'accountant' else 'manager_review'
+        if internal_stage:
+            quote.details = update_quotation_internal_review(
+                quote.details, quote.validity_days,
+            )
+        quote.save(update_fields=('status', 'details', 'updated_at'))
         quote.ENQUIRY.status = 'quoted'
         quote.ENQUIRY.save(update_fields=('status', 'updated_at'))
+    next_reviewer = 'Accountant' if quote.status == 'accountant_review' else 'Marketing Manager'
     messages.success(
         request,
-        f'{quote.display_number} submitted to the Marketing Manager for first approval.',
+        f'{quote.display_number} submitted to the {next_reviewer} for approval.',
     )
     return redirect('workflow_view_quotation', quote_id=quote.pk)
 
@@ -1682,10 +1706,10 @@ def read_workflow_notification(request, notification_id):
 
 
 @require_POST
-@role_required('Marketing Manager', 'Accountant')
+@role_required('Marketing Manager', 'Project Manager', 'Accountant')
 def request_quotation_revision(request, quote_id):
     role = _workflow_role(request.workflow_account.usertype)
-    expected_status = 'manager_review' if role == 'Marketing Manager' else 'accountant_review'
+    expected_status = 'manager_review' if role in ('Marketing Manager', 'Project Manager') else 'accountant_review'
     with transaction.atomic():
         quote = get_object_or_404(
             quotation.objects.select_for_update().select_related('ENQUIRY'),
@@ -1704,10 +1728,10 @@ def request_quotation_revision(request, quote_id):
         quote.status = 'under_revision'
         quote.details = update_quotation_internal_review(
             quote.details, quote.validity_days,
-            stage='manager' if role == 'Marketing Manager' else 'accountant',
+            stage='manager' if role in ('Marketing Manager', 'Project Manager') else 'accountant',
         )
         update_fields = ['status', 'details', 'updated_at']
-        if role == 'Marketing Manager':
+        if role in ('Marketing Manager', 'Project Manager'):
             quote.manager_approved_by = None
             quote.manager_approved_at = None
             update_fields.extend(['manager_approved_by', 'manager_approved_at'])
@@ -1728,7 +1752,9 @@ def request_quotation_revision(request, quote_id):
             ),
         )
     messages.success(request, 'Internal revision request sent to the estimator.')
-    return redirect('workflow_dashboard')
+    return redirect(
+        f'{reverse("workflow_dashboard")}?view=under_revision#quotation-register'
+    )
 
 
 @require_POST

@@ -326,7 +326,11 @@ class WorkflowTests(TestCase):
             reverse('workflow_request_quotation_revision', args=(quote.pk,)),
             {'remarks': 'Please correct the flooring quantity before approval.'},
         )
-        self.assertRedirects(response, reverse('workflow_dashboard'), fetch_redirect_response=False)
+        self.assertRedirects(
+            response,
+            reverse('workflow_dashboard') + '?view=under_revision#quotation-register',
+            fetch_redirect_response=False,
+        )
         quote.refresh_from_db()
         record.refresh_from_db()
         self.assertEqual(quote.status, 'under_revision')
@@ -347,6 +351,15 @@ class WorkflowTests(TestCase):
         self.assertContains(dashboard, 'Not Submitted')
 
         self.sign_in_as(*self.estimator)
+        no_edit_submit = self.client.post(
+            reverse('workflow_submit_for_approval', args=(quote.pk,)),
+        )
+        self.assertRedirects(
+            no_edit_submit, reverse('workflow_view_quotation', args=(quote.pk,)),
+            fetch_redirect_response=False,
+        )
+        quote.refresh_from_db()
+        self.assertEqual(quote.status, 'under_revision')
         response = self.client.post(reverse('workflow_add_quotation', args=(record.pk,)), {
             'draft_id': quote.pk, 'amount': '1250', 'details': 'Corrected internal scope',
             'material_cost': '100', 'labour_cost': '100', 'other_cost': '0',

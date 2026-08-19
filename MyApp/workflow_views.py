@@ -686,6 +686,34 @@ def dashboard(request):
         ENQUIRY__in=accessible_records,
     ).exclude(status='draft').values('ENQUIRY_id').distinct().count()
 
+    submittal_pending_count = quotation.objects.filter(
+        ENQUIRY__in=accessible_records,
+        pk__in=current_quote_ids, status='approved',
+    ).count()
+
+    # Calculate employee-specific pending tasks
+    my_pending_tasks = 0
+    if role == 'Estimator':
+        my_pending_tasks = accessible_records.filter(
+            status='assigned', assigned_to=request.workflow_staff
+        ).count() + quotation.objects.filter(
+            created_by=request.workflow_staff, status='under_revision'
+        ).count()
+    elif role == 'Marketing Manager':
+        my_pending_tasks = accessible_records.filter(status='open').count() + quotation.objects.filter(
+            pk__in=current_quote_ids, status='manager_review'
+        ).count()
+    elif role == 'Accountant':
+        my_pending_tasks = quotation.objects.filter(
+            pk__in=current_quote_ids, status='accountant_review'
+        ).count()
+    elif role == 'Document Controller':
+        my_pending_tasks = submittal_pending_count
+    elif role == 'Marketing Executive':
+        my_pending_tasks = accessible_records.filter(
+            created_by=request.workflow_account, status='approved'
+        ).count()
+
     return _render(request, 'Workflow/dashboard.html', {
         'enquiries': enquiry_page,
         'quotations': quotation_page,
@@ -712,6 +740,8 @@ def dashboard(request):
             'internal_approval': internal_approval_count,
             'under_revision': revision_count,
             'awarded': accessible_records.filter(status='awarded').count(),
+            'submittal_pending': submittal_pending_count,
+            'my_pending_tasks': my_pending_tasks,
         },
     })
 

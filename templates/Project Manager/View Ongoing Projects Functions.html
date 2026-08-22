@@ -1,184 +1,21 @@
 {% extends "Project Manager/pmindex2.html" %}
 {% block body %}
-{#<form id="form1" name="form1" method="post" action="/WMS/search_prjcts/">#}
-    {% csrf_token %}
-{#<div align="center" style="color: blue"><h3>{{ data.project_name }}</h3></div>#}
-{#    <br>#}
-{#    <br>#}
-{#    <div class="row" >#}
-{#        <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Project_allocated_to_project_manager/{{ data.id }}#myid" ><b>Project Manager</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#              <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Project_allocated_to_supervisor/{{ data.id }}" ><b>Supervisor</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#              <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Subcontractor_datails_of_project/{{ data.id }}" ><b>Subcontractor</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#              <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Payment_Entry/{{ data.id }}" ><b>Payments</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#              <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Worksite_photos/{{ data.id }}"  ><b>Site Photos</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#              <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{##}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Material_required/{{ data.id }}" ><b>Materials Required</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#        <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Total_material_request/{{ data.id }}" ><b>Material Requests</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#        <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px;color: cyan">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Total_worker_report/{{ data.id }}" ><b>Workers Report</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div> <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Schedule/{{ data.id }}" ><b>Schedule</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#        <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Estimatead/{{ data.id }}" ><b>Estimate</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#        <div class="col-lg-2">#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Work_management/{{ data.id }}" ><b>Scope of Work</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#        <div class="col-lg-2" >#}
-{#            <div class="card" style="height: 60px">#}
-{#                <p></p>#}
-{#                <p align="center" >#}
-{#                       <a href="/WMS/View_Work_progress/{{ data.id }}" ><b>Work Progress</b></a>#}
-{#                </p>#}
-{#</div>#}
-{#        </div>#}
-{#    </div>#}
-{#  <table width="741" border="1" class="table table-striped">#}
-{#    <tr>#}
-{#      <td width="29">Date</td>#}
-{#        <td><label for="textfield">{{ data.date }}</label></td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#      <td width="48">Project Name</td>#}
-{#        <td>{{ data.project_name }}</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#      <td width="39">Client Name</td>#}
-{#      <td>{{ data.client_name }}</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#        <td width="38">Phone</td>#}
-{#        <td>{{ data.phone }}</td>#}
-{#   </tr>#}
-{#    <tr>#}
-{#        <td width="33">Email</td>#}
-{#        <td>{{ data.email}}</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#        <td >Place</td>#}
-{#        <td>{{ data.place }}</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#        <td >Unit No</td>#}
-{#        <td>{{ data.unit_no }}</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#        <td width="61">Project Value</td>#}
-{#        <td>{{ data.project_value}}</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#        <td width="50">Starting Date</td>#}
-{#        <td>{{ data.start_date }}</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#        <td width="50">Handout Date</td>#}
-{#        <td>{{ data.handout_date }}</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#        <td width="61">Project Duration</td>#}
-{#        <td>{{ data.project_duration }}</td>#}
-{#   </tr>#}
-{#    <tr>#}
-{#        <td width="61">Project Type</td>#}
-{#        <td>{{ data.project_type }}</td>#}
-{#  </tr>#}
-{#    <tr>#}
-{#        <td width="69">Description</td>#}
-{#        <td>{{ data.description }}</td>#}
-{#  </tr>#}
-{#    <tr>#}
-{#        <td width="55">Estimate Status</td>#}
-{#        <td>{{ data.estimate_status }}</td>#}
-{#  </tr>#}
-{#    <tr>#}
-{#        <td width="86">&nbsp;</td>#}
-{#    </tr>#}
-{#    <tr>#}
-{#      <td><p>#}
-{#          <a href="/WMS/View_Project_allocated_to_project_manager/{{ data.id }}" class="nav-link">Project Manager</a><br><br>#}
-{#          <a href="/WMS/View_Project_allocated_to_supervisor/{{ data.id }}" class="nav-link">Supervisor</a><br><br>#}
-{#           <a href="/WMS/View_Subcontractor_datails_of_project/{{ data.id }}">Subcontractor</a></p><br/>#}
-{#        <p><a href="/WMS/View_Payment_Entry/{{ data.id }}">Payment</a></p><br />#}
-{#        <p><a href="/WMS/View_Worksite_photos/{{ data.id }}">SitePhotos</a></p><br />#}
-{#          <a href="/WMS/View_Material_required/{{ data.id }}" class="nav-link">View Material required</a><br>#}
-{#        <p><a href="/WMS/View_Total_material_request/{{ data.id }}">Total Material Request</a></p><br />#}
-{#        <p><a href="/WMS/View_Total_worker_report/{{ data.id }}">Workers Report</a></p><br />#}
-{#        <p><a href="/WMS/View_Schedule/{{ data.id }}">Schedule</a></p><br />#}
-{#      <p><a href="/WMS/View_Estimatead/{{ data.id }}">Estimate</a></p>#}
-{#      <p><a href="/WMS/View_Work_management/{{ data.id }}">Scope of Work</a></p>#}
-{#      <p><a href="/WMS/View_Work_progress/{{ data.id }}">Work Progress</a></p></td><br />#}
-{#    </tr>#}
-{#  </tbody>#}
-{#  </table>#}
-</form>
+<style>.workspace-card{border:1px solid #e5eaf2;border-radius:14px;box-shadow:0 6px 20px rgba(1,41,112,.05);height:100%;transition:.18s}.workspace-card:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(1,41,112,.10)}.workspace-card a{color:#012970;text-decoration:none}.workspace-icon{width:44px;height:44px;border-radius:12px;background:#eef4ff;color:#0d6efd;display:grid;place-items:center;font-size:1.2rem}.progress{height:8px}</style>
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4"><div><h2 class="text-primary mb-1">{{ data.project_name }}</h2><p class="text-muted mb-0">{{ data.project_no }} · {{ data.client_name }} · {{ data.place }}</p></div><a href="{% url 'PMHome' %}" class="btn btn-outline-primary"><i class="bi bi-arrow-left me-1"></i>Dashboard</a></div>
+<div class="row g-3 mb-4"><div class="col-xl-3 col-md-6"><div class="card workspace-card"><div class="card-body"><span class="small text-muted">Project Health</span><h4 class="mt-2"><span class="badge bg-{{ project_summary.health_class }}">{{ project_summary.health }}</span></h4><small class="text-muted">{{ project_summary.days_remaining|default:'-' }} days to handover</small></div></div></div><div class="col-xl-3 col-md-6"><div class="card workspace-card"><div class="card-body"><span class="small text-muted">Actual Progress</span><h4 class="mt-2">{{ project_summary.progress }}%</h4><div class="progress"><div class="progress-bar" style="width:{{ project_summary.progress }}%"></div></div></div></div></div><div class="col-xl-3 col-md-6"><div class="card workspace-card"><div class="card-body"><span class="small text-muted">Material Requests</span><h4 class="mt-2">{{ project_summary.pending_materials }}</h4><small class="text-muted">Pending action</small></div></div></div><div class="col-xl-3 col-md-6"><div class="card workspace-card"><div class="card-body"><span class="small text-muted">Schedule Alerts</span><h4 class="mt-2">{{ project_summary.overdue_activities }}</h4><small class="text-muted">Overdue activities</small></div></div></div></div>
+<h5 class="text-primary mb-3">Project Control Modules</h5>
+<div class="row g-3">
+  <div class="col-xl-3 col-md-4 col-sm-6"><div class="card workspace-card"><a href="{% url 'View_work' data.id %}"><div class="card-body d-flex gap-3"><div class="workspace-icon"><i class="bi bi-list-check"></i></div><div><h6>Scope of Work</h6><small class="text-muted">Work packages and responsibilities</small></div></div></a></div></div>
+  <div class="col-xl-3 col-md-4 col-sm-6"><div class="card workspace-card"><a href="{% url 'View_work_schedules' data.id %}"><div class="card-body d-flex gap-3"><div class="workspace-icon"><i class="bi bi-calendar3"></i></div><div><h6>Programme</h6><small class="text-muted">Planned dates and milestones</small></div></div></a></div></div>
+  <div class="col-xl-3 col-md-4 col-sm-6"><div class="card workspace-card"><a href="{% url 'View_project_status' data.id %}"><div class="card-body d-flex gap-3"><div class="workspace-icon"><i class="bi bi-graph-up-arrow"></i></div><div><h6>Work Progress</h6><small class="text-muted">Planned vs actual execution</small></div></div></a></div></div>
+  <div class="col-xl-3 col-md-4 col-sm-6"><div class="card workspace-card"><a href="{% url 'View_materials_required' data.id %}"><div class="card-body d-flex gap-3"><div class="workspace-icon"><i class="bi bi-box-seam"></i></div><div><h6>Material Plan</h6><small class="text-muted">Required materials and budget</small></div></div></a></div></div>
+  <div class="col-xl-3 col-md-4 col-sm-6"><div class="card workspace-card"><a href="{% url 'View_pending_materials_request' data.id %}"><div class="card-body d-flex gap-3"><div class="workspace-icon"><i class="bi bi-cart-check"></i></div><div><h6>Material Requests</h6><small class="text-muted">Review and approve site requests</small></div></div></a></div></div>
+  <div class="col-xl-3 col-md-4 col-sm-6"><div class="card workspace-card"><a href="{% url 'View_issued_materials_to_site' data.id %}"><div class="card-body d-flex gap-3"><div class="workspace-icon"><i class="bi bi-truck"></i></div><div><h6>Materials Issued</h6><small class="text-muted">Delivery and issue tracking</small></div></div></a></div></div>
+  <div class="col-xl-3 col-md-4 col-sm-6"><div class="card workspace-card"><a href="{% url 'View_uploaded_drawings' data.id %}"><div class="card-body d-flex gap-3"><div class="workspace-icon"><i class="bi bi-file-earmark-image"></i></div><div><h6>Drawings</h6><small class="text-muted">Latest project drawings</small></div></div></a></div></div>
+  <div class="col-xl-3 col-md-4 col-sm-6"><div class="card workspace-card"><a href="{% url 'View_uploaded_document' data.id %}"><div class="card-body d-flex gap-3"><div class="workspace-icon"><i class="bi bi-folder2-open"></i></div><div><h6>Documents</h6><small class="text-muted">Project records and submissions</small></div></div></a></div></div>
+  <div class="col-xl-3 col-md-4 col-sm-6"><div class="card workspace-card"><a href="{% url 'View_project_inspection' data.id %}"><div class="card-body d-flex gap-3"><div class="workspace-icon"><i class="bi bi-clipboard2-check"></i></div><div><h6>Inspections</h6><small class="text-muted">Quality and inspection records</small></div></div></a></div></div>
+  <div class="col-xl-3 col-md-4 col-sm-6"><div class="card workspace-card"><a href="{% url 'View_Subcontractor_of_project' data.id %}"><div class="card-body d-flex gap-3"><div class="workspace-icon"><i class="bi bi-people"></i></div><div><h6>Subcontractors</h6><small class="text-muted">Packages and allocation</small></div></div></a></div></div>
+  <div class="col-xl-3 col-md-4 col-sm-6"><div class="card workspace-card"><a href="{% url 'View_project_payment_entry' data.id %}"><div class="card-body d-flex gap-3"><div class="workspace-icon"><i class="bi bi-cash-stack"></i></div><div><h6>Payments</h6><small class="text-muted">Project financial records</small></div></div></a></div></div>
+  <div class="col-xl-3 col-md-4 col-sm-6"><div class="card workspace-card"><a href="{% url 'View_Worksite_photospm' data.id %}"><div class="card-body d-flex gap-3"><div class="workspace-icon"><i class="bi bi-camera"></i></div><div><h6>Site Photos</h6><small class="text-muted">Visual progress evidence</small></div></div></a></div></div>
+</div>
 {% endblock %}
-

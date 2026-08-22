@@ -1,0 +1,36 @@
+{% extends "Accountant/acindex.html" %}
+{% block body %}
+<style>
+  .control-card { border: 1px solid #e5eaf2; border-radius: 16px; box-shadow: 0 8px 24px rgba(1,41,112,.06); height: calc(100% - 24px); }
+  .control-card .card-body { padding: 1.35rem; }
+  .control-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 1.35rem; background: #eef4ff; color: #0d6efd; }
+  .portfolio-table thead th { background: #eef4fb; color: #012970; border: 0; white-space: nowrap; }
+  .portfolio-table td { vertical-align: middle; }
+  .progress { height: 8px; background: #e8edf5; }
+</style>
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4"><div><h2 class="mb-1 text-primary">Project Control Dashboard</h2><p class="text-muted mb-0">Portfolio schedule, financial position and delivery risks in one view.</p></div><div class="d-flex gap-2"><a href="{% url 'Add_project' %}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>New Project</a><a href="{% url 'View_all_projects' %}" class="btn btn-outline-primary">Project Register</a></div></div>
+
+<div class="row g-3 mb-3">
+  <div class="col-xl-3 col-md-6"><div class="card control-card"><div class="card-body d-flex align-items-center gap-3"><div class="control-icon"><i class="bi bi-buildings"></i></div><div><span class="text-muted small">Active Projects</span><h3 class="mb-0">{{ portfolio.active }}</h3></div></div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="card control-card"><div class="card-body d-flex align-items-center gap-3"><div class="control-icon text-success bg-success-subtle"><i class="bi bi-check2-circle"></i></div><div><span class="text-muted small">On Schedule</span><h3 class="mb-0">{{ portfolio.on_track }}</h3></div></div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="card control-card"><div class="card-body d-flex align-items-center gap-3"><div class="control-icon text-warning bg-warning-subtle"><i class="bi bi-exclamation-triangle"></i></div><div><span class="text-muted small">At Risk</span><h3 class="mb-0">{{ portfolio.at_risk }}</h3></div></div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="card control-card"><div class="card-body d-flex align-items-center gap-3"><div class="control-icon text-danger bg-danger-subtle"><i class="bi bi-clock-history"></i></div><div><span class="text-muted small">Delayed</span><h3 class="mb-0">{{ portfolio.delayed }}</h3></div></div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="card control-card"><div class="card-body"><span class="text-muted small">Contract Value</span><h4 class="mt-2 mb-0">QAR {{ portfolio.total_value|floatformat:2 }}</h4></div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="card control-card"><div class="card-body"><span class="text-muted small">Received</span><h4 class="mt-2 mb-0 text-success">QAR {{ portfolio.received|floatformat:2 }}</h4></div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="card control-card"><div class="card-body"><span class="text-muted small">Outstanding</span><h4 class="mt-2 mb-0 text-danger">QAR {{ portfolio.outstanding|floatformat:2 }}</h4></div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="card control-card"><div class="card-body"><span class="text-muted small">Operational Alerts</span><div class="mt-2"><strong>{{ portfolio.overdue_activities }}</strong> overdue activities · <strong>{{ portfolio.pending_materials }}</strong> material requests</div></div></div></div>
+</div>
+
+<div class="row g-3 mb-4"><div class="col-lg-8"><div class="card control-card"><div class="card-body"><h5 class="card-title">Project Progress</h5><div style="height:320px"><canvas id="projectProgressChart"></canvas></div></div></div></div><div class="col-lg-4"><div class="card control-card"><div class="card-body"><h5 class="card-title">Portfolio Health</h5><div style="height:320px"><canvas id="portfolioHealthChart"></canvas></div></div></div></div></div>
+
+<div class="card control-card"><div class="card-body"><div class="d-flex justify-content-between align-items-center mb-3"><h5 class="card-title mb-0">Active Project Watchlist</h5><a href="{% url 'View_all_projects' %}" class="btn btn-sm btn-outline-primary">View all</a></div><div class="table-responsive"><table class="table table-hover portfolio-table mb-0"><thead><tr><th>Project</th><th>Project Manager</th><th>Progress</th><th>Handover</th><th>Materials</th><th>Schedule</th><th>Outstanding</th><th></th></tr></thead><tbody>{% for item in active_projects %}<tr><td><strong>{{ item.project_name }}</strong><div class="small text-muted">{{ item.project_no }} · {{ item.client_name }}</div></td><td>{{ item.control.managers|join:', '|default:'Not assigned' }}</td><td style="min-width:150px"><div class="d-flex justify-content-between small"><span>{{ item.control.progress }}%</span></div><div class="progress"><div class="progress-bar" style="width:{{ item.control.progress }}%"></div></div></td><td>{{ item.handout_date }}{% if item.control.days_remaining != None %}<div class="small text-muted">{{ item.control.days_remaining }} days</div>{% endif %}</td><td>{% if item.control.pending_materials %}<span class="badge bg-warning text-dark">{{ item.control.pending_materials }} pending</span>{% else %}<span class="badge bg-success">Clear</span>{% endif %}</td><td><span class="badge bg-{{ item.control.health_class }}">{{ item.control.health }}</span>{% if item.control.overdue_activities %}<div class="small text-danger">{{ item.control.overdue_activities }} overdue</div>{% endif %}</td><td>QAR {{ item.control.outstanding|floatformat:2 }}</td><td><a class="btn btn-sm btn-outline-primary text-nowrap" href="{% url 'View_projects_functionsac' item.id %}">Open Project</a></td></tr>{% empty %}<tr><td colspan="8" class="text-center text-muted py-4">No active projects.</td></tr>{% endfor %}</tbody></table></div></div></div>
+
+{{ chart_names|json_script:"project-chart-names" }}{{ chart_progress|json_script:"project-chart-progress" }}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const names = JSON.parse(document.getElementById('project-chart-names').textContent), progress = JSON.parse(document.getElementById('project-chart-progress').textContent);
+  new Chart(document.getElementById('projectProgressChart'), {type:'bar',data:{labels:names,datasets:[{label:'Actual progress %',data:progress,backgroundColor:'#0d6efd',borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,max:100}}}});
+  new Chart(document.getElementById('portfolioHealthChart'), {type:'doughnut',data:{labels:['On Track','At Risk','Delayed'],datasets:[{data:[{{ portfolio.on_track }},{{ portfolio.at_risk }},{{ portfolio.delayed }}],backgroundColor:['#198754','#ffc107','#dc3545'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}}}});
+});
+</script>
+{% endblock %}

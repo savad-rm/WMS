@@ -12,6 +12,15 @@
 </div>
 <p class="text-muted">Financial and operational project information is available here as a read-only consolidated view. Payment management remains available from the Payments card.</p>
 
+<div class="row g-3 mb-4">
+  <div class="col-xl-3 col-md-6"><div class="card h-100"><div class="card-body"><span class="text-muted small">Project Health</span><h4 class="mt-2"><span class="badge bg-{{ project_summary.health_class }}">{{ project_summary.health }}</span></h4><small class="text-muted">{{ project_summary.days_remaining|default:'-' }} days to handover</small></div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="card h-100"><div class="card-body"><span class="text-muted small">Actual Progress</span><h4 class="mt-2">{{ project_summary.progress }}%</h4><div class="progress" style="height:8px"><div class="progress-bar" style="width:{{ project_summary.progress }}%"></div></div></div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="card h-100"><div class="card-body"><span class="text-muted small">Financial Position</span><h5 class="mt-2 mb-1">QAR {{ project_summary.received|floatformat:2 }} received</h5><small class="text-danger">QAR {{ project_summary.outstanding|floatformat:2 }} outstanding</small></div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="card h-100"><div class="card-body"><span class="text-muted small">Attention Required</span><h5 class="mt-2 mb-1">{{ project_summary.overdue_activities }} overdue activities</h5><small class="text-warning">{{ project_summary.pending_materials }} material requests pending</small></div></div></div>
+</div>
+
+<div class="card project-module"><div class="card-body"><h5 class="card-title">Project Workflow</h5><div class="d-flex flex-wrap gap-2"><span class="badge bg-success p-2">Awarded</span><span class="badge bg-primary p-2">Planning &amp; Scope</span><span class="badge bg-primary p-2">Documents &amp; Drawings</span><span class="badge bg-primary p-2">Procurement</span><span class="badge bg-primary p-2">Site Execution</span><span class="badge bg-secondary p-2">Inspection &amp; Snagging</span><span class="badge bg-secondary p-2">Handover &amp; Closure</span></div><p class="small text-muted mt-3 mb-0">The current legacy records feed these control areas. Formal document approvals, RFIs, variations, snags and handover checklists require dedicated registers in the next schema phase.</p></div></div>
+
 <div class="card project-module" id="manager"><div class="card-body">
   <h5 class="card-title">Project Manager</h5>
   {% for item in project_managers %}<p class="mb-1"><strong>{{ item.STAFF.name }}</strong> &middot; {{ item.STAFF.email }} &middot; {{ item.STAFF.phone }}</p>{% empty %}<p class="text-muted">No Project Manager allocated.</p>{% endfor %}

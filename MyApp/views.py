@@ -10,6 +10,9 @@ from django.db import IntegrityError, transaction as db_transaction
 from django.views.decorators.http import require_GET, require_POST
 from io import BytesIO
 from itertools import zip_longest
+from collections import defaultdict
+from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
 import re
 from MyApp.middleware import legacy_role_required
 from MyApp.boq_tools import (
@@ -64,6 +67,107 @@ STAFF_DESIGNATIONS = (
 )
 
 USERNAME_PATTERN = re.compile(r'^[a-z0-9][a-z0-9._-]{2,49}$')
+
+
+def _decimal_value(value):
+    """Parse legacy currency strings without allowing malformed data to break dashboards."""
+    try:
+        return Decimal(re.sub(r'[^0-9.-]', '', str(value or '0')) or '0')
+    except (InvalidOperation, TypeError, ValueError):
+        return Decimal('0')
+
+
+def _date_value(value):
+    if isinstance(value, date):
+        return value
+    try:
+        return datetime.strptime(str(value or '')[:10], '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        return None
+
+
+def _project_control_rows(projects):
+    """Create consistent portfolio/project KPIs from the current legacy schema."""
+    projects = list(projects)
+    project_ids = [item.pk for item in projects]
+    today = date.today()
+    progress_by_project = defaultdict(dict)
+    for item in work_progress.objects.filter(PROJECT_id__in=project_ids).order_by('id'):
+        progress_by_project[item.PROJECT_id][item.WORK_id] = item
+    schedules_by_project = defaultdict(list)
+    for item in schedule.objects.filter(PROJECT_id__in=project_ids).select_related('WORK'):
+        schedules_by_project[item.PROJECT_id].append(item)
+    requests_by_project = defaultdict(list)
+    for item in material_request.objects.filter(PROJECT_id__in=project_ids):
+        requests_by_project[item.PROJECT_id].append(item)
+    payments_by_project = defaultdict(Decimal)
+    for item in payemnt_entry.objects.filter(PROJECT_id__in=project_ids):
+        payments_by_project[item.PROJECT_id] += _decimal_value(item.amount)
+    manager_by_project = defaultdict(list)
+    for item in project_manager_allocation.objects.filter(
+        PROJECT_id__in=project_ids,
+    ).select_related('STAFF'):
+        if item.STAFF_id:
+            manager_by_project[item.PROJECT_id].append(item.STAFF.name)
+    document_counts = defaultdict(int)
+    for project_id in documents.objects.filter(PROJECT_id__in=project_ids).values_list('PROJECT_id', flat=True):
+        document_counts[project_id] += 1
+    for project_id in drawing.objects.filter(PROJECT_id__in=project_ids).values_list('PROJECT_id', flat=True):
+        document_counts[project_id] += 1
+    for project_id in project_document.objects.filter(
+        transferred_to_id__in=project_ids,
+    ).values_list('transferred_to_id', flat=True):
+        document_counts[project_id] += 1
+
+    rows = []
+    for item in projects:
+        latest_progress = progress_by_project[item.pk]
+        progress_values = []
+        completed_work_ids = set()
+        for work_id, progress_item in latest_progress.items():
+            try:
+                progress_values.append(max(0, min(100, float(progress_item.progress or 0))))
+            except (TypeError, ValueError):
+                progress_values.append(0)
+            if str(progress_item.status).strip().lower() == 'completed':
+                completed_work_ids.add(work_id)
+        progress = round(sum(progress_values) / len(progress_values)) if progress_values else 0
+        overdue_activities = sum(
+            1 for planned in schedules_by_project[item.pk]
+            if planned.to_date < today and planned.WORK_id not in completed_work_ids
+        )
+        pending_materials = sum(
+            1 for request_item in requests_by_project[item.pk]
+            if str(request_item.status).strip().lower() not in ('approved', 'delivered', 'completed', 'closed')
+        )
+        handover = _date_value(item.handout_date)
+        days_remaining = (handover - today).days if handover else None
+        is_complete = str(item.status).strip().lower() == 'completed'
+        if is_complete:
+            health, health_class = 'Completed', 'success'
+        elif overdue_activities:
+            health, health_class = 'Delayed', 'danger'
+        elif (days_remaining is not None and days_remaining <= 14) or pending_materials:
+            health, health_class = 'At Risk', 'warning'
+        else:
+            health, health_class = 'On Track', 'success'
+        value = _decimal_value(item.project_value)
+        received = payments_by_project[item.pk]
+        item.control = {
+            'progress': progress,
+            'overdue_activities': overdue_activities,
+            'pending_materials': pending_materials,
+            'days_remaining': days_remaining,
+            'health': health,
+            'health_class': health_class,
+            'project_value': value,
+            'received': received,
+            'outstanding': max(Decimal('0'), value - received),
+            'documents': document_counts[item.pk],
+            'managers': manager_by_project[item.pk],
+        }
+        rows.append(item)
+    return rows
 
 
 def _normalise_username(value):
@@ -774,12 +878,12 @@ def search_prjts(request):
     button=request.POST['button']
     if button == 'Search':
         txt=request.POST['text']
-        res = project.objects.filter(project_name__icontains=txt)
+        res = _project_control_rows(project.objects.filter(project_name__icontains=txt))
         return render(request, 'Admin/View Project.html', {'data': res})
     else:
         frm=request.POST['from']
         to=request.POST['to']
-        res = project.objects.filter(date__range=[frm,to])
+        res = _project_control_rows(project.objects.filter(date__range=[frm,to]))
         return render(request, 'Admin/View Project.html', {'data': res})
 
 def View_projects_functions(request,id):
@@ -1010,8 +1114,28 @@ def search_sp(request):
 
 ##################################################  PROJECT MANAGER  #######################################################################
 
+@legacy_role_required('Project Manager', 'Project Engineer')
 def PMHome(request):
-    return render(request,'Project Manager/pmindex.html')
+    person_id = request.session.get('sid')
+    assigned_ids = project_manager_allocation.objects.filter(
+        STAFF_id=person_id,
+    ).values_list('PROJECT_id', flat=True)
+    projects = _project_control_rows(project.objects.filter(pk__in=assigned_ids).order_by('-date', '-id'))
+    active = [item for item in projects if str(item.status).strip().lower() != 'completed']
+    return render(request, 'Project Manager/project_dashboard.html', {
+        'projects': projects,
+        'active_projects': active,
+        'portfolio': {
+            'active': len(active),
+            'on_track': sum(item.control['health'] == 'On Track' for item in active),
+            'at_risk': sum(item.control['health'] == 'At Risk' for item in active),
+            'delayed': sum(item.control['health'] == 'Delayed' for item in active),
+            'pending_materials': sum(item.control['pending_materials'] for item in active),
+            'overdue_activities': sum(item.control['overdue_activities'] for item in active),
+        },
+        'chart_names': [item.project_name for item in active[:12]],
+        'chart_progress': [item.control['progress'] for item in active[:12]],
+    })
 
 def Add_Estimate(request,id):
     res=project.objects.get(id=id)
@@ -2439,8 +2563,15 @@ def search_onp(request):
         return render(request, 'Project Manager/View Ongoing Project.html', {'data': res})
 
 def View_projects_functionspm(request,id):
-    res = project_manager_allocation.objects.get(PROJECT=id,STAFF=request.session["sid"], PROJECT__status='ongoing')
-    return render(request,'Project Manager/View Ongoing Projects Functions.html',{'data':res})
+    allocation = get_object_or_404(
+        project_manager_allocation.objects.select_related('PROJECT'),
+        PROJECT=id, STAFF=request.session["sid"], PROJECT__status='ongoing',
+    )
+    selected = allocation.PROJECT
+    summary = _project_control_rows([selected])[0].control
+    return render(request, 'Project Manager/View Ongoing Projects Functions.html', {
+        'data': selected, 'allocation': allocation, 'project_summary': summary,
+    })
 
 def View_pending_materials_request(request,id):
     res=material_request.objects.filter(status="pending",PROJECT=id)
@@ -3496,8 +3627,32 @@ def search_wcr(request):
 
 ################################################  ACCONTANT  ##########################################################
 
+@legacy_role_required('Accountant')
 def achome(request):
-    return render(request,'Accountant/acindex.html')
+    projects = _project_control_rows(project.objects.all().order_by('-date', '-id'))
+    active = [item for item in projects if str(item.status).strip().lower() != 'completed']
+    completed = [item for item in projects if str(item.status).strip().lower() == 'completed']
+    total_value = sum((item.control['project_value'] for item in projects), Decimal('0'))
+    total_received = sum((item.control['received'] for item in projects), Decimal('0'))
+    return render(request, 'Accountant/project_dashboard.html', {
+        'projects': projects,
+        'active_projects': active,
+        'completed_projects': completed,
+        'portfolio': {
+            'active': len(active),
+            'completed': len(completed),
+            'on_track': sum(item.control['health'] == 'On Track' for item in active),
+            'at_risk': sum(item.control['health'] == 'At Risk' for item in active),
+            'delayed': sum(item.control['health'] == 'Delayed' for item in active),
+            'pending_materials': sum(item.control['pending_materials'] for item in active),
+            'overdue_activities': sum(item.control['overdue_activities'] for item in active),
+            'total_value': total_value,
+            'received': total_received,
+            'outstanding': max(Decimal('0'), total_value - total_received),
+        },
+        'chart_names': [item.project_name for item in active[:12]],
+        'chart_progress': [item.control['progress'] for item in active[:12]],
+    })
 
 def Add_account_sub(request):
     res=accounthead.objects.all()
@@ -3803,7 +3958,7 @@ def search_prstac(request):
         return render(request, 'Accountant/View Project Status.html', {'data': res2,'data1':l, 'id': id})
 
 def View_all_projects(request):
-    res=project.objects.all()
+    res=_project_control_rows(project.objects.all().order_by('-date', '-id'))
     return render(request, 'Accountant/View All Projects.html',{'data':res})
 
 def search_allprjtsac(request):
@@ -3837,8 +3992,10 @@ def search_prjtsac(request):
 @legacy_role_required('Accountant')
 def View_projects_functionsac(request,id):
     selected = get_object_or_404(project, id=id, status='ongoing')
+    project_summary = _project_control_rows([selected])[0].control
     return render(request, 'Accountant/View Projects Functions.html', {
         'data': selected,
+        'project_summary': project_summary,
         'project_managers': project_manager_allocation.objects.filter(PROJECT=selected).select_related('STAFF'),
         'scope_rows': work.objects.filter(PROJECT=selected),
         'material_rows': material_required.objects.filter(PROJECT=selected).select_related('MATERIAL'),

@@ -1,62 +1,9 @@
 {% extends "Accountant/acindex.html" %}
 {% block body %}
-<form id="form1" name="form1" method="post" action="/WMS/search_allprjtsac/">
-        {% csrf_token %}
-<div style="color: blue" align="center"><h3>Projects</h3></div>
-<div class="dataTable-top">
-    <div class="dataTable-search">
-        <input type="text" name="text" id="textfield" placeholder="Enter name here..." class="form-control-sm"/>
-     <input type="submit" name="button" id="Go" value="Search" class="btn btn-outline-info btn-sm"/>
-        From&nbsp;<input type="date" name="from" id="textfield"  class="form-control-sm"/>&nbsp;
-        To&nbsp;<input type="date" name="to" id="textfield"  class="form-control-sm"/>
-     <input type="submit" name="button" id="Go" value="Go" class="btn btn-outline-info btn-sm"/>
-    </div>
-</div>
-  <table width="741" border="1" class="table table-striped ">
-  <thead>
-    <tr style="background-color: #00a0dc;color: white">
-      <td width="36">Sl.No</td>
-      <td width="48">Project Name</td>
-      <td width="39">Client Name</td>
-      <td width="29">Date</td>
-      <td width="38">Phone</td>
-      <td width="33">Email</td>
-      <td colspan="5">Address</td>
-      <td width="61">Project Value</td>
-      <td width="50">Starting Date</td>
-      <td width="50">Handout Date</td>
-      <td width="61">Project Duration</td>
-      <td width="61">Project Type</td>
-      <td width="69">Description</td>
-      <td width="55">Estimate Status</td>
-      <td width="55">Status</td>
-{#      <td width="55">&nbsp;</td>#}
-    </tr>
-  </thead>
-  <tbody>
-      {% for i in data %}
-    <tr>
-      <td height="80">{{ forloop.counter }}</td>
-      <td>{{ i.project_name }}</td>
-      <td>{{ i.client_name }}</td>
-      <td>{{ i.date }}</td>
-      <td>{{ i.phone }}</td>
-      <td>{{ i.email}}</td>
-      <td colspan="5">{{ i.place }}<br>{{ i.unit_no }}</td>
-      <td>{{ i.project_value}}</td>
-      <td>{{ i.start_date }}</td>
-      <td>{{ i.handout_date }}</td>
-      <td>{{ i.project_duration }}</td>
-      <td>{{ i.project_type }}</td>
-      <td>{{ i.description }}</td>
-      <td>{{ i.estimate_status }}</td>
-      <td>{{ i.status }}</td>
-{#      <td><p><a href="/WMS/View_Project_status/{{ i.id }}">Project Status</a></p>#}
-{#      <p><a href="/WMS/Project_payment_entry/{{ i.id }}">Add Payment</a></p>#}
-{#      <p><a href="/WMS/View_project_payment_entry_ac/{{ i.id }}">View Payment</a></p></td>#}
-    </tr>
-      {% endfor %}
-  </tbody>
-  </table>
-</form>
+<style>.project-register thead th{background:#eef4fb;color:#012970;border:0;white-space:nowrap}.project-register td{vertical-align:middle}.project-register .progress{height:7px;min-width:110px}.register-shell{border:1px solid #e5eaf2;border-radius:16px;box-shadow:0 8px 24px rgba(1,41,112,.06)}</style>
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4"><div><h2 class="text-primary mb-1">Project Register</h2><p class="text-muted mb-0">Track every project from award through execution and closure.</p></div><div class="d-flex gap-2"><a href="{% url 'achome' %}" class="btn btn-outline-primary"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a><a href="{% url 'Add_project' %}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Add Project</a></div></div>
+<div class="card register-shell"><div class="card-body">
+  <form method="post" action="/WMS/search_allprjtsac/" class="row g-2 align-items-end mb-4">{% csrf_token %}<div class="col-lg-5"><label class="form-label">Search projects</label><input type="search" name="text" class="form-control" placeholder="Project, client or number"></div><div class="col-sm-4 col-lg-2"><label class="form-label">From</label><input type="date" name="from" class="form-control"></div><div class="col-sm-4 col-lg-2"><label class="form-label">To</label><input type="date" name="to" class="form-control"></div><div class="col-sm-4 col-lg-3 d-flex gap-2"><button name="button" value="Search" class="btn btn-outline-primary flex-fill"><i class="bi bi-search"></i> Search</button><button name="button" value="Go" class="btn btn-outline-secondary flex-fill">Date filter</button></div></form>
+  <div class="table-responsive"><table class="table table-hover project-register mb-0"><thead><tr><th>Project</th><th>Client</th><th>Project Manager</th><th>Progress</th><th>Handover</th><th>Health</th><th>Contract Value</th><th>Outstanding</th><th></th></tr></thead><tbody>{% for item in data %}<tr><td><strong>{{ item.project_name }}</strong><div class="small text-muted">{{ item.project_no }} · {{ item.project_type|default:'Project' }}</div></td><td>{{ item.client_name }}<div class="small text-muted">{{ item.place }}</div></td><td>{{ item.control.managers|join:', '|default:'Not assigned' }}</td><td><div class="d-flex justify-content-between small"><span>{{ item.control.progress }}%</span></div><div class="progress"><div class="progress-bar" style="width:{{ item.control.progress }}%"></div></div></td><td>{{ item.handout_date }}{% if item.control.days_remaining != None %}<div class="small text-muted">{{ item.control.days_remaining }} days</div>{% endif %}</td><td><span class="badge bg-{{ item.control.health_class }}">{{ item.control.health }}</span>{% if item.control.overdue_activities %}<div class="small text-danger">{{ item.control.overdue_activities }} overdue</div>{% endif %}</td><td>QAR {{ item.control.project_value|floatformat:2 }}</td><td>QAR {{ item.control.outstanding|floatformat:2 }}</td><td><a href="{% url 'View_projects_functionsac' item.id %}" class="btn btn-sm btn-outline-primary text-nowrap">Open Workspace</a></td></tr>{% empty %}<tr><td colspan="9" class="text-center text-muted py-5">No projects match this view.</td></tr>{% endfor %}</tbody></table></div>
+</div></div>
 {% endblock %}

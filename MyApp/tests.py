@@ -1323,6 +1323,7 @@ class BulkPlanningTests(TestCase):
             response, reverse('View_work', args=(self.target.pk,)), fetch_redirect_response=False
         )
         self.assertEqual(work.objects.filter(PROJECT=self.target).count(), 2)
+
         self.assertEqual(schedule.objects.filter(PROJECT=self.target).count(), 0)
         self.assertEqual(work_progress.objects.filter(PROJECT=self.target).count(), 0)
 
@@ -1339,6 +1340,18 @@ class BulkPlanningTests(TestCase):
         )
         self.assertEqual(schedule.objects.filter(PROJECT=self.target).count(), 2)
         self.assertEqual(work_progress.objects.filter(PROJECT=self.target).count(), 2)
+
+    def test_project_manager_workspace_and_assigned_project_filters_render(self):
+        self.target.status = 'ongoing'
+        self.target.save(update_fields=('status',))
+        workspace = self.client.get(reverse('View_projects_functionspm', args=(self.target.pk,)))
+        self.assertEqual(workspace.status_code, 200)
+        self.assertContains(workspace, 'Project Control Modules')
+        filtered = self.client.post(reverse('search_aspp'), {
+            'button': 'Search', 'text': 'Target Project', 'from': '', 'to': '',
+        })
+        self.assertEqual(filtered.status_code, 200)
+        self.assertContains(filtered, 'Target Project')
 
     def test_bulk_schedule_is_atomic_when_any_date_is_invalid(self):
         rows = [

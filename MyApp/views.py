@@ -7,6 +7,7 @@ from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.password_validation import validate_password
 from django.contrib import messages
 from django.db import IntegrityError, transaction as db_transaction
+from django.db.models import Q
 from django.views.decorators.http import require_GET, require_POST
 from io import BytesIO
 from itertools import zip_longest
@@ -15,6 +16,7 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 import time
 import re
+from types import SimpleNamespace
 from MyApp.middleware import legacy_role_required
 from MyApp.boq_tools import (
     BOQImportError,
@@ -2355,19 +2357,35 @@ def Upload_drawings_post(request):
     return HttpResponse("<script>alert('Added Succesfully');window.location='/WMS/View_uploaded_drawings/"+id+"#myid'</script>")
 
 def View_assigned_projects(request):
-    res=project_manager_allocation.objects.filter(STAFF=request.session["sid"])
+    res=project_manager_allocation.objects.filter(STAFF=request.session["sid"]).select_related('PROJECT')
     return render(request, 'Project Manager/View Assigned Projects.html',{'data':res})
 
 def search_aspp(request):
-    button=request.POST['button']
+    button=request.POST.get('button', 'Search')
+    base = project_manager_allocation.objects.filter(
+        STAFF=request.session.get('sid'),
+    ).select_related('PROJECT')
     if button == 'Search':
-        txt=request.POST['text']
-        res = project_manager_allocation.objects.filter(STAFF=request.session["sid"],PROJECT__project_name__icontains=txt)
+        txt=request.POST.get('text', '').strip()
+        if txt:
+            base = base.filter(
+                Q(PROJECT__project_name__icontains=txt)
+                | Q(PROJECT__project_no__icontains=txt)
+                | Q(PROJECT__client_name__icontains=txt)
+                | Q(PROJECT__place__icontains=txt)
+            )
+        res = base
         return render(request, 'Project Manager/View Assigned Projects.html', {'data': res})
     else:
-        frm=request.POST['from']
-        to=request.POST['to']
-        res = project_manager_allocation.objects.filter(STAFF=request.session["sid"],PROJECT__date__range=[frm,to])
+        frm=request.POST.get('from', '').strip()
+        to=request.POST.get('to', '').strip()
+        if frm and to:
+            base = base.filter(PROJECT__date__range=[frm, to])
+        elif frm:
+            base = base.filter(PROJECT__date__gte=frm)
+        elif to:
+            base = base.filter(PROJECT__date__lte=to)
+        res = base
         return render(request, 'Project Manager/View Assigned Projects.html', {'data': res})
 
 def View_completed_projectspm(request):
@@ -2579,8 +2597,16 @@ def View_projects_functionspm(request,id):
     )
     selected = allocation.PROJECT
     summary = _project_control_rows([selected])[0].control
+    workspace = SimpleNamespace(
+        PROJECT=selected,
+        id=selected.id,
+        project_name=selected.project_name,
+        project_no=selected.project_no,
+        client_name=selected.client_name,
+        place=selected.place,
+    )
     return render(request, 'Project Manager/View Ongoing Projects Functions.html', {
-        'data': selected, 'allocation': allocation, 'project_summary': summary,
+        'data': workspace, 'allocation': allocation, 'project_summary': summary,
     })
 
 def View_pending_materials_request(request,id):

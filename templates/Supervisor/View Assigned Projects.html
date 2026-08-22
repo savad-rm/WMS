@@ -55,7 +55,7 @@
       <td>{{ i.PROJECT.description }}</td>
       <td>{{ i.PROJECT.estimate_status }}</td>
       <td>{{ i.PROJECT.status }}</td>
-      <td><a href="#">View More</a></td>
+      <td><a href="{% url 'View_projects_functionsp' i.PROJECT.id %}" class="btn btn-sm btn-outline-primary">Open Workspace</a></td>
     </tr>
       {% endfor %}
   </tbody>

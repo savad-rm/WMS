@@ -993,7 +993,7 @@ textarea {
 
 .dashboard .recent-sales .table thead,
 .dashboard .top-selling .table thead {
-  background: linear-gradient(135deg, #00a0dc 0%, #0d6efd 100%);
+  background: #00a0dc;
 }
 
 .dashboard .recent-sales .table thead th,
@@ -1011,7 +1011,7 @@ textarea {
 }
 
 .table thead th {
-  background: linear-gradient(135deg, #00a0dc 0%, #0d6efd 100%);
+  background: #00a0dc;
   color: #fff;
   font-weight: 700;
   border: none;

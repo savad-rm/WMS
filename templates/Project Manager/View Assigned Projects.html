@@ -1,5 +1,10 @@
 {% extends "Project Manager/pmindex.html" %}
 {% block body %}
+<style>
+  .project-register thead th { background:#00a0dc; color:#fff; border:0; white-space:nowrap; }
+  .project-register td { vertical-align:middle; }
+  .project-register .action-cell { white-space:nowrap; }
+</style>
 <section class="section">
   <div class="card">
     <div class="card-body">
@@ -33,7 +38,7 @@
         </div>
 
         <div class="table-responsive">
-          <table class="table align-middle mb-0">
+          <table class="table align-middle mb-0 project-register">
             <thead>
               <tr>
                 <th>Sl.No</th>
@@ -68,7 +73,7 @@
                   <td>{{ i.PROJECT.description }}</td>
                   <td>{{ i.PROJECT.estimate_status }}</td>
                   <td>{{ i.PROJECT.status }}</td>
-                  <td><a href="#" class="btn btn-sm btn-outline-primary">View More</a></td>
+                  <td class="action-cell"><a href="{% url 'View_projects_functionspm' i.PROJECT.id %}" class="btn btn-sm btn-outline-primary">Open Workspace</a></td>
                 </tr>
               {% empty %}
                 <tr><td colspan="14" class="text-center text-muted py-4">No assigned projects found.</td></tr>

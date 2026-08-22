@@ -1,9 +1,12 @@
 from functools import wraps
 import re
+import time
 
+from django.conf import settings
 from django.contrib import messages
 from django.http import HttpResponseForbidden
 from django.shortcuts import redirect
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from .models import login
@@ -34,12 +37,35 @@ class LegacySessionAuthenticationMiddleware:
             login_id = request.session.get('lid')
             if not login_id:
                 return redirect('login')
-            if not request.session.get('role'):
-                role = login.objects.filter(pk=login_id).values_list('usertype', flat=True).first()
-                if not role:
+            account = login.objects.filter(pk=login_id).only(
+                'usertype', 'api_token_version',
+            ).first()
+            if not account:
+                request.session.flush()
+                return redirect('login')
+            session_version = request.session.get('auth_version')
+            if session_version is None:
+                # Mark pre-versioned sessions on first use for compatibility.
+                request.session['auth_version'] = account.api_token_version
+            else:
+                try:
+                    version_matches = int(session_version) == account.api_token_version
+                except (TypeError, ValueError):
+                    version_matches = False
+                if not version_matches:
                     request.session.flush()
                     return redirect('login')
-                request.session['role'] = role
+            last_activity = request.session.get('last_activity')
+            try:
+                idle_seconds = time.time() - float(last_activity) if last_activity else 0
+            except (TypeError, ValueError):
+                idle_seconds = settings.WMS_SESSION_IDLE_TIMEOUT + 1
+            if idle_seconds > settings.WMS_SESSION_IDLE_TIMEOUT:
+                request.session.flush()
+                return redirect('login')
+            request.session['last_activity'] = timezone.now().timestamp()
+            if not request.session.get('role'):
+                request.session['role'] = account.usertype
         return self.get_response(request)
 
 

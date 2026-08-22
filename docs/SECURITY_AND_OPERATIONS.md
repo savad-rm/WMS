@@ -14,6 +14,22 @@
 - CAD streaming uses authenticated role checks and private/no-store caching.
 - Production settings reject a development secret or missing allowed hosts.
 
+## Web session lifecycle
+
+- Web sessions expire after 30 minutes of inactivity by default (`WMS_SESSION_IDLE_TIMEOUT`). The absolute cookie lifetime is 8 hours by default (`WMS_SESSION_COOKIE_AGE`). Both values are configurable per deployment.
+- `SESSION_EXPIRE_AT_BROWSER_CLOSE` is enabled by default so closing the browser removes the session cookie. A deployment may explicitly disable it only when its device/session policy requires persistent browser sessions.
+- Each web session stores the account's `api_token_version`. Password changes, administrator credential/role changes, mobile logout and other credential revocations increment that version. A session with an older version is rejected on its next request and redirected to login.
+- Login rotates the session identifier and clears any previous role/session data, preventing session fixation and cross-role session reuse.
+- The middleware checks the account, token version and idle timestamp before protected WMS views execute. Deleted accounts and malformed/stale session values are rejected without exposing a traceback.
+
+Recommended production values should be set through environment configuration, for example:
+
+```text
+WMS_SESSION_IDLE_TIMEOUT=1800
+WMS_SESSION_COOKIE_AGE=28800
+WMS_SESSION_EXPIRE_AT_BROWSER_CLOSE=true
+```
+
 ## Production requirements
 
 - HTTPS only; terminate TLS at a maintained reverse proxy and forward scheme safely.

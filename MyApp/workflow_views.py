@@ -782,16 +782,21 @@ def change_password(request):
         confirmation = request.POST.get('confirm_password', '')
         if not check_password(current_password, request.workflow_account.password):
             messages.error(request, 'The current password is incorrect.')
-        elif len(new_password) < 8:
-            messages.error(request, 'The new password must contain at least 8 characters.')
-        elif new_password != confirmation:
-            messages.error(request, 'The new password and confirmation do not match.')
         else:
-            request.workflow_account.password = make_password(new_password)
-            request.workflow_account.api_token_version += 1
-            request.workflow_account.save(update_fields=('password', 'api_token_version'))
-            messages.success(request, 'Password changed successfully.')
-            return redirect('workflow_profile')
+            try:
+                from django.contrib.auth.password_validation import validate_password
+                validate_password(new_password, request.workflow_account)
+                if new_password != confirmation:
+                    raise ValidationError('The new password and confirmation do not match.')
+            except ValidationError as exc:
+                messages.error(request, exc.messages[0])
+            else:
+                request.workflow_account.password = make_password(new_password)
+                request.workflow_account.api_token_version += 1
+                request.workflow_account.save(update_fields=('password', 'api_token_version'))
+                request.session.flush()
+                messages.success(request, 'Password changed successfully. Sign in again with your new password.')
+                return redirect('login')
     return _render(request, 'Workflow/change_password.html')
 
 

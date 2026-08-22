@@ -3,6 +3,8 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from django.contrib.auth.hashers import check_password, make_password
+from django.contrib.auth.password_validation import validate_password as validate_django_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.storage import default_storage
 from django.db import transaction
 from django.db.models import Max, Q
@@ -281,8 +283,10 @@ class MeView(APIView):
         new = str(request.data.get('new_password', ''))
         if not check_password(current, request.user.password):
             raise ValidationError({'current_password': ['The current password is incorrect.']})
-        if len(new) < 8:
-            raise ValidationError({'new_password': ['Use at least 8 characters.']})
+        try:
+            validate_django_password(new, request.user)
+        except DjangoValidationError as exc:
+            raise ValidationError({'new_password': exc.messages}) from exc
         request.user.password = make_password(new)
         request.user.api_token_version += 1
         request.user.save(update_fields=('password', 'api_token_version'))

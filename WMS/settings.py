@@ -37,8 +37,10 @@ ALLOWED_HOSTS = [
     if host.strip()
 ]
 
-if not DEBUG and SECRET_KEY == DEVELOPMENT_SECRET_KEY:
-    raise ImproperlyConfigured('Set WMS_SECRET_KEY before running with WMS_DEBUG=false.')
+if not DEBUG and (SECRET_KEY == DEVELOPMENT_SECRET_KEY or len(SECRET_KEY) < 50):
+    raise ImproperlyConfigured(
+        'Set WMS_SECRET_KEY to a long, random value before running with WMS_DEBUG=false.'
+    )
 if not DEBUG and not ALLOWED_HOSTS:
     raise ImproperlyConfigured('Set WMS_ALLOWED_HOSTS before running with WMS_DEBUG=false.')
 
@@ -213,6 +215,16 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 # Secure defaults for production; each option remains explicitly configurable.
 SESSION_COOKIE_SECURE = os.environ.get('WMS_SESSION_COOKIE_SECURE', str(not DEBUG)).lower() in ('1', 'true', 'yes')
 CSRF_COOKIE_SECURE = os.environ.get('WMS_CSRF_COOKIE_SECURE', str(not DEBUG)).lower() in ('1', 'true', 'yes')
+# Legacy WMS sessions are deliberately short-lived. The middleware enforces
+# idle expiry; the cookie age supplies an absolute upper bound.
+SESSION_COOKIE_AGE = int(os.environ.get('WMS_SESSION_COOKIE_AGE', str(8 * 60 * 60)))
+WMS_SESSION_IDLE_TIMEOUT = int(os.environ.get('WMS_SESSION_IDLE_TIMEOUT', str(30 * 60)))
+SESSION_EXPIRE_AT_BROWSER_CLOSE = os.environ.get(
+    'WMS_SESSION_EXPIRE_AT_BROWSER_CLOSE', 'true'
+).lower() in ('1', 'true', 'yes')
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
 SECURE_SSL_REDIRECT = os.environ.get('WMS_SECURE_SSL_REDIRECT', 'false').lower() in ('1', 'true', 'yes')
 SECURE_HSTS_SECONDS = int(os.environ.get('WMS_SECURE_HSTS_SECONDS', '0'))
 SECURE_HSTS_INCLUDE_SUBDOMAINS = SECURE_HSTS_SECONDS > 0

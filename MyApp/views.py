@@ -13,6 +13,7 @@ from itertools import zip_longest
 from collections import defaultdict
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+import time
 import re
 from MyApp.middleware import legacy_role_required
 from MyApp.boq_tools import (
@@ -257,14 +258,14 @@ def _change_session_password(request, failure_url):
     if not _password_matches(account, old):
         messages.error(request, 'The current password is incorrect.')
         return redirect(failure_url)
-    if len(new) < 8:
-        messages.error(request, 'The new password must contain at least 8 characters.')
-        return redirect(failure_url)
-    if new != confirm:
-        messages.error(request, 'The new password and confirmation do not match.')
+    try:
+        _validate_new_password(new, confirm)
+    except ValidationError as exc:
+        messages.error(request, exc.messages[0])
         return redirect(failure_url)
     account.password = make_password(new)
-    account.save(update_fields=('password',))
+    account.api_token_version += 1
+    account.save(update_fields=('password', 'api_token_version'))
     request.session.flush()
     messages.success(request, 'Password changed successfully. Sign in with your new password.')
     return redirect('login')
@@ -289,8 +290,11 @@ def login_post(request):
     if d.password == password:
         d.password = make_password(password)
         d.save(update_fields=('password',))
+    request.session.flush()
     request.session["lid"]=d.id
     request.session["role"]=d.usertype
+    request.session['auth_version'] = d.api_token_version
+    request.session['last_activity'] = time.time()
     s=staff.objects.filter(LOGIN=d).first()
     if s:
         request.session["sid"]=s.id
@@ -646,11 +650,17 @@ def Edit_staff_post(request):
     with db_transaction.atomic():
         staff.objects.filter(id=sid).update(**updates)
         account_updates = {'username': username, 'usertype': designation}
+        credentials_changed = (
+            bool(new_password)
+            or username.lower() != current_staff.LOGIN.username.lower()
+            or designation != current_staff.LOGIN.usertype
+        )
         if new_password:
-            account_updates.update({
-                'password': make_password(new_password),
-                'api_token_version': current_staff.LOGIN.api_token_version + 1,
-            })
+            account_updates['password'] = make_password(new_password)
+        if credentials_changed:
+            # Revoke web sessions and mobile tokens when an administrator
+            # changes credentials or the account's role, not only its password.
+            account_updates['api_token_version'] = current_staff.LOGIN.api_token_version + 1
         login.objects.filter(pk=current_staff.LOGIN_id).update(**account_updates)
     messages.success(request, 'Staff updated successfully.')
     return redirect('View_Staff')

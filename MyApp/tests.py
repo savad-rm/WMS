@@ -150,6 +150,28 @@ class WorkflowTests(TestCase):
         self.executive[0].refresh_from_db()
         self.assertTrue(check_password('test-password', self.executive[0].password))
 
+    def test_web_session_is_revoked_when_account_token_version_changes(self):
+        response = self.client.post(reverse('login_post'), {
+            'username': self.executive[0].username, 'password': 'test-password',
+        })
+        self.assertRedirects(response, reverse('workflow_dashboard'))
+        self.executive[0].refresh_from_db()
+        self.executive[0].api_token_version += 1
+        self.executive[0].save(update_fields=('api_token_version',))
+        response = self.client.get(reverse('workflow_dashboard'))
+        self.assertRedirects(response, reverse('login'), fetch_redirect_response=False)
+
+    def test_web_session_expires_after_idle_timeout(self):
+        response = self.client.post(reverse('login_post'), {
+            'username': self.executive[0].username, 'password': 'test-password',
+        })
+        self.assertRedirects(response, reverse('workflow_dashboard'))
+        session = self.client.session
+        session['last_activity'] = (timezone.now() - timedelta(hours=1)).timestamp()
+        session.save()
+        response = self.client.get(reverse('workflow_dashboard'))
+        self.assertRedirects(response, reverse('login'), fetch_redirect_response=False)
+
     def test_project_creation_with_zero_or_multiple_project_managers(self):
         """Multiple PMs leave assignment to the Operation Manager."""
         second_manager = self.create_user('Project Manager', 8)[1]

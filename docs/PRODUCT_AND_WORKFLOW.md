@@ -55,6 +55,65 @@ Draft quotations remain private to their estimator. Other roles cannot view, dow
 7. Accounting records payments and transactions.
 8. Operational and commercial closeout precedes completed status.
 
+### Updated project-control workflow
+
+The project lifecycle is now managed as a sequence of control gates. The Project Manager owns the overall result; each specialist owns the records and actions assigned to their role.
+
+```mermaid
+flowchart TD
+  A["Awarded quotation"] --> B["Accountant creates project"]
+  B --> C["Contract, scope and handover review"]
+  C --> D["Site survey and project programme"]
+  D --> E["Drawings, documents and material planning"]
+  E --> F["Approvals and procurement"]
+  F --> G["Site mobilisation and execution"]
+  G --> H["Progress, inspections and quality checks"]
+  H --> I["Snagging and rectification"]
+  I --> J["Client handover and final account"]
+  J --> K["Project closure"]
+```
+
+#### Control gates and ownership
+
+| Gate | Primary owner | Supporting roles | Current WMS controls |
+|---|---|---|---|
+| Project registration and handover | Accountant | PM, Estimator, Marketing | Awarded quotation transfer, project master, automatic PM assignment when one PM exists |
+| Contract and scope review | Project Manager | Engineer, Estimator, Accountant | Scope of work, estimate, project documents |
+| Programme and planning | Project Manager | Engineer, Supervisor, Foreman | Work schedule, start/finish dates, progress tracking |
+| Technical/document control | Project Engineer / Document Controller | PM, Purchaser | Drawings, uploaded documents, quotation/project document history |
+| Materials and procurement | Purchaser | PM, Engineer, Supervisor | Material list, material requests, issued materials, delivery records |
+| Site execution | Supervisor / Foreman | Engineer, PM | Work progress, worker reports, site photos, project chat |
+| Inspection and quality | Project Engineer | Supervisor, Document Controller | Inspection records and status tracking |
+| Commercial control | Estimator / Accountant | PM | Estimate, project value, payments, outstanding balance |
+| Handover and closure | Project Manager | Engineer, Document Controller, Accountant | Completion status, documents, payment and operational closeout |
+
+#### Operational rules
+
+- Every project action must be associated with a project, an owner, a status and (where applicable) a due date.
+- Only the current approved drawing or document revision should be used for execution. Superseded records remain available as history.
+- Material requests remain pending until an authorised project role approves, rejects or closes them.
+- Progress is calculated from recorded work-progress entries; schedule items that pass their planned date without completion are shown as overdue.
+- Project health is derived consistently across dashboards: `Completed`, `Delayed`, `At Risk`, or `On Track`.
+- Project dashboards show progress, handover timing, pending materials, overdue schedule activities, documents, project value, received payments and outstanding balance.
+- The Project Manager workspace is the operational hub. The Accountant has a consolidated project and financial view, while allocated operational roles remain restricted to their assigned projects.
+
+#### Dashboard interpretation
+
+The portfolio dashboard is intentionally action-oriented:
+
+- **Active projects**: all non-completed projects in the current portfolio.
+- **On track**: active projects without overdue work or immediate material/schedule risk.
+- **At risk**: projects with pending materials or handover within the configured warning window.
+- **Delayed**: projects with overdue schedule activities that are not completed.
+- **Outstanding**: project value less recorded payments, never below zero.
+- **Document count**: project documents, drawings and transferred project documents currently linked to the project.
+
+The same calculations are used in the Accountant register, Accountant project view and Project Manager dashboard so that a project does not display contradictory health or progress values in different screens.
+
+#### Planned control-register expansion
+
+The current application already provides the project, schedule, materials, documents, drawings, inspections, payments, progress, photos and communication controls listed above. The full business workflow also calls for dedicated registers for RFIs, material submittals, MIR/WIR approvals, correspondence, variations, meeting minutes, tasks, snags and handover checklists. These should be added as separate audited records with owner, due date, status, comments, attachments and notification history; they should not be overloaded into the existing generic document or remarks fields. The database change must be delivered through the project's SQL/Flyway process before those modules are enabled in production.
+
 ## Mobile navigation
 
 - **Home:** role metrics and recent projects.
